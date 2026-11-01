@@ -259,9 +259,10 @@ test('formatWatchText 带隔离工作区/隔离失败说明', () => {
 
 test('decodeBody：UTF-8 正常解，GBK 字节自动兜底', () => {
   const utf8 = Buffer.from('D:/中文路径/x', 'utf8')
-  assert.equal(decodeBody(utf8), 'D:/主工作区/x')
-  const gbk = Buffer.from([0x44, 0x3a, 0x2f, 0xd6, 0xf7, 0xb9, 0xa4, 0xd7, 0xf7, 0xc7, 0xf8]) // D:/主工作区 的 GBK 字节
-  assert.equal(decodeBody(gbk), 'D:/主工作区')
+  assert.equal(decodeBody(utf8), 'D:/中文路径/x')
+  // "D:/中文路径" 的 GBK 字节：中=D6D0 文=CEC4 路=C2B7 径=BEB6
+  const gbk = Buffer.from([0x44, 0x3a, 0x2f, 0xd6, 0xd0, 0xce, 0xc4, 0xc2, 0xb7, 0xbe, 0xb6])
+  assert.equal(decodeBody(gbk), 'D:/中文路径')
   assert.equal(decodeBody(Buffer.alloc(0)), '')
 })
 
