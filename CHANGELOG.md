@@ -2,6 +2,30 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.11] - 2026-11-02 —— 真机验证隔离执行 + watch_doctor
+
+### 验证（这轮真的在跑起来的宿主上做的）
+- **`watch_doctor` 真机输出**（此前只有单测）：
+  ```
+  OK   gh 登录：正常
+  OK   MYCF711/dsh-GOkifu-compact 可访问
+  WARN ack 标签「主理鱼:已处理」：不存在（首次 watch_ack 会自动创建）
+  OK   隔离工作目录 E:/temp/iso-smoke：是 git 仓库
+  INFO 运行中 · 上次轮询 … · 错误：wake failed: session not live
+  ```
+- **隔离执行 E2E**：建一条 `isolated:true` + `workdir` 的 watcher → 首轮 tick 真的建出
+  `.dsh-zhuli/MYCF711-dsh-GOkifu-compact-<id>` + 分支 `zhuli/<id>`，`/state.lastWorktree` 同步，
+  `history` 记下「本会唤醒 #4 #2 #3 #1」。
+
+### 修复
+- **会话已不存在时不再白建隔离区**：扫码阶段先查 `ctx.agents.get(sessionId)`，
+  没有会话就直接把 `lastError` 写成「会话已不在：请删除或重建这条主理鱼」并跳过本轮，
+  不再先 `git worktree add` 再 wake 失败（实测那条会留下一个永远用不上的 worktree）。
+- 测试现场已清理（worktree、`zhuli/*` 分支、临时仓库）。
+
+### 测试
+- 合计 **77 例**（本修复属运行时守卫，靠真机 E2E 验证）。
+
 ## [0.8.10] - 2026-11-02 —— 生产事故：新增文件没进 profile，插件整个不挂载
 
 ### 事故

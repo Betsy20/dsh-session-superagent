@@ -18,6 +18,7 @@
 | 过滤器 / 批量 / 每小时上限 / 失败退避 | `lib/watch.js` 纯函数 + `/watch` 路由 | `node --test`（`passesFilters` / `batchFresh` / `nextDelayMs` / `pruneWakeTimes`） |
 | 活跃时段（含跨夜） | `inActiveHours()` + pollOnce 时段闸 | `node --test`（普通/跨夜/空值/起止相同） |
 | 隔离执行 + 自动回收 | `worktreePlan` / `prepareIsolation` / `cleanupWorktrees` | 真机 `git worktree list` 出现 `.dsh-zhuli/<id>` |
+| `watch_doctor` / 隔离 E2E | 真机跑过：doctor 五项检查全出；`git worktree list` 出现 `.dsh-zhuli/<id>` + `zhuli/<id>` |
 | 幂等标记 | `watch_ack` 工具 + `hasAckLabel` | 打 `主理鱼:已处理` 标签后轮询跳过 |
 | 会话 goal（真 goal） | `ctx.goals` | 面板读写，5s 轮询 |
 | 凭证 | `~/.dsh/state/session-superagent/secrets.json` 0600 | 只回显掩码 |
