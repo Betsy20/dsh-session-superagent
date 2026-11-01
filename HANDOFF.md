@@ -69,7 +69,12 @@ profile 同步   = 相对 import 全部可解析
    宿主继续跑旧代码（2026-11-02 就踩到：回滚 `lib/index.js` 后 `--check` 立刻报断链）。
    凡是回滚或重写文件，之后补一次 `pnpm run sync:profile:repair`。
 
-10. **本地模拟 `apply()` 会写真实状态文件**：`server` 字段被模拟脚本的报错覆盖过
+10. **本地模拟 `apply()` 会写真实状态文件**：`state.server` 会被探针结果覆盖（2026-11-02 19:43
+    就被一条探针写成 `routes:5 failed:[duplicate client-error]`）。**任何** `node -e "apply(...)"`
+    这类探针都必须先 `process.env.DSH_SUPERAGENT_STATE = <临时目录>`；`preflight` 与三个测试文件
+    已经这么做了。看到 `server.failed` 里有东西时，先确认那条记录是不是自己刚跑的探针。
+
+11. **本地模拟 `apply()` 会写真实状态文件（重复条目，保留以免打乱编号）**：`server` 字段被模拟脚本的报错覆盖过
    （`webserver: duplicate exact route ...`）。写这类脚本必须先设 `DSH_SUPERAGENT_STATE` 指向临时目录，
    `scripts/smoke-observe.mjs` 就是这么做的。
 
