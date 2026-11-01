@@ -3,8 +3,8 @@
  *
  * 覆盖三件在 0.3.1 之前踩过的事：
  *   1. 组件真的被注册进槽位（不是"代码在、注册没跑"）；
- *   2. 无盯办时不占位（dock 行里不留死图标）；
- *   3. 卫星数 = 盯办数（上限 6），错误态进详情面板。
+ *   2. 无主理鱼时不占位（dock 行里不留死图标）；
+ *   3. 卫星数 = 主理鱼数（上限 6），错误态进详情面板。
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -112,7 +112,7 @@ const watcher = (repo, extra = {}) => ({
   ...extra,
 })
 
-test('client.js 注册盯办台与 composer dock 上的轨道环', () => {
+test('client.js 注册主理鱼与 composer dock 上的轨道环', () => {
   const { id, registrations } = loadClient()
   assert.equal(id, 'dsh-session-superagent')
   const names = registrations.map((r) => r.opts.name + '#' + r.opts.id)
@@ -124,18 +124,18 @@ test('client.js 注册盯办台与 composer dock 上的轨道环', () => {
   assert.ok(orbit.opts.order < 0, 'order 要是负数，才能排在 activity(0)/usage(1) 左边')
 })
 
-test('0 个盯办也占位：灰色空环、没有卫星、不转', () => {
+test('0 个主理鱼也占位：灰色空环、没有卫星、不转', () => {
   const { registrations, render } = loadClient()
   const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
   const tree = render(orbit, [[]])
-  assert.ok(tree, '0 盯办不该整条消失，否则看着像功能坏了')
+  assert.ok(tree, '0 主理鱼不该整条消失，否则看着像功能坏了')
   const nodes = walk(tree)
   const circles = nodes.filter((n) => n.type === 'circle')
   assert.equal(circles.length, 1, '只有一个环，没有卫星')
   assert.equal(circles[0].props.stroke, 'currentColor', '空态用继承色（灰）')
   assert.equal(circles[0].props.opacity, 0.38, '空态压暗')
   assert.equal(nodes.filter((n) => n.type === 'animateTransform' || n.type === 'animate').length, 0, '空态不该有动画')
-  assert.match(String(tree.props.title), /还没有在盯的项目/)
+  assert.match(String(tree.props.title), /还没有主理鱼/)
 })
 
 test('空态点开面板显示引导文案', () => {
@@ -145,13 +145,13 @@ test('空态点开面板显示引导文案', () => {
   const panel = nodes.find((n) => n.props && n.props.role === 'dialog')
   assert.ok(panel, '空态也要能展开面板')
   const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
-  assert.ok(text.includes('0 个'), text.slice(0, 120))
-  assert.ok(text.includes('盯办台') && text.includes('owner/name'), '空态要告诉人去哪加：' + text.slice(0, 120))
-  assert.ok(!text.includes('暂停'), '没有盯办时不该出现暂停/删除的说明')
+  assert.ok(text.includes('0 条'), text.slice(0, 120))
+  assert.ok(text.includes('主理鱼') && text.includes('owner/name'), '空态要告诉人去哪加：' + text.slice(0, 120))
+  assert.ok(!text.includes('暂停'), '没有主理鱼时不该出现暂停/删除的说明')
   assert.equal(panel.props.style.width, 252, '空态面板要比常规面板窄')
 })
 
-test('卫星数跟随盯办数，超过 6 个截断', () => {
+test('卫星数跟随主理鱼数，超过 6 个截断', () => {
   const { registrations, render } = loadClient()
   const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
   const circlesOf = (list) => walk(render(orbit, [list])).filter((n) => n.type === 'circle').length
@@ -160,7 +160,7 @@ test('卫星数跟随盯办数，超过 6 个截断', () => {
   assert.equal(circlesOf(['a/b', 'c/d', 'e/f', 'g/h', 'i/j', 'k/l', 'm/n'].map((r) => watcher(r))), 7, '最多 6 颗')
 })
 
-test('盯办中才转：靠 SVG 自带的 SMIL，不靠外部样式表', () => {
+test('主理中才转：靠 SVG 自带的 SMIL，不靠外部样式表', () => {
   const { registrations, render } = loadClient()
   const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
   const animsOf = (list) => {
@@ -170,11 +170,11 @@ test('盯办中才转：靠 SVG 自带的 SMIL，不靠外部样式表', () => {
   assert.equal(animsOf([watcher('a/b', { enabled: false })]).length, 0, '暂停不该转')
   assert.equal(animsOf([watcher('a/b', { lastError: 'boom' })]).length, 0, '异常不该转')
   const active = animsOf([watcher('a/b')])
-  assert.equal(active.length, 1, '盯办中必须有一个旋转动画')
+  assert.equal(active.length, 1, '主理中必须有一个旋转动画')
   assert.equal(active[0].props.type, 'rotate')
   assert.equal(active[0].props.from, '0 8 8', '旋转中心必须是环心')
   assert.equal(active[0].props.repeatCount, 'indefinite')
-  // 没有盯办时仍然渲染，只是灰环没卫星（见空态那条用例）
+  // 没有主理鱼时仍然渲染，只是灰环没卫星（见空态那条用例）
 })
 
 test('异常卫星呼吸、正常卫星不呼吸，环自己在呼吸', () => {
@@ -185,7 +185,7 @@ test('异常卫星呼吸、正常卫星不呼吸，环自己在呼吸', () => {
     .map((n) => n.props.dur)
   // 异常：只有红点呼吸（1.6s），环不呼吸（没有 active）
   assert.deepEqual(opacityDurs([watcher('a/b', { lastError: 'boom' })]), ['1.6s'])
-  // 正常盯办：只有环在呼吸（2.6s），点不呼吸
+  // 正常主理鱼：只有环在呼吸（2.6s），点不呼吸
   assert.deepEqual(opacityDurs([watcher('a/b')]), ['2.6s'])
   // 暂停：全静止
   assert.deepEqual(opacityDurs([watcher('a/b', { enabled: false })]), [])
@@ -195,7 +195,7 @@ test('点击展开的面板逐条列出仓库 / 会话 / 间隔 / 轮询 / 状�
   const { registrations, render } = loadClient()
   const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
   const list = [
-    watcher('a/b', { sessionId: 'session-1e82afca-8be2-42f9-8186-2bd274e30342', goal: { objective: '让盯办台实时同步 goal', phase: null, revision: 3 } }),
+    watcher('a/b', { sessionId: 'session-1e82afca-8be2-42f9-8186-2bd274e30342', goal: { objective: '让主理鱼实时同步 goal', phase: null, revision: 3 } }),
     watcher('c/d', { sessionId: 'session-7f7155cf-20f0-4d9a', lastError: 'HttpError: 401 bad credentials' }),
   ]
   const nodes = walk(render(orbit, [list, true, { x: 720, y: 860 }]))
@@ -205,17 +205,17 @@ test('点击展开的面板逐条列出仓库 / 会话 / 间隔 / 轮询 / 状�
   assert.equal(panel.props.style.width, 344)
   const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
   const needles = [
-    '盯办', '1/2 运行中', 'a/b', 'c/d', '盯办中', '异常', '每 30s', '401 bad credentials',
+    '主理鱼', '1/2 主理中', 'a/b', 'c/d', '主理中', '异常', '每 30s', '401 bad credentials',
     // 会话标题可能重名，所以每行必须带 8 位会话后缀
     '1e82afca', '7f7155cf',
     // 有 goal 的 superagent 要显示 goal 摘要
-    'goal · 让盯办台实时同步 goal',
+    'goal · 让主理鱼实时同步 goal',
   ]
   for (const needle of needles) assert.ok(text.includes(needle), '面板缺少「' + needle + '」：' + text.slice(0, 240))
   assert.ok(!text.includes('[object Object]'), 'goal 被当成对象直接拼进了文案')
 })
 
-test('状态栏面板每行都带暂停/删除，能直接关掉一个盯办', () => {
+test('状态栏面板每行都带暂停/删除，能直接关掉一个主理鱼', () => {
   const { registrations, render } = loadClient()
   const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
   const list = [watcher('a/b'), watcher('c/d', { enabled: false })]
@@ -228,7 +228,7 @@ test('状态栏面板每行都带暂停/删除，能直接关掉一个盯办', (
   assert.ok(labels.includes('删除'), '每行都要能删除：' + labels.join('|'))
 })
 
-test('盯办台表格有「操作」列，且暂停/恢复按状态切换', () => {
+test('主理鱼表格有「操作」列，且暂停/恢复按状态切换', () => {
   const { registrations, render } = loadClient()
   const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
   const snapshot = {
@@ -245,6 +245,6 @@ test('盯办台表格有「操作」列，且暂停/恢复按状态切换', () =
   const nodes = walk(render(desk, [snapshot, { repo: '', intervalSec: '60', goal: '' }, '', '', null, '', false]))
   const texts = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
   for (const needle of ['操作', '暂停', '恢复', '删除', '运行中', '已暂停']) {
-    assert.ok(texts.includes(needle), '盯办台缺少「' + needle + '」')
+    assert.ok(texts.includes(needle), '主理鱼缺少「' + needle + '」')
   }
 })

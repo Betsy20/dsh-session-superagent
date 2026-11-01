@@ -14,7 +14,7 @@
 | 能力 | 实现位置 | 验证证据 |
 |---|---|---|
 | 会话头部轨道点徽章（三态） | `client.js` → `conversation.session.header.actions` | `badge-registered ok` / `badge-state found:<repo>` |
-| 盯办台 tab | `client.js` → `conversation.view` | `desk-registered ok` |
+| 主理鱼 tab | `client.js` → `conversation.view` | `desk-registered ok` |
 | watcher 轮询 + 唤醒 | `lib/index.js` + `lib/watch.js` | `lastPoll` 持续更新；`followup` 唤醒实测成功 |
 | 会话 goal（真 goal） | `ctx.goals`（get/create/edit/clear） | 面板读写，5s 轮询同步 |
 | 凭证（token / SSH） | `~/.dsh/state/session-superagent/secrets.json` 0600 | 只回显掩码；`gh` 调用自动带 `GH_TOKEN` |
@@ -48,7 +48,7 @@
 
 | 项 | 状态 | 说明 |
 |---|---|---|
-| 徽章点击切换到盯办台 | 未做 | `conversation.view` 的切换 API 没找到；header actions 槽位只给 sessionId，不给 view 控制权 |
+| 徽章点击切换到主理鱼 | 未做 | `conversation.view` 的切换 API 没找到；header actions 槽位只给 sessionId，不给 view 控制权 |
 | 面板 goal 双向同步实测 | **未验证** | 代码已实现（`ctx.goals`），需要人工在 UI 里改 `/goal` 看面板是否 5s 内跟随 |
 | awesome-dsh-plugin 上架 | 待时间 | 仓库满 1 天门槛：最早 **2026-11-02T09:53Z（北京时间 17:53）**；材料见 `docs/awesome-submission.md` |
 | npm publish | 未做 | 需操作者登录 npm；能让 Discover 的 format-1 索引收录 |
