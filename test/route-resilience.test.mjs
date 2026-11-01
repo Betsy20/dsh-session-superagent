@@ -15,13 +15,13 @@ process.env.DSH_SUPERAGENT_NO_POLL = '1'
 
 const { apply } = await import('../lib/index.js')
 
-test('某条路由注册失败（重复路由）时，其余路由仍然可用', () => {
+test('某条路由重复时，整组换一个带序号的前缀重放（面板据此换前缀）', () => {
   const registered = []
   const ctx = {
     tools: { register() {} },
     webServer: {
       register(options) {
-        // 模拟宿主：第三条（client-error）已经存在 -> 抛重复路由
+        // 模拟宿主：默认前缀下的 client-error 已经被旧实例占了
         if (options.path === '/session-superagent/client-error') {
           throw new Error('webserver: duplicate exact route "' + options.path + '"')
         }
@@ -36,14 +36,16 @@ test('某条路由注册失败（重复路由）时，其余路由仍然可用',
   }
   apply(ctx)
 
-  assert.equal(registered.length, 5, '六条里应该成功 5 条')
-  assert.ok(!registered.includes('/session-superagent/client-error'))
-  assert.ok(registered.includes('/session-superagent/state'), '面板读数据的那条必须在')
+  const firstPass = registered.filter((p) => p.startsWith('/session-superagent/') && !p.includes('/r'))
+  const replay = registered.filter((p) => /\/session-superagent\/r\d+\//.test(p))
+  assert.ok(firstPass.length >= 1, '第一遍至少注册了前面几条')
+  assert.equal(replay.length, 6, '撞车后整组 6 条换新前缀重放')
+  assert.ok(replay.every((p) => p.includes('/r2/')), '前缀应该带序号')
+  assert.ok(replay.some((p) => p.endsWith('/state')), '新前缀下 /state 必须可用')
 
   const state = JSON.parse(readFileSync(join(STATE_DIR, 'watchers.json'), 'utf8'))
-  assert.ok(state.server, '应该记录一次挂载结果')
-  assert.equal(state.server.routes, 5)
-  assert.match(String((state.server.failed || []).join(' ')), /duplicate exact route/, '失败原因要留下来')
+  assert.equal(state.server.failed.length, 0, '重放成功后不该再有失败')
+  assert.match(String(state.server.base || ''), /\/r\d+$/, 'state 里要记下当前前缀')
 
   rmSync(STATE_DIR, { recursive: true, force: true })
 })

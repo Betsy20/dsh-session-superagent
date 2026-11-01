@@ -2,6 +2,26 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.32] - 2026-11-02 —— 热重载后整组换前缀，面板自己找得到
+
+### 背景（真机实测）
+宿主重载后，旧实例注册的 handler **摘不掉**（`webServer.register` 没有可靠的注销，属于宿主路由表行为）。
+结果：新实例注册 6 条全部撞车（`duplicate exact route`），HTTP 面永远是旧代码，
+从面板加的 watcher 一跑就报 `cannot get required service "agents" in inactive context`。
+唯一的解法以前是**整进程重启**。
+
+### 改法
+1. **服务端**：注册时如果出现重复，就换一个带序号的前缀（`/session-superagent/r2`、`/r3`…）
+   把 6 条**整组重放**，并在 `state.server.base` 与 `GET /state` 的 `routeBase` 里公布当前前缀。
+2. **客户端**：面板首次加载时依次探 `/session-superagent`、`/r2`…`/r8`，
+   认「`routeBase` 与请求前缀一致」的那个并切换 —— 老版本没有这个字段，行为不变。
+
+这样热重载之后面板会自动用上新代码，不用再重启进程。
+
+### 测试
+- 路由层用例改成断言「撞车后整组 6 条换到 `/r2` 重放、`state.server.failed` 清零、前缀被记下」。
+- 合计 **93 例**。
+
 ## [0.8.31] - 2026-11-02 —— 上下文已释放时，别再默默造一条死守
 
 0.8.30 之后真机仍在报 `inactive context`（`server.at` 已经更新到 20:08，说明新实例挂上了），

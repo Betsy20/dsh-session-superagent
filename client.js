@@ -14,8 +14,25 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.31'
-    const BASE = '/session-superagent'
+    const CLIENT_VERSION = '0.8.32'
+    let BASE = '/session-superagent'
+    /**
+     * 服务端热重载后旧 handler 摘不掉，会整组换到 `/session-superagent/rN` 重放。
+     * 这里逐个探一遍，认「routeBase 与请求前缀一致」的那个；老版本没有这个字段，就留在默认前缀。
+     */
+    async function discoverBase() {
+      const candidates = [BASE]
+      for (let i = 2; i <= 8; i += 1) candidates.push('/session-superagent/r' + i)
+      for (const base of candidates) {
+        try {
+          const res = await fetch(base + '/state', { headers: { accept: 'application/json' } })
+          if (!res.ok) continue
+          const body = await res.json()
+          if (body && body.routeBase === base) { BASE = base; return base }
+        } catch {}
+      }
+      return BASE
+    }
     const ENDPOINT = BASE + '/state'
     const POLL_MS = 5000
 
@@ -582,8 +599,13 @@ window.__ModuleLoader__.load({
       useEffect(() => {
         let alive = true
         let timer = null
+        let discovered = false
         const step = async () => {
           if (!alive) return
+          if (!discovered) {
+            discovered = true
+            try { await discoverBase() } catch {}
+          }
           const hidden = typeof document !== 'undefined' && document.hidden === true
           const delay = hidden ? intervalMs * 6 : intervalMs
           if (!busy.current) {
