@@ -4,8 +4,11 @@
 [![Version](https://img.shields.io/badge/version-0.3.6-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-plugin-orange.svg)](https://github.com/topics/dsh-plugin)
 
-> **一句话**：给一个 DSH 会话装上“盯仓库”的能力——仓库有新 issue/PR，会话自己醒过来，按你预先写好的规则处理。
-> 不需要独立实例、不需要 PTC 模式、不需要另建 agent 预设。
+> **一句话**：给一个 DSH 会话装上一套 **盯办** 能力——
+> **盯**：轮询仓库的 issue/PR，有动静就叫醒本会话；**办**：醒来后按仓库的 `AGENTS.md` 主动推进
+> （修 bug、回评论、开 PR、关单），不需要独立实例、PTC 模式或另建 agent 预设。
+>
+> 名字里的两半缺一不可：只「守」不「办」就是个通知器，只「办」不「守」就得靠人喊。
 
 ## 它做什么
 
