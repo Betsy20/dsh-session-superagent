@@ -53,6 +53,102 @@ window.__ModuleLoader__.load({
     const short = (value, width = 19) => (typeof value === 'string' && value.length > width ? value.slice(0, width - 1) + '…' : (value ?? '—'))
     const when = (iso) => (typeof iso === 'string' ? iso.replace('T', ' ').replace('Z', '').slice(5, 19) : '—')
 
+    // ── orbit badge: session header indicator ──────────────────────────────
+    // Static geometry, three states: green dot orbiting (watching), amber dot on
+    // a dashed ring (paused), red dot breathing (error). Icon only — the text
+    // lives in the native tooltip so it does not compete with the session title.
+    const ORBIT_CSS_ID = 'session-superagent-orbit-css'
+    const ORBIT_CSS = `
+      @keyframes sa-orbit-spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
+      @keyframes sa-orbit-breathe { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+      .sa-orbit-dot-spin { transform-origin: 8px 8px; animation: sa-orbit-spin 3s linear infinite }
+      .sa-orbit-dot-breathe { animation: sa-orbit-breathe 1.6s ease-in-out infinite }
+    `
+    function ensureOrbitCss() {
+      try {
+        if (document.getElementById(ORBIT_CSS_ID)) return
+        const style = document.createElement('style')
+        style.id = ORBIT_CSS_ID
+        style.textContent = ORBIT_CSS
+        document.head.appendChild(style)
+      } catch {}
+    }
+
+    function orbitState(w) {
+      if (!w) return null
+      if (w.lastError) return 'error'
+      return w.enabled ? 'active' : 'paused'
+    }
+
+    function OrbitIcon(props) {
+      ensureOrbitCss()
+      const color = props.state === 'active' ? '#3fb950' : props.state === 'paused' ? '#d29922' : '#f85149'
+      const dot = h('circle', {
+        cx: 8, cy: 2.4, r: 2.05, fill: color,
+        className: props.state === 'active' ? 'sa-orbit-dot-spin' : (props.state === 'error' ? 'sa-orbit-dot-breathe' : undefined),
+        style: props.state === 'active' ? { transformOrigin: '8px 8px' } : undefined,
+      })
+      const ring = props.state === 'paused'
+        ? h('circle', { cx: 8, cy: 8, r: 6.1, fill: 'none', stroke: color, strokeWidth: 1.1, strokeDasharray: '2.2 1.9', opacity: 0.9 })
+        : h('circle', { cx: 8, cy: 8, r: 6.1, fill: 'none', stroke: color, strokeWidth: 1.1, opacity: 0.9 })
+      return h('svg', { width: 16, height: 16, viewBox: '0 0 16 16', 'aria-hidden': 'true' }, ring, dot)
+    }
+
+    function OrbitBadge(props) {
+      const sessionId = props && props.sessionId
+      const [watcher, setWatcher] = useState(undefined) // undefined = loading, null = none
+
+      useEffect(() => {
+        let alive = true
+        const load = async () => {
+          try {
+            const body = await call('/state' + (sessionId ? '?sessionId=' + encodeURIComponent(sessionId) : ''))
+            const mine = (body.watchers || []).find((w) => w.sessionId === sessionId) || null
+            if (alive) setWatcher(mine)
+          } catch {
+            if (alive) setWatcher(null)
+          }
+        }
+        load()
+        const timer = setInterval(load, 5000)
+        return () => { alive = false; clearInterval(timer) }
+      }, [sessionId])
+
+      if (!watcher) return null
+      const state = orbitState(watcher)
+      const age = (iso) => {
+        if (typeof iso !== 'string') return '—'
+        const ms = Date.now() - Date.parse(iso)
+        if (!isFinite(ms) || ms < 0) return '—'
+        const s = Math.round(ms / 1000)
+        if (s < 90) return s + ' 秒前'
+        if (s < 5400) return Math.round(s / 60) + ' 分钟前'
+        return Math.round(s / 3600) + ' 小时前'
+      }
+      // Match the session list's native tooltip shape: name line, relative
+      // time line, state line. Nothing else — the panel carries the details.
+      const statusText = state === 'active' ? '值守中' : state === 'paused' ? '已暂停' : '有错误'
+      const lines = [
+        watcher.repo,
+        '每 ' + watcher.intervalSec + 's · 上次轮询 ' + age(watcher.lastPoll),
+        statusText + (watcher.lastError ? '（' + String(watcher.lastError).slice(0, 60) + '）' : ''),
+      ]
+
+      return h('button', {
+        type: 'button',
+        title: lines.join('\n'),
+        'aria-label': 'superagent 值守状态',
+        onClick: () => {
+          try { window.dispatchEvent(new CustomEvent('session-superagent:open-desk')) } catch {}
+        },
+        style: {
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          width: 24, height: 24, padding: 0, margin: '0 2px',
+          border: 'none', borderRadius: 6, background: 'transparent', cursor: 'pointer', color: 'inherit',
+        },
+      }, h(OrbitIcon, { state }))
+    }
+
     function Field(props) {
       return h('div', { style: S.field },
         h('span', { style: S.label }, props.label),
@@ -97,6 +193,12 @@ window.__ModuleLoader__.load({
         const timer = setInterval(load, POLL_MS)
         return () => clearInterval(timer)
       }, [load])
+
+      useEffect(() => {
+        const onOpen = () => { try { props && props.onOpen && props.onOpen() } catch {} }
+        window.addEventListener('session-superagent:open-desk', onOpen)
+        return () => window.removeEventListener('session-superagent:open-desk', onOpen)
+      }, [props])
 
       const watchers = (snapshot.body && snapshot.body.watchers) || []
       const creds = (snapshot.body && snapshot.body.credentials) || { token: 'none', sshKeyPath: 'none' }
