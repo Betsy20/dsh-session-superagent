@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
+import { decodeBody } from '../lib/body.js'
 import {
   advanceSeen, applyWatcherAction, batchFresh, decideWake, formatWatchText, newestUpdatedAt,
   hasAckLabel, nextDelayMs, normalizeFilters, partitionItems, passesFilters, pruneSeen, pruneWakeTimes,
@@ -251,4 +252,12 @@ test('formatWatchText 带隔离工作区/隔离失败说明', () => {
   assert.ok(bad.includes('【隔离失败】not a git repo'), bad)
   const plain = formatWatchText('o/r', one)
   assert.ok(!plain.includes('隔离'), '没有隔离选项时不该出现这段')
+})
+
+test('decodeBody：UTF-8 正常解，GBK 字节自动兜底', () => {
+  const utf8 = Buffer.from('D:/主工作区/x', 'utf8')
+  assert.equal(decodeBody(utf8), 'D:/主工作区/x')
+  const gbk = Buffer.from([0x44, 0x3a, 0x2f, 0xd6, 0xf7, 0xb9, 0xa4, 0xd7, 0xf7, 0xc7, 0xf8]) // D:/主工作区 的 GBK 字节
+  assert.equal(decodeBody(gbk), 'D:/主工作区')
+  assert.equal(decodeBody(Buffer.alloc(0)), '')
 })
