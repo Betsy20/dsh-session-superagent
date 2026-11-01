@@ -1,13 +1,13 @@
-# HANDOFF —— 会话交接（2026-11-01 22:45，v0.5.0）
+# HANDOFF —— 会话交接（2026-11-01 23:10，v0.7.1）
 
 > 写给**接手的下一个 agent / 下一个会话**。读完它 + `docs/competitive-analysis.md` + `docs/deepseek-papers.md`，就能接着干，不用翻聊天记录。
 
 ## 一、项目现状
 
 - 仓库：https://github.com/MYCF711/dsh-session-superagent
-- 版本：**v0.5.0**
+- 版本：**v0.7.1**
 - 本地：`D:\主工作区\projects\dsh-session-superagent`（profile 里以 `file:` 安装，**硬链接**：改源码即改 profile 内文件）
-- 真机：Windows 11 + DSH 0.2.1-rc.5，`node --test` **39/39**
+- 真机：Windows 11 + DSH 0.2.1-rc.5，`node --test` **49/49**
 
 | 能力 | 实现位置 | 验证方式 |
 |---|---|---|
@@ -15,6 +15,8 @@
 | 主理鱼 tab（增删/暂停/立刻跑/配过滤器/凭证/goal） | `client.js` → `conversation.view` | `desk-registered ok` |
 | 轮询 + 唤醒 | `lib/index.js` + `lib/watch.js` | `lastPoll` 前进；`followup` 唤醒 |
 | 过滤器 / 批量 / 每小时上限 / 失败退避 | `lib/watch.js` 纯函数 + `/watch` 路由 | `node --test`（`passesFilters` / `batchFresh` / `nextDelayMs` / `pruneWakeTimes`） |
+| 活跃时段（含跨夜） | `inActiveHours()` + pollOnce 时段闸 | `node --test`（普通/跨夜/空值/起止相同） |
+| 隔离执行 + 自动回收 | `worktreePlan` / `prepareIsolation` / `cleanupWorktrees` | 真机 `git worktree list` 出现 `.dsh-zhuli/<id>` |
 | 幂等标记 | `watch_ack` 工具 + `hasAckLabel` | 打 `主理鱼:已处理` 标签后轮询跳过 |
 | 会话 goal（真 goal） | `ctx.goals` | 面板读写，5s 轮询 |
 | 凭证 | `~/.dsh/state/session-superagent/secrets.json` 0600 | 只回显掩码 |
@@ -54,7 +56,7 @@
 
 ```bash
 cd /d/主工作区/projects/dsh-session-superagent
-node --test                        # 39 例
+node --test                        # 49 例
 node --check client.js lib/index.js lib/watch.js
 ls -li client.js "/d/DeepSeek Harness/home/profiles/desktop/node_modules/dsh-session-superagent/client.js"  # inode 必须相同
 ```

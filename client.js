@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.7.0'
+    const CLIENT_VERSION = '0.7.1'
     const BASE = '/session-superagent'
     const ENDPOINT = BASE + '/state'
     const POLL_MS = 5000
@@ -389,7 +389,7 @@ window.__ModuleLoader__.load({
     function DutyDesk(props) {
       const sessionId = props && props.sessionId
       const [snapshot, setSnapshot] = useState({ loading: true, body: null, error: null })
-      const [form, setForm] = useState({ repo: '', intervalSec: '60', goal: '', labels: '', onlyAssigned: false })
+      const [form, setForm] = useState({ repo: '', intervalSec: '60', goal: '', labels: '', onlyAssigned: false, activeHours: '', isolated: false, workdir: '' })
       const [token, setToken] = useState('')
       const [sshKeyPath, setSshKeyPath] = useState('')
       const [notice, setNotice] = useState(null)
@@ -479,9 +479,12 @@ window.__ModuleLoader__.load({
                 labels: String(form.labels || '').split(',').map((v) => v.trim()).filter(Boolean),
                 onlyAssigned: !!form.onlyAssigned,
               },
+              activeHours: form.activeHours || '',
+              isolated: !!form.isolated,
+              workdir: form.workdir || '',
             }),
           })
-          setForm({ repo: '', intervalSec: form.intervalSec, goal: '', labels: '', onlyAssigned: false })
+          setForm({ repo: '', intervalSec: form.intervalSec, goal: '', labels: '', onlyAssigned: false, activeHours: form.activeHours, isolated: form.isolated, workdir: form.workdir })
           setNotice({ ok: true, text: '已添加，30 秒内开始轮询' })
           load()
         } catch (error) {
@@ -587,6 +590,17 @@ window.__ModuleLoader__.load({
               onChange: (e) => setForm({ ...form, onlyAssigned: e.target.checked }),
             }),
             '只处理已指派给人的条目'),
+          h(Field, { label: '活跃时段', value: form.activeHours || '', onChange: (v) => setForm({ ...form, activeHours: v }), placeholder: '如 09:00-23:00，留空 = 全天' }),
+          h('label', { style: { ...S.sub, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' } },
+            h('input', {
+              type: 'checkbox',
+              checked: !!form.isolated,
+              onChange: (e) => setForm({ ...form, isolated: e.target.checked }),
+            }),
+            '隔离执行（每次唤醒开一次性 worktree，不动主工作区）'),
+          form.isolated
+            ? h(Field, { label: '隔离工作目录', value: form.workdir || '', onChange: (v) => setForm({ ...form, workdir: v }), placeholder: '留空 = 当前工作目录' })
+            : null,
           h('button', {
             style: S.button,
             onClick: addWatcher,
