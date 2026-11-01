@@ -492,8 +492,11 @@ window.__ModuleLoader__.load({
               ? ('已配置 ' + (creds.sshKeyHint || ''))
               : '未配置')),
           h(Field, { label: 'Token', value: token, onChange: setToken, type: 'password', placeholder: 'ghp_… 或 github_pat_…（留空不改）' }),
-          h(Field, { label: 'SSH 私钥', value: sshKeyPath, onChange: setSshKeyPath, placeholder: 'D:\keys\id_ed25519（绝对路径，留空不改）' }),
-          h('button', { style: S.button, onClick: saveCredentials }, '保存凭证')),
+          h(Field, { label: 'SSH 私钥', value: sshKeyPath, onChange: setSshKeyPath, placeholder: 'D:\\keys\\id_ed25519（绝对路径，留空不改）' }),
+          h('button', { style: S.button, onClick: saveCredentials }, '保存凭证'),
+          h('div', { style: { ...S.sub, marginTop: 8 } },
+            '不填也能用：插件直接复用已登录的 gh CLI（HTTPS）。'
+            + '只有想给 agent 单独一个 token / 走 SSH 推代码时才需要填这两项。')),
 
         h('div', { style: S.card },
           h('p', { style: S.cardTitle }, '新增值守'),
