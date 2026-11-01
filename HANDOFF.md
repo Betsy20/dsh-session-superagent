@@ -106,6 +106,22 @@ profile 同步   = 相对 import 全部可解析
 - 哨兵数据：`/session-superagent/state`（含 `server.at`、`client.note:client-version`、`gh`）。
 - **新增文件后必须 `pnpm run sync:profile`**，否则下次重启插件整体不挂载（2026-11-01 23:59 事故）。
 
+### UI 走查（真浏览器，2026-11-02 03:2x）
+
+用 `pnpm run preview` 生成静态预览，在 Chromium 里逐场景量：
+
+| 场景 | 横向溢出 | 越界元素 | 行 | 标签 | 按钮 |
+|---|---|---|---|---|---|
+| 总览 | 无 | 无 | 3 | 8 | 20 |
+| 判定 | 无 | 无 | 2 | 0 | 8 |
+| 触发 | 无 | 无 | — | — | 12（6 个输入框） |
+| 设置 | 无 | 无 | — | — | 10（1 个 textarea） |
+| Toast×2 | 无 | 无 | 3 | 8 | 20 |
+| 术语表 | 无 | 仅 fixed 遮罩（设计如此） | 3 | 8 | 21 |
+
+computed style 核对：模态 `fixed/inset:0`、宽 380 居中；Toast `fixed/top:40px/z:1100`、299×46 深底白字；
+标签 `success` 绿 / `warning` 琥珀；列表行 102–122px（三线结构）。
+
 ## 六、下一步（按性价比）
 
 | # | 项 | 说明 |
@@ -115,7 +131,7 @@ profile 同步   = 相对 import 全部可解析
 | 3 | 真实仓库的隔离闭环 | 用真会话 + `isolated:true` 跑一次唤醒，确认 agent 在 worktree 里干活 |
 | 4 | 仍未做的审核建议 | SegTabs 焦点跟随、Toast 顶部居中（内联容器已删但没用官方定位）、`/config` 与 `/state` 字段可再收敛 |
 
-## 五、验证清单（改完必跑）
+## 七、验证清单（改完必跑）
 
 ```bash
 cd /d/主工作区/projects/dsh-session-superagent
