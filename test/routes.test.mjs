@@ -208,6 +208,14 @@ test('编辑保存不会清空 goal、不会抹掉没暴露的 filters、isolate
   await call('POST', '/session-superagent/watch', { action: 'delete', id })
 })
 
+test('watch_doctor 会报告挂载状态（面板接口死没死）', async () => {
+  const tool = tools.find((t) => t.name === 'watch_doctor')
+  assert.ok(tool, '没注册 watch_doctor')
+  const text = String(await tool.execute({ repo: 'no-such-owner/no-such-repo-xyz' }))
+  assert.match(text, /面板接口挂载/, '必须有一行讲挂载状态')
+  assert.match(text, /6 条，无失败|部分失败|挂载：/, '挂载行要给出具体结论')
+})
+
 test('cleanup', () => {
   rmSync(STATE_DIR, { recursive: true, force: true })
 })

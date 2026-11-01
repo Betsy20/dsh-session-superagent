@@ -2,6 +2,24 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.29] - 2026-11-02 —— `watch_doctor` 现在会告诉你「面板接口死没死」
+
+这一轮的真机事故（重复路由 → 六条接口全灭）有个共同特征：**工具还是好的，只有面板挂了**。
+`watch_status` 看不出异常，用户只会觉得"面板空白"。而 `state.server` 里其实一直记着挂载结果。
+
+### 新增
+`watch_doctor` 第一行现在是挂载状态：
+
+```
+OK   面板接口挂载：6 条，无失败
+FAIL 面板接口挂载：webserver: duplicate exact route "/session-superagent/state"（工具仍可用，但面板会空白；重载一次即可）
+WARN 面板接口部分失败（5/6 成功）：…
+```
+
+### 测试
+- 新增用例：doctor 输出里必须有挂载状态行。合计 **91 例**。
+  （写这个用例时踩到一个小坑：`cleanup` 用例会删掉临时状态目录，doctor 用例必须排在它前面 —— 否则看到的是"没有挂载记录"。）
+
 ## [0.8.28] - 2026-11-02 —— 旧实例还在吃 HTTP 请求（面板建的 watcher 一开就废）
 
 ### 真机复验发现
