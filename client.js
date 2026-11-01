@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.3.8'
+    const CLIENT_VERSION = '0.3.9'
     const BASE = '/session-superagent'
     const ENDPOINT = BASE + '/state'
     const POLL_MS = 5000
@@ -73,7 +73,7 @@ window.__ModuleLoader__.load({
     }
 
     const SAT_COLOR = { active: '#3fb950', paused: '#d29922', error: '#f85149' }
-    const STATE_TEXT = { active: '值守中', paused: '已暂停', error: '异常' }
+    const STATE_TEXT = { active: '盯办中', paused: '已暂停', error: '异常' }
 
     /** 尊重系统的「减少动态效果」设置。 */
     const prefersReducedMotion = () => {
@@ -219,10 +219,10 @@ window.__ModuleLoader__.load({
       const running = list.filter((w) => orbitStateOf(w) === 'active').length
       const broken = list.filter((w) => orbitStateOf(w) === 'error').length
       const summary = list.length === 0
-        ? '会话级 superagent：还没有值守'
+        ? '还没有在盯的项目'
         : '会话级 superagent：' + running + ' 运行中'
           + (broken ? '，' + broken + ' 异常' : '')
-          + '（共 ' + list.length + ' 个值守）'
+          + '（共 ' + list.length + ' 个）'
 
       const toggle = () => {
         const el = btnRef.current
@@ -238,7 +238,7 @@ window.__ModuleLoader__.load({
         type: 'button',
         title: list.length
           ? list.map((w) => (w.repo + ' · ' + (w.title || '未命名会话') + ' · ' + sessionTag(w.sessionId) + ' · ' + STATE_TEXT[orbitStateOf(w)])).join('\n')
-          : '还没有值守 —— 打开「值守台」添加一个仓库',
+          : '还没有在盯的项目 —— 打开「盯办台」添加一个仓库',
         'aria-label': summary,
         'aria-expanded': open ? 'true' : 'false',
         onClick: toggle,
@@ -263,7 +263,7 @@ window.__ModuleLoader__.load({
       const act = async (w, action) => {
         if (action === 'delete') {
           const ok = typeof window !== 'undefined' && typeof window.confirm === 'function'
-            ? window.confirm('删除值守 ' + (w.repo || '') + '？')
+            ? window.confirm('删除盯办 ' + (w.repo || '') + '？')
             : true
           if (!ok) return
         }
@@ -318,16 +318,16 @@ window.__ModuleLoader__.load({
         },
       },
         h('div', { style: { display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 6 } },
-          h('span', { style: { fontWeight: 600, fontSize: 12.5 } }, '值守'),
+          h('span', { style: { fontWeight: 600, fontSize: 12.5 } }, '盯办'),
           h('span', { style: { opacity: 0.6 } }, list.length === 0 ? '0 个' : running + '/' + list.length + ' 运行中')),
         list.length === 0
           ? h('div', { style: { padding: '2px 0 4px', opacity: 0.7 } },
-            '在「值守台」填 owner/name 添加。')
+            '在「盯办台」填 owner/name 添加。')
           : null,
         ...rows,
         list.length > 0
           ? h('div', { style: { marginTop: 8, paddingTop: 8, borderTop: BORDER, opacity: 0.55 } },
-            '点「暂停 / 删除」直接停掉；「值守台」标签页可新增与配置凭证')
+            '点「暂停 / 删除」直接停掉；「盯办台」标签页可新增与配置凭证')
           : null)
 
       return h(React.Fragment, null, button, panel)
@@ -388,12 +388,12 @@ window.__ModuleLoader__.load({
       const creds = (snapshot.body && snapshot.body.credentials) || { token: 'none', sshKeyPath: 'none' }
       const active = watchers.filter((w) => w.enabled).length
 
-      // 暂停 / 恢复 / 删除一条值守。删除前问一句 —— 删掉后位图（seen 水位）也一起没。
+      // 暂停 / 恢复 / 删除一条盯办。删除前问一句 —— 删掉后位图（seen 水位）也一起没。
       const act = async (w, action) => {
         setNotice(null)
         if (action === 'delete') {
           const ok = typeof window !== 'undefined' && typeof window.confirm === 'function'
-            ? window.confirm('删除值守 ' + (w.repo || '') + '？（已读水位一起丢，重新加会重新报一遍历史动态）')
+            ? window.confirm('删除盯办 ' + (w.repo || '') + '？（已读水位一起丢，重新加会重新报一遍历史动态）')
             : true
           if (!ok) return
         }
@@ -461,11 +461,11 @@ window.__ModuleLoader__.load({
       const sessionGoal = snapshot.body && snapshot.body.sessionGoal
 
       return h('div', { style: S.wrap },
-        h('h3', { style: S.title }, '值守台'),
+        h('h3', { style: S.title }, '盯办台'),
         h('p', { style: S.sub },
           snapshot.loading ? '读取中…'
             : snapshot.error ? ('读取失败：' + snapshot.error)
-              : (active + ' 个值守运行中 · 共 ' + watchers.length + ' 条 · 每 ' + (POLL_MS / 1000) + 's 刷新')),
+              : (active + ' 个盯办运行中 · 共 ' + watchers.length + ' 条 · 每 ' + (POLL_MS / 1000) + 's 刷新')),
 
         notice && h('div', { style: notice.ok ? S.ok : S.err }, notice.text),
 
@@ -515,7 +515,7 @@ window.__ModuleLoader__.load({
             + '只有想给 agent 单独一个 token / 走 SSH 推代码时才需要填这两项。')),
 
         h('div', { style: S.card },
-          h('p', { style: S.cardTitle }, '新增值守'),
+          h('p', { style: S.cardTitle }, '新增盯办'),
           h(Field, { label: '仓库', value: form.repo, onChange: (v) => setForm({ ...form, repo: v }), placeholder: 'owner/name' }),
           h(Field, { label: '间隔(秒)', value: form.intervalSec, onChange: (v) => setForm({ ...form, intervalSec: v }), placeholder: '60' }),
           h(Field, { label: '目标/规则', value: form.goal, onChange: (v) => setForm({ ...form, goal: v }), placeholder: '可选，会附在唤醒消息里' }),
@@ -559,7 +559,7 @@ window.__ModuleLoader__.load({
             h('div', { key: 'err-' + w.repo, style: S.err }, w.repo + ': ' + w.lastError))),
 
         !snapshot.loading && watchers.length === 0 && h('div', { style: S.empty },
-          '还没有值守。上面填仓库名点“添加”，或在会话里说 watch_start({ repo: "owner/name" })。'),
+          '还没有盯办。上面填仓库名点“添加”，或在会话里说 watch_start({ repo: "owner/name" })。'),
 
         h('p', { style: S.foot }, '凭证只存在服务端并在调用时使用；本页只显示是否已配置，永不回显明文。'))
     }
@@ -571,7 +571,7 @@ window.__ModuleLoader__.load({
         try { note('apply', 'start') } catch {}
         try { fetch(BASE + '/client-hello').catch(() => {}) } catch {}
 
-        // ① the 值守台 tab in the centre-column view ring
+        // ① the 盯办台 tab in the centre-column view ring
         ctx.effect(() => {
           try {
             return ctx.slots.inject('conversation.view', () => {
@@ -579,7 +579,7 @@ window.__ModuleLoader__.load({
                 name: 'conversation.view',
                 id: 'session-superagent-desk',
                 order: 30,
-                label: '值守台',
+                label: '盯办台',
               }, DutyDesk)
               note('desk-registered', 'ok')
               return dispose
