@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { advanceSeen, decideWake, formatWatchText, newestUpdatedAt, splitFresh } from '../lib/watch.js'
+import { advanceSeen, decideWake, formatWatchText, newestUpdatedAt, recordReported, splitFresh } from '../lib/watch.js'
 
 const item = (number, updatedAt) => ({ number, updated_at: updatedAt, state: 'open', title: `t${number}`, html_url: `https://x/${number}`, user: { login: 'me' } })
 
@@ -51,4 +51,24 @@ test('newestUpdatedAt picks the newest timestamp', () => {
   const fresh = [item(1, '2026-01-01T00:00:00Z'), item(2, '2026-03-01T00:00:00Z')]
   assert.equal(newestUpdatedAt(fresh), '2026-03-01T00:00:00Z')
   assert.equal(newestUpdatedAt([]), null)
+})
+
+test('cooldown suppresses the churn that follows our own handling', () => {
+  const now = Date.parse('2026-01-01T00:00:30Z')
+  const items = [item(9, '2026-01-01T00:00:20Z')]
+  const state = { seen: { 9: '2026-01-01T00:00:10Z' }, lastReported: { 9: now - 20_000 } }
+  assert.equal(splitFresh(items, state, { now, cooldownMs: 180_000 }).length, 0)
+})
+
+test('after the cooldown a new update is reported again', () => {
+  const now = Date.parse('2026-01-01T00:10:00Z')
+  const items = [item(9, '2026-01-01T00:09:50Z')]
+  const state = { seen: { 9: '2026-01-01T00:09:40Z' }, lastReported: { 9: now - 200_000 } }
+  assert.equal(splitFresh(items, state, { now, cooldownMs: 180_000 }).length, 1)
+})
+
+test('recordReported stamps every reported item', () => {
+  const now = 1_700_000_000_000
+  const next = recordReported({ lastReported: { 1: 5 } }, [item(2, 'x')], now)
+  assert.deepEqual(next, { 1: 5, 2: now })
 })

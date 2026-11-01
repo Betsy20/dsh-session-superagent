@@ -2,6 +2,16 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.1.1] - 2026-11-01
+
+### 修复
+- **冷却窗口**：处理完某条 issue/PR 后，默认 180 秒内忽略它的再次变化。
+  原来只靠逐条水位，挡不住“回复完 → 关闭它”这类自己造成的后续 bump，会再唤醒一次。
+- 新增 `recordReported()` 与 `splitFresh(..., {now, cooldownMs})`，均有单测覆盖。
+
+### 测试
+- 18 项单测（原 15）。
+
 ## [0.1.0] - 2026-11-01
 
 ### 新增
