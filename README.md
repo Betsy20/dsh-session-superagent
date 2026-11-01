@@ -1,8 +1,8 @@
 # dsh-session-superagent
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.1.0-green.svg)](../../releases)
-[![dsh](https://img.shields.io/badge/DeepSeek%20Harness-plugin-orange.svg)](https://github.com/topic/dsh-plugin)
+[![Version](https://img.shields.io/badge/version-0.2.1-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
+[![dsh](https://img.shields.io/badge/DeepSeek%20Harness-plugin-orange.svg)](https://github.com/topics/dsh-plugin)
 
 > **一句话**：给一个 DSH 会话装上“盯仓库”的能力——仓库有新 issue/PR，会话自己醒过来，按你预先写好的规则处理。
 > 不需要独立实例、不需要 PTC 模式、不需要另建 agent 预设。
@@ -21,6 +21,12 @@
 GitHub 有新动态 → watcher 轮询 → Agent.followup(消息) → 会话跑一轮
                                      ↑ 空闲时才注入（避免污染输入框）
 ```
+
+## 环境要求
+
+- DSH ≥ 0.2.1-rc.5（`engines.dsh`）
+- Node ≥ 22.19（宿主自带）
+- 已登录的 `gh` CLI（插件复用它取凭证；**不会**把 token 交给模型）
 
 ## 安装
 
@@ -61,7 +67,7 @@ watch_start({ repo: "owner/name", intervalSec: 60 })
 ## 开发
 
 ```sh
-node --test          # 15 项单测
+node --test          # 20 项单测
 ```
 
 版本与发布流程见 [UPDATING.md](UPDATING.md)，交付门见 [CHECKLIST.md](CHECKLIST.md)，接手台账见 [MAINTENANCE.md](MAINTENANCE.md)。
