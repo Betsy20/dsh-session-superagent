@@ -7,7 +7,11 @@
 // 用法： node scripts/port-official-ui.mjs [官方包路径]
 import { readFileSync, writeFileSync } from 'node:fs'
 
-const OFFICIAL = process.argv[2] ?? 'D:/主工作区/projects/dsh-superagent-prototype/lib/client.js'
+const OFFICIAL = process.argv[2]
+if (!OFFICIAL) {
+  console.error('用法：node scripts/port-official-ui.mjs <官方 dsh-superagent 的 lib/client.js 路径>')
+  process.exit(1)
+}
 const TARGET = new URL('../client.js', import.meta.url)
 
 const official = readFileSync(OFFICIAL, 'utf8')

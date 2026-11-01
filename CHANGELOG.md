@@ -686,7 +686,7 @@ OK   .dsh-zhuli 下正好一个副本
 
 ### 修复
 - **中文路径被写成乱码**：Windows 下 argv 里的中文常是 GBK 字节，按 UTF-8 解得到一串 U+FFFD
-  （实测 `D:/主工作区/...` 存成 `D:/??????/...`，worktree 建不出来）。新增 `decodeBody()`：
+  （实测中文路径 `D:/某中文目录/...` 存成 `D:/??????/...`，worktree 建不出来）。新增 `decodeBody()`：
   UTF-8 解码出现替换字符就用 `TextDecoder('gbk')` 重解。
 - **同一个 watcher 并跑两轮**：首轮 tick 与手动「立刻」撞车会开两个隔离区。`entry.polling` 做并发闸，重复请求 409。
 - `/state` 补 `isolated` / `workdir` / `lastWorktree`。
