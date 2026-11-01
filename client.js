@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.15'
+    const CLIENT_VERSION = '0.8.16'
     const BASE = '/session-superagent'
     const ENDPOINT = BASE + '/state'
     const POLL_MS = 5000
@@ -614,8 +614,9 @@ window.__ModuleLoader__.load({
         className: cx('dt-toast', item.tone === 'error' && 'dt-danger'),
         role: 'status',
         'aria-live': 'polite',
+        // 官方 toast 是深底白字；错误态不要改成浅红底（白字会看不清），改用左侧红条标记
         style: item.tone === 'error'
-          ? { '--dt-toast-hold': '3600ms', background: 'color-mix(in srgb, #f85149 14%, var(--dsw-alias-bg-layer-1, #fff))' }
+          ? { '--dt-toast-hold': '3600ms', borderLeft: '3px solid #f85149' }
           : { '--dt-toast-hold': '3600ms' },
       }, item.text)
       return [view, notify]

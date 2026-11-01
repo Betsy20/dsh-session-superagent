@@ -3,3 +3,6 @@ node_modules/
 .DS_Store
 tmp/
 *.tgz
+
+# 本地预览产物（node scripts/render-preview.mjs 生成）
+preview-panel.html

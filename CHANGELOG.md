@@ -2,6 +2,34 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.16] - 2026-11-02 —— 第一次在真浏览器里看面板，抓到一个对比度问题
+
+宿主的 web 界面有鉴权（`dsh web authentication required`），ego 浏览器过不去，所以搭了个
+**静态预览**：`scripts/render-preview.mjs` 用极简假 React 把真实 `client.js` 的组件渲染成 DOM，
+内联移植来的官方 CSS，六个场景（总览/判定/触发/设置/术语表/两种 Toast）一起看。
+
+### 修复（真浏览器里发现的）
+- **错误 Toast 白字看不清**：0.8.12 给错误态加了「浅红底」，而官方 toast 是深底白字——
+  白字压在浅粉上对比度极低。现在保留官方深底，改用**左侧红条**标记错误。
+
+### 验证（在 Chromium 里读 computed style，不是猜）
+```
+模态框   position:fixed; inset:0，宽度 380 居中        ← 「弹层掉到页面底部」的 bug 确认已修
+Toast    position:fixed; top:40px; z-index:1100; 299×46 深底白字
+错误态   背景 #24292f / 白字 / 左边框 #f85149
+标签     success 绿底绿字、warning 琥珀底琥珀字（tone 与 CSS 对得上）
+列表行   高 102–122px（三线结构：标题 / meta / 操作）
+```
+
+顺带搞清了 `dt-tag` 的颜色依赖 `--dsw-alias-state-{success,warn,error,info}-primary` 这几个 token
+（之前预览里缺，标签看着是裸文字——这和审核第二轮发现的「状态色全丢」是同一个根因）。
+
+### 工具
+- `pnpm run preview` 生成 `preview-panel.html`（已加进 .gitignore，不进仓库/不发包）。
+
+### 测试
+- 合计 **81 例**（本次是样式与渲染层修复，靠真浏览器核对）。
+
 ## [0.8.15] - 2026-11-02 —— sync-profile 支持修复断链（事故 1 的第二种形态）
 
 ### 修什么
