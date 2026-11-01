@@ -2,6 +2,22 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.7.4] - 2026-11-01
+
+### 新增
+- **路由层单测**（`test/routes.test.mjs`，7 例）：此前 HTTP 路由是 0 覆盖，全靠真机 curl 手测。
+  现在用假 `ctx` 捕获 `apply()` 注册的工具与路由，再用假 req/res 跑完整链路：
+  建 watcher → `/state` 查 → pause → resume → delete、非法 action、未知 id、405、探针写入。
+- 两个测试隔离用开关（也是实用功能）：
+  - `DSH_SUPERAGENT_STATE` 覆盖状态目录（默认 `~/.dsh/state/session-superagent`）；
+  - `DSH_SUPERAGENT_NO_POLL=1` 只登记 watcher 不轮询。
+
+### 变更
+- watcher 的 `setInterval` 加 `unref()`，测试进程不会被定时器吊住（宿主不受影响）。
+
+### 测试
+- 合计 **61 例**。
+
 ## [0.7.3] - 2026-11-01
 
 ### 修复

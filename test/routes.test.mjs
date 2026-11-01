@@ -1,0 +1,165 @@
+// 路由层单测：之前 0 覆盖，全靠真机 curl 手测。
+// 用环境变量把状态目录指到临时目录，并把轮询关掉，避免打到真 GitHub。
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import test from 'node:test'
+import assert from 'node:assert/strict'
+
+const STATE_DIR = mkdtempSync(join(tmpdir(), 'superagent-routes-'))
+process.env.DSH_SUPERAGENT_STATE = STATE_DIR
+process.env.DSH_SUPERAGENT_NO_POLL = '1'
+
+const { apply } = await import('../lib/index.js')
+
+const tools = []
+const routes = new Map()
+
+const ctx = {
+  tools: { register: (tool) => tools.push(tool) },
+  webServer: {
+    register: (route) => {
+      routes.set(route.path, route)
+      return () => {}
+    },
+  },
+  agents: { currentInitiator: () => ({ id: 'session-test' }), get: () => null },
+  get: () => null,
+  effect: (fn) => fn(),
+  inject: () => {},
+}
+
+apply(ctx)
+
+/** 造一个够用的 req：readBody 只用到 on('data') / on('end')。 */
+function makeReq(method, url, body) {
+  const handlers = {}
+  const req = {
+    method,
+    url,
+    on(event, cb) {
+      ;(handlers[event] ||= []).push(cb)
+      return req
+    },
+    destroy() {},
+  }
+  queueMicrotask(() => {
+    if (body !== undefined) for (const cb of handlers.data || []) cb(Buffer.from(body))
+    for (const cb of handlers.end || []) cb()
+  })
+  return req
+}
+
+function makeRes() {
+  return {
+    statusCode: 200,
+    headers: {},
+    chunks: [],
+    setHeader(k, v) {
+      this.headers[k] = v
+    },
+    end(chunk) {
+      if (chunk !== undefined) this.chunks.push(chunk)
+    },
+    get body() {
+      return this.chunks.join('')
+    },
+    json() {
+      return JSON.parse(this.body)
+    },
+  }
+}
+
+async function call(method, path, body) {
+  const route = routes.get(path.split('?')[0])
+  assert.ok(route, '路由不存在：' + path.split('?')[0])
+  const res = makeRes()
+  await route.handler(makeReq(method, path, body === undefined ? undefined : JSON.stringify(body)), res)
+  return res
+}
+
+test('注册了预期的工具与路由', () => {
+  const names = tools.map((t) => t.name).sort()
+  for (const want of ['github', 'repo_here', 'watch_ack', 'watch_doctor', 'watch_start', 'watch_status', 'watch_stop']) {
+    assert.ok(names.includes(want), '缺工具 ' + want + '（实际：' + names.join(',') + '）')
+  }
+  for (const want of ['/session-superagent/state', '/session-superagent/watch', '/session-superagent/client-note']) {
+    assert.ok(routes.has(want), '缺路由 ' + want)
+  }
+})
+
+test('POST /watch：缺 repo 或 sessionId 都拒绝', async () => {
+  const bad = await call('POST', '/session-superagent/watch', { sessionId: 's1' })
+  assert.equal(bad.statusCode, 400)
+  assert.match(bad.json().error, /repo/)
+
+  const bad2 = await call('POST', '/session-superagent/watch', { repo: 'o/r' })
+  assert.equal(bad2.statusCode, 400)
+  assert.match(bad2.json().error, /sessionId/)
+})
+
+test('建 → 查 → 暂停 → 恢复 → 删，全链路', async () => {
+  const created = await call('POST', '/session-superagent/watch', {
+    repo: 'o/r',
+    sessionId: 's1',
+    intervalSec: 30,
+    filters: { labels: ['ai-fix'] },
+    batchLimit: 2,
+    maxWakesPerHour: 3,
+    activeHours: '09:00-23:00',
+  })
+  assert.equal(created.statusCode, 200)
+  const id = created.json().id
+  assert.equal(id, 'o/r#s1')
+
+  const state = (await call('GET', '/session-superagent/state')).json()
+  assert.equal(state.watchers.length, 1)
+  const w = state.watchers[0]
+  assert.equal(w.id, id)
+  assert.deepEqual(w.filters.labels, ['ai-fix'])
+  assert.equal(w.batchLimit, 2)
+  assert.equal(w.maxWakesPerHour, 3)
+  assert.equal(w.activeHours, '09:00-23:00')
+  assert.equal(w.enabled, true)
+
+  const paused = (await call('POST', '/session-superagent/watch', { action: 'pause', id })).json()
+  assert.equal(paused.enabled, false)
+  assert.equal((await call('GET', '/session-superagent/state')).json().watchers[0].enabled, false)
+
+  const resumed = (await call('POST', '/session-superagent/watch', { action: 'resume', id })).json()
+  assert.equal(resumed.enabled, true)
+
+  const deleted = (await call('POST', '/session-superagent/watch', { action: 'delete', id })).json()
+  assert.equal(deleted.deleted, true)
+  assert.equal((await call('GET', '/session-superagent/state')).json().watchers.length, 0)
+})
+
+test('非法 action / 未知 id / 非 POST 都有明确响应', async () => {
+  const badAction = await call('POST', '/session-superagent/watch', { action: 'explode', id: 'x/y#z' })
+  assert.equal(badAction.statusCode, 400)
+
+  const unknown = await call('POST', '/session-superagent/watch', { action: 'pause', id: 'nope/nope#nope' })
+  assert.equal(unknown.statusCode, 400)
+
+  const pollUnknown = await call('POST', '/session-superagent/watch', { action: 'poll', id: 'nope/nope#nope' })
+  assert.equal(pollUnknown.statusCode, 404)
+
+  const getWatch = await call('GET', '/session-superagent/watch')
+  assert.equal(getWatch.statusCode, 405)
+})
+
+test('client-note 写入探针且返回 204', async () => {
+  const res = await call('GET', '/session-superagent/client-note?key=client-version&value=9.9.9')
+  assert.equal(res.statusCode, 204)
+  // 探针写在状态文件里，不从 /state 返回
+  const raw = JSON.parse(readFileSync(join(STATE_DIR, 'watchers.json'), 'utf8'))
+  assert.equal(raw.client['note:client-version'].detail, '9.9.9')
+})
+
+test('未知路由不注册（不会误吞）', () => {
+  assert.equal(routes.has('/session-superagent/nope'), false)
+})
+
+test('cleanup', () => {
+  rmSync(STATE_DIR, { recursive: true, force: true })
+})
