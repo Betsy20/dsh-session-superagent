@@ -57,23 +57,6 @@ window.__ModuleLoader__.load({
     // Static geometry, three states: green dot orbiting (watching), amber dot on
     // a dashed ring (paused), red dot breathing (error). Icon only — the text
     // lives in the native tooltip so it does not compete with the session title.
-    const ORBIT_CSS_ID = 'session-superagent-orbit-css'
-    const ORBIT_CSS = `
-      @keyframes sa-orbit-spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
-      @keyframes sa-orbit-breathe { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
-      .sa-orbit-dot-spin { transform-origin: 8px 8px; animation: sa-orbit-spin 3s linear infinite }
-      .sa-orbit-dot-breathe { animation: sa-orbit-breathe 1.6s ease-in-out infinite }
-    `
-    function ensureOrbitCss() {
-      try {
-        if (document.getElementById(ORBIT_CSS_ID)) return
-        const style = document.createElement('style')
-        style.id = ORBIT_CSS_ID
-        style.textContent = ORBIT_CSS
-        document.head.appendChild(style)
-      } catch {}
-    }
-
     // ── status orbit: composer-dock indicator ─────────────────────────────
     // One ring for the whole machine. Every satellite on the ring is one
     // session-level superagent (a live watcher): green = watching, amber =
@@ -88,15 +71,22 @@ window.__ModuleLoader__.load({
     const SAT_COLOR = { active: '#3fb950', paused: '#d29922', error: '#f85149' }
     const STATE_TEXT = { active: '值守中', paused: '已暂停', error: '异常' }
 
+    /** 尊重系统的「减少动态效果」设置。 */
+    const prefersReducedMotion = () => {
+      try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches } catch { return false }
+    }
+
     function OrbitMark(props) {
-      ensureOrbitCss()
       const watchers = props.watchers || []
       const shown = watchers.slice(0, 6)
       const states = watchers.map(orbitStateOf)
+      const anyActive = states.indexOf('active') >= 0
       const ringColor = states.indexOf('error') >= 0
         ? SAT_COLOR.error
-        : states.indexOf('active') >= 0 ? SAT_COLOR.active : SAT_COLOR.paused
+        : anyActive ? SAT_COLOR.active : SAT_COLOR.paused
       const dashed = states.indexOf('paused') >= 0
+      const still = prefersReducedMotion()
+
       const dots = shown.map((w, i) => {
         const angle = (i / Math.max(shown.length, 1)) * Math.PI * 2 - Math.PI / 2
         const state = orbitStateOf(w)
@@ -106,15 +96,32 @@ window.__ModuleLoader__.load({
           cy: 8 + Math.sin(angle) * 6.1,
           r: shown.length > 3 ? 1.75 : 2.05,
           fill: SAT_COLOR[state],
-          className: state === 'error' ? 'sa-orbit-dot-breathe' : undefined,
-        })
+        }, state === 'error' && !still
+          ? h('animate', { attributeName: 'opacity', values: '1;.3;1', dur: '1.6s', repeatCount: 'indefinite' })
+          : null)
       })
-      return h('svg', { width: 16, height: 16, viewBox: '0 0 16 16', 'aria-hidden': 'true' },
+
+      // 动画用 SMIL 写进 SVG 本身：不依赖注入的 <style>，也不吃 CSP /
+      // transform-box 的差异；单独存成 .html 就能预览。
+      const spin = anyActive && !still
+        ? h('animateTransform', {
+          attributeName: 'transform', type: 'rotate',
+          from: '0 8 8', to: '360 8 8', dur: '6s', repeatCount: 'indefinite',
+        })
+        : null
+      const breathe = anyActive && !still
+        ? h('animate', { attributeName: 'opacity', values: '.95;.45;.95', dur: '2.6s', repeatCount: 'indefinite' })
+        : null
+
+      return h('svg', {
+        width: 16, height: 16, viewBox: '0 0 16 16', 'aria-hidden': 'true',
+        style: { overflow: 'visible' },
+      },
         h('circle', {
           cx: 8, cy: 8, r: 6.1, fill: 'none', stroke: ringColor, strokeWidth: 1.1,
           strokeDasharray: dashed ? '2.2 1.9' : undefined, opacity: 0.9,
-        }),
-        h('g', { className: states.indexOf('active') >= 0 ? 'sa-sat-spin' : undefined }, ...dots))
+        }, breathe),
+        h('g', null, spin, dots))
     }
 
     const notedOnce = new Set()

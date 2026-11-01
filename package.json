@@ -25,7 +25,8 @@
   },
   "scripts": {
     "test": "node --test",
-    "check": "node --test"
+    "check": "node --test",
+    "preview:orbit": "node scripts/preview-orbit.mjs"
   },
   "keywords": [
     "dsh",

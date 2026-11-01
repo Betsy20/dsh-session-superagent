@@ -139,13 +139,36 @@ test('卫星数跟随值守数，超过 6 个截断', () => {
   assert.equal(circlesOf(['a/b', 'c/d', 'e/f', 'g/h', 'i/j', 'k/l', 'm/n'].map((r) => watcher(r))), 7, '最多 6 颗')
 })
 
-test('值守中才转，暂停/异常不转也不丢', () => {
+test('值守中才转：靠 SVG 自带的 SMIL，不靠外部样式表', () => {
   const { registrations, render } = loadClient()
   const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
-  const spinOf = (list) => walk(render(orbit, [list])).find((n) => n.type === 'g')
-  assert.equal(spinOf([watcher('a/b', { enabled: false })]).props.className, undefined)
-  assert.equal(spinOf([watcher('a/b', { lastError: 'boom' })]).props.className, undefined)
-  assert.equal(spinOf([watcher('a/b')]).props.className, 'sa-sat-spin')
+  const animsOf = (list) => {
+    const group = walk(render(orbit, [list])).find((n) => n.type === 'g')
+    return (group.props.children || []).filter((c) => c && c.type === 'animateTransform')
+  }
+  assert.equal(animsOf([watcher('a/b', { enabled: false })]).length, 0, '暂停不该转')
+  assert.equal(animsOf([watcher('a/b', { lastError: 'boom' })]).length, 0, '异常不该转')
+  const active = animsOf([watcher('a/b')])
+  assert.equal(active.length, 1, '值守中必须有一个旋转动画')
+  assert.equal(active[0].props.type, 'rotate')
+  assert.equal(active[0].props.from, '0 8 8', '旋转中心必须是环心')
+  assert.equal(active[0].props.repeatCount, 'indefinite')
+  // 没有值守时整条不渲染，连 SVG 都没有（不是渲染一个静止的环）
+  assert.equal(render(orbit, [[]]), null)
+})
+
+test('异常卫星呼吸、正常卫星不呼吸，环自己在呼吸', () => {
+  const { registrations, render } = loadClient()
+  const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
+  const opacityDurs = (list) => walk(render(orbit, [list]))
+    .filter((n) => n.type === 'animate' && n.props.attributeName === 'opacity')
+    .map((n) => n.props.dur)
+  // 异常：只有红点呼吸（1.6s），环不呼吸（没有 active）
+  assert.deepEqual(opacityDurs([watcher('a/b', { lastError: 'boom' })]), ['1.6s'])
+  // 正常值守：只有环在呼吸（2.6s），点不呼吸
+  assert.deepEqual(opacityDurs([watcher('a/b')]), ['2.6s'])
+  // 暂停：全静止
+  assert.deepEqual(opacityDurs([watcher('a/b', { enabled: false })]), [])
 })
 
 test('点击展开的面板逐条列出仓库 / 会话 / 间隔 / 轮询 / 状态', () => {
