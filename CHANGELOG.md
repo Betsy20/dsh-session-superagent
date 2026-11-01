@@ -2,6 +2,27 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.10] - 2026-11-02 —— 生产事故：新增文件没进 profile，插件整个不挂载
+
+### 事故
+23:59 重启后，插件**完全没挂载**：`/session-superagent/*` 全部 404、`watch_*` 工具消失，
+但客户端 bundle 照常加载（`client-version 0.8.9` 正常），表面看起来"插件还在"。
+
+根因：profile 是 `file:` 安装，pnpm 只对**安装时已存在的文件**建硬链接。
+本次新增的 `lib/body.js` 不在 profile 的 `node_modules/dsh-session-superagent/lib/` 里，
+宿主 `import './body.js'` 直接 `ERR_MODULE_NOT_FOUND` → 整个插件加载失败。
+改内容会同步（同 inode），**加文件不会** —— 这是硬链接安装方式的隐性坑。
+
+### 修复
+- 新增 `scripts/sync-profile.mjs`：把运行时文件同步进 profile（缺的建硬链接、已存在的核对 inode），
+  并静态检查 `lib/` 里每个相对 import 都能解析到真实文件（这次事故的直接原因）。
+- `package.json` 加 `pnpm run sync:profile`。
+- 已手工补齐 `lib/body.js` 并调 `unlag` 刷新，插件当场重新挂载：`server.routes = 8`、
+  `/state` 与 `/config` 恢复 200、`gh` 健康字段返回 `gh version 2.101.0`。
+
+### 教训（已写进 HANDOFF 的坑列表）
+**新增文件后必须 `pnpm run sync:profile`**，否则下次重启插件会静默消失。
+
 ## [0.8.9] - 2026-11-01 —— 终审的两个阻塞项
 
 第三轮（发布门禁）审核指出 0.8.8 有两处必须修，都已修并补了能钉住它的测试：

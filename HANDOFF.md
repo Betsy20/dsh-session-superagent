@@ -34,7 +34,12 @@
    - **客户端 `client.js` 会热重载** —— 文件落盘后约 20 秒浏览器里自动换新（`/client-note?key=client-version` 可验证，无需重启、无需刷新）。
    - **服务端 `lib/` 改动必须重启宿主**（托盘退出→重开）。
    - 早先文档写的「客户端必须重启」是错的，已按实测更正。
-8. **`file:` 安装是硬链接**：`edit` 工具原子替换会**断链**；用 python in-place 写不会。断链后 `cp` 回 profile 并 `ln -f` 重建。
+8. **新增文件不会自动进 profile**（2026-11-01 23:59 事故）：`file:` 安装只对已有文件建硬链接，
+   新增的 `lib/body.js` 没进 `node_modules/…/lib/`，宿主 import 失败 → **插件整个不挂载**
+   （工具和路由全消失，客户端 bundle 却照常加载）。新增文件后必须 `pnpm run sync:profile`。
+   这是硬链接安装的隐性坑，比"改内容要重启"严重得多。
+
+9. **`file:` 安装是硬链接**：`edit` 工具原子替换会**断链**；用 python in-place 写不会。断链后 `cp` 回 profile 并 `ln -f` 重建。
 
 ## 三、踩过的坑（按代价排序）
 
@@ -59,5 +64,6 @@
 cd /d/主工作区/projects/dsh-session-superagent
 node --test                        # 77 例
 node --check client.js lib/index.js lib/watch.js
+node scripts/sync-profile.mjs     # 新增文件后必须跑：同步 + 相对 import 自检
 ls -li client.js "/d/DeepSeek Harness/home/profiles/desktop/node_modules/dsh-session-superagent/client.js"  # inode 必须相同
 ```
