@@ -2,6 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.8.11-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
+[![npm](https://img.shields.io/npm/v/dsh-session-superagent.svg)](https://www.npmjs.com/package/dsh-session-superagent)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-plugin-orange.svg)](https://github.com/topics/dsh-plugin)
 
 > **一句话**：给一个 DSH 会话装上一条 **主理鱼**——
@@ -50,17 +51,16 @@ GitHub 有新动态 → watcher 轮询 → Agent.followup(消息) → 会话跑�
 
 ## 安装
 
-```sh
-dsh plugin --profile <profile> add github:MYCF711/dsh-session-superagent
+```bash
+# 方式一：npm（已发布）
+npm i dsh-session-superagent
+
+# 方式二：从 GitHub 源码装（会跟踪 main）
+dsh plugin add https://github.com/MYCF711/dsh-session-superagent
 ```
 
-包会带 `cordis.patch.yml`（插入一个 tools-only 行），**不会**自动改你的 `bundles` 列表——那一步是操作者的动作。
-
-装完重启一次宿主，然后在任意会话里：
-
-```
-watch_start({ repo: "owner/name", intervalSec: 60 })
-```
+装进 profile 时是 `file:` 硬链接，改代码即改线上；**但新增文件不会被自动带过去**，
+加完文件要跑 `pnpm run sync:profile`（否则下次重启插件会整体不挂载，这坑踩过一次）。
 
 ## 一次真实运行长什么样
 
