@@ -1,0 +1,9 @@
+# dsh-session-superagent bundle layer.
+#
+# Inserts one tools-only plugin row at PROFILE scope: every session in the
+# profile can read GitHub, and a session that calls `watch_start` gets its own
+# watcher. The package never edits the profile's `bundles` list — that entry is
+# the operator's action (`dsh plugin --profile <name> add <this package>`).
+- insert:
+    - id: session-superagent
+      name: dsh-session-superagent
