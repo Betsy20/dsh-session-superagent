@@ -251,8 +251,10 @@ window.__ModuleLoader__.load({
 
       if (!open) return button
 
+      // 空态没什么内容，窄一点更像提示而不是一张空表格
+      const width = list.length === 0 ? 252 : PANEL_W
       const left = anchor
-        ? Math.max(8, Math.min(anchor.x - PANEL_W / 2, (window.innerWidth || 1200) - PANEL_W - 8))
+        ? Math.max(8, Math.min(anchor.x - width / 2, (window.innerWidth || 1200) - width - 8))
         : 8
       const bottom = anchor ? Math.max(8, (window.innerHeight || 800) - anchor.y + 8) : 64
 
@@ -304,7 +306,7 @@ window.__ModuleLoader__.load({
       const panel = h('div', {
         ref: panelRef, role: 'dialog', 'aria-label': summary,
         style: {
-          position: 'fixed', left, bottom, width: PANEL_W, zIndex: 2147483000,
+          position: 'fixed', left, bottom, width, zIndex: 2147483000,
           border: BORDER, borderRadius: 10,
           background: 'var(--dsw-alias-bg-base, canvas)',
           color: 'var(--dsw-alias-label-primary, inherit)',
@@ -317,12 +319,14 @@ window.__ModuleLoader__.load({
           h('span', { style: { fontWeight: 600, fontSize: 12.5 } }, '会话级 superagent'),
           h('span', { style: { opacity: 0.6 } }, list.length === 0 ? '0 个值守' : running + '/' + list.length + ' 运行中')),
         list.length === 0
-          ? h('div', { style: { padding: '8px 0 2px', opacity: 0.7 } },
-            '还没有值守。打开「值守台」标签页，填一个 owner/name 添加。')
+          ? h('div', { style: { padding: '2px 0 4px', opacity: 0.7 } },
+            '在「值守台」填 owner/name 添加。')
           : null,
         ...rows,
-        h('div', { style: { marginTop: 8, paddingTop: 8, borderTop: BORDER, opacity: 0.55 } },
-          '点「暂停 / 删除」直接停掉；「值守台」标签页可新增与配置凭证'))
+        list.length > 0
+          ? h('div', { style: { marginTop: 8, paddingTop: 8, borderTop: BORDER, opacity: 0.55 } },
+            '点「暂停 / 删除」直接停掉；「值守台」标签页可新增与配置凭证')
+          : null)
 
       return h(React.Fragment, null, button, panel)
     }

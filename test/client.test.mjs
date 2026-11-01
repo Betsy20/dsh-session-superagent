@@ -146,7 +146,9 @@ test('空态点开面板显示引导文案', () => {
   assert.ok(panel, '空态也要能展开面板')
   const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
   assert.ok(text.includes('0 个值守'), text.slice(0, 120))
-  assert.ok(text.includes('还没有值守'), text.slice(0, 120))
+  assert.ok(text.includes('值守台') && text.includes('owner/name'), '空态要告诉人去哪加：' + text.slice(0, 120))
+  assert.ok(!text.includes('暂停'), '没有值守时不该出现暂停/删除的说明')
+  assert.equal(panel.props.style.width, 252, '空态面板要比常规面板窄')
 })
 
 test('卫星数跟随值守数，超过 6 个截断', () => {
