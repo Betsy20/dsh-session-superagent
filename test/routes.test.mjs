@@ -233,3 +233,34 @@ test('面板可设限流：batchLimit / maxWakesPerHour 会被夹紧并回传', 
   assert.equal(watcher.maxWakesPerHour, 60, '每小时上限要夹到 1-60')
   await call('POST', '/session-superagent/watch', { action: 'delete', id: created.id })
 })
+
+test('watch_start 工具能配过滤/观察/限流，并夹紧取值', async () => {
+  const tool = tools.find((t) => t.name === 'watch_start')
+  assert.ok(tool, '没注册 watch_start')
+
+  const result = await tool.execute({
+    repo: 'o/tool', intervalSec: 5,
+    labels: ['ai-fix'], onlyAssigned: true, assignee: 'alice',
+    observe: true, goal: '把 widget 的 issue 都处理完',
+    batchLimit: 99, maxWakesPerHour: 0, activeHours: '09:00-23:00',
+  })
+  assert.match(String(result), /watching o\/tool/)
+
+  const raw = JSON.parse(readFileSync(join(STATE_DIR, 'watchers.json'), 'utf8'))
+  const entry = raw.watchers['o/tool#session-test']
+  assert.equal(entry.intervalSec, 30, 'intervalSec 要夹到最小 30 秒')
+  assert.deepEqual(entry.filters.labels, ['ai-fix'])
+  assert.equal(entry.filters.onlyAssigned, true)
+  assert.equal(entry.filters.assignee, 'alice')
+  assert.equal(entry.observe, true)
+  assert.equal(entry.goal, '把 widget 的 issue 都处理完')
+  assert.equal(entry.batchLimit, 20, 'batchLimit 夹到 1-20')
+  assert.equal(entry.maxWakesPerHour, 1, 'maxWakesPerHour 夹到 1-60')
+  assert.equal(entry.activeHours, '09:00-23:00')
+})
+
+test('watch_start 拒绝相对路径的 workdir', async () => {
+  const tool = tools.find((t) => t.name === 'watch_start')
+  const result = await tool.execute({ repo: 'o/tool2', workdir: 'relative/path' })
+  assert.match(String(result), /must be an absolute path/)
+})

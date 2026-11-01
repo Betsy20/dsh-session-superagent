@@ -2,6 +2,20 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.18] - 2026-11-02 —— watch_start 工具补齐参数（面板能配的，工具也要能配）
+
+### 修复
+- **`watch_start` 之前只接受 `repo` / `intervalSec`**：面板上能设的过滤、仅观察、隔离、时段、
+  限流、每 watcher 目标，用工具都设不了 —— 而 README 把它们都写成能力。现在工具参数补齐
+  （`labels` / `ignoreLabels` / `onlyAssigned` / `assignee` / `observe` / `isolated` / `workdir` /
+  `activeHours` / `batchLimit` / `maxWakesPerHour` / `goal`）。
+- **`intervalSec` 没夹紧**：工具里只判断 `> 0`，能把 5 秒写进状态文件（调度时按 30 秒跑，
+  状态与实际不一致，面板也会显示「每 5s」）。现在夹到 30–3600。
+- `workdir` 走工具时也要求绝对路径且存在。
+
+### 测试
+- 新增 2 例：工具参数落盘与夹紧（5→30、99→20、0→1）、相对 `workdir` 被拒。合计 **84 例**。
+
 ## [0.8.17] - 2026-11-02 —— README 声明与面板能力对齐（限流可改）
 
 对着 README 逐条核代码时发现的落差：`batchLimit` / `maxWakesPerHour` 在服务端和工具里都支持，
