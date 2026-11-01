@@ -1,7 +1,7 @@
 # dsh-session-superagent
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.8.3-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
+[![Version](https://img.shields.io/badge/version-0.8.4-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-plugin-orange.svg)](https://github.com/topics/dsh-plugin)
 
 > **一句话**：给一个 DSH 会话装上一条 **主理鱼**——
@@ -37,7 +37,7 @@ GitHub 有新动态 → watcher 轮询 → Agent.followup(消息) → 会话跑�
 | 位置 | 是什么 |
 |---|---|
 | 输入框下面那一行的**最左端**（`轮/步 · token · 上下文环` 同一行） | **总卫星环**：一个环代表这台机器，环上每一颗卫星 = 一个在运行的会话级 superagent。绿=主理中，琥珀=已暂停，红=上次轮询失败；一圈转起来说明至少还有一个在盯。**点一下**展开详情：仓库 / 会话标题 / 间隔 / 上次轮询 / 上次唤醒 / 状态 / 错误原文。 |
-| 中间栏「主理鱼」标签页 | 新增主理鱼（标签过滤 / 只看已指派 / 活跃时段 / 隔离执行）；顶部 **全部暂停 / 全部恢复**；每行 **立刻 / 暂停 / 恢复 / 删除**；配置凭证；读写会话 goal |
+| 中间栏「主理鱼」标签页 | **移植自官方 superagent 的 GUI**：总览（统计 + 需要关注 + 最近被过滤）/ 判定（每轮唤醒结果与原因）/ 触发（新增 + 行内编辑）/ 设置（来源 · 凭证 · goal · 术语表） |
 | 会话头部 | 不再挂徽章（0.3.2 起移到上面那行） |
 
 没有主理鱼时这里画一个**灰色空环**（不转、无卫星），点开提示怎么添加 —— 不占位但也不消失，免得看着像功能坏了。

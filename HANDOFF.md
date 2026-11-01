@@ -1,16 +1,17 @@
-# HANDOFF —— 会话交接（2026-11-01 23:10，v0.7.1）
+# HANDOFF —— 会话交接（2026-11-01 23:40，v0.8.4）
 
 > 写给**接手的下一个 agent / 下一个会话**。读完它 + `docs/competitive-analysis.md` + `docs/deepseek-papers.md`，就能接着干，不用翻聊天记录。
 
 ## 一、项目现状
 
 - 仓库：https://github.com/MYCF711/dsh-session-superagent
-- 版本：**v0.7.1**
+- 版本：**v0.8.4**
 - 本地：`D:\主工作区\projects\dsh-session-superagent`（profile 里以 `file:` 安装，**硬链接**：改源码即改 profile 内文件）
-- 真机：Windows 11 + DSH 0.2.1-rc.5，`node --test` **63/63**
+- 真机：Windows 11 + DSH 0.2.1-rc.5，`node --test` **70/70**
 
 | 能力 | 实现位置 | 验证方式 |
 |---|---|---|
+| 主理鱼标签页（移植官方 GUI） | `client.js` → `conversation.view`，用 `docs/official-gui-ia.md` 的 IA 重建 | `desk-registered ok` + 70 例测试 |
 | 状态栏「主理鱼」轨道环（0 条灰环占位 / 卫星公转 / 点击看详情） | `client.js` → `conversation.composer.dock`（`order: -10` 最左端） | `/client-note?key=client-version` 探针 + 面板实测 |
 | 主理鱼 tab（增删/暂停/立刻跑/配过滤器/凭证/goal） | `client.js` → `conversation.view` | `desk-registered ok` |
 | 轮询 + 唤醒 | `lib/index.js` + `lib/watch.js` | `lastPoll` 前进；`followup` 唤醒 |
@@ -56,7 +57,7 @@
 
 ```bash
 cd /d/主工作区/projects/dsh-session-superagent
-node --test                        # 63 例
+node --test                        # 70 例
 node --check client.js lib/index.js lib/watch.js
 ls -li client.js "/d/DeepSeek Harness/home/profiles/desktop/node_modules/dsh-session-superagent/client.js"  # inode 必须相同
 ```

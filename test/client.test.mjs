@@ -443,3 +443,30 @@ test('主理鱼面板：搜索能过滤，术语表能打开，设置页有来�
   assert.ok(glossaryText.includes('主理鱼术语表'), '术语表要能打开')
   assert.ok(glossaryText.includes('盯') && glossaryText.includes('办'), '术语表要有「盯」「办」两条')
 })
+
+test('主理鱼面板：「判定」页把每轮结果和原因列出来', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const at = new Date(Date.now() - 60000).toISOString()
+  const snapshot = {
+    loading: false, error: null,
+    body: {
+      sessionGoal: null, sessionTitle: '会话',
+      credentials: { token: 'none', sshKeyPath: 'none' },
+      watchers: [watcher('a/b', {
+        id: 'a/b#s1',
+        history: [
+          { at, numbers: [12], ok: true, reason: null },
+          { at, numbers: [13], ok: false, reason: 'observe' },
+          { at, numbers: [14], ok: false, reason: 'agent busy (running)' },
+        ],
+      })],
+    },
+  }
+  const nodes = walk(render(desk, deskQueue(snapshot, null, {}, 'judge')))
+  const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
+  assert.ok(text.includes('判定日志'), text.slice(0, 200))
+  assert.ok(text.includes('已唤醒'), '成功的要显示已唤醒')
+  assert.ok(text.includes('仅观察（未唤醒）'), 'observe 的要标出来')
+  assert.ok(text.includes('#13'), '要显示编号')
+})

@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.3'
+    const CLIENT_VERSION = '0.8.4'
     const BASE = '/session-superagent'
     const ENDPOINT = BASE + '/state'
     const POLL_MS = 5000
@@ -839,6 +839,22 @@ window.__ModuleLoader__.load({
               : h('div', { className: 'dt-rows' }, visible.map(row))),
       ]
 
+      // 判定日志（对应官方 eval 页）：每轮的唤醒结果、跳过原因、被过滤记录，一次看全
+      const judge = h(Section, { title: '判定日志', count: watchers.reduce((n, w) => n + (w.history || []).length, 0) },
+        watchers.length === 0
+          ? h(Hint, null, '还没有主理鱼。')
+          : h('div', { className: 'dt-rows' },
+            watchers.flatMap((watcher) => (watcher.history || []).slice(-6).reverse().map((entry, index) => h('div', { className: 'dt-row dt-row-quiet', key: watcher.repo + entry.at + index },
+              h('div', { className: 'dt-row-main' },
+                h(Dot, { state: entry.ok ? 'done' : entry.reason === 'observe' ? 'idle' : 'error', label: entry.ok ? '已唤醒' : (entry.reason || '跳过') }),
+                h('div', { className: 'dt-row-title' },
+                  h('span', { className: 'dt-row-name' }, watcher.repo + ' ' + (entry.numbers || []).map((n) => '#' + n).join(' ')),
+                  h('span', { className: 'dt-row-meta' },
+                    [
+                      entry.ok ? '已唤醒' : (entry.reason === 'observe' ? '仅观察（未唤醒）' : '跳过：' + (entry.reason || '未知')),
+                      ageText(entry.at),
+                    ].filter(Boolean).join(' · ')))))))))
+
       const trigger = h(Section, { title: '新增主理鱼' },
         h('div', { className: 'dt-form' },
           field('仓库', h(Input, { value: form.repo, placeholder: 'owner/name', onChange: (e) => setForm({ ...form, repo: e.target.value }) })),
@@ -890,7 +906,12 @@ window.__ModuleLoader__.load({
             watchers.length > 0 ? h(Btn, { size: 'sm', onClick: () => actBulk('pause') }, '全部暂停') : null,
             watchers.length > 0 ? h(Btn, { size: 'sm', onClick: () => actBulk('resume') }, '全部恢复') : null)),
         h(SegTabs, {
-          items: [{ value: 'overview', label: '总览' }, { value: 'trigger', label: '触发' }, { value: 'settings', label: '设置' }],
+          items: [
+            { value: 'overview', label: '总览' },
+            { value: 'judge', label: '判定' },
+            { value: 'trigger', label: '触发' },
+            { value: 'settings', label: '设置' },
+          ],
           value: tab, onChange: setTab, label: '主理鱼分区',
         }),
         notice ? h('div', { className: 'dt-banner dt-danger' }, notice.text) : null,
@@ -898,6 +919,7 @@ window.__ModuleLoader__.load({
         snap.error ? h('div', { className: 'dt-banner dt-danger' }, '读取失败：' + snap.error) : null,
         snap.loading && !snap.body ? h(Hint, null, '正在读取…') : null,
         tab === 'overview' ? overview : null,
+        tab === 'judge' ? judge : null,
         tab === 'trigger' ? trigger : null,
         tab === 'settings' ? settings : null,
         h(Modal, { open: glossary, title: '主理鱼术语表', onClose: () => setGlossary(false) },
