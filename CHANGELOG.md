@@ -2,6 +2,26 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.25] - 2026-11-02 —— 热重载时一条重复路由会让**全部**接口消失
+
+### 真机现场
+```
+server = {at: 19:38:26Z, error: 'webserver: duplicate exact route "/session-superagent/state"'}
+```
+宿主热重载时，旧实例的路由还没被 dispose，新实例注册第一条就抛 —— 而注册是**一整块 try**，
+于是六条路由全军覆没，面板一片空白（数据接口全 404），只有重启才能恢复。
+
+### 修复
+每条路由改成单独容错（`addRoute()`）：重复的那条把原因记进 `state.server.failed`，
+其余照常注册。单条重复不再等于全站不可用。
+
+### 守门
+新增 `test/route-resilience.test.mjs`：让宿主替身在注册 `client-error` 时抛重复路由，
+断言其余 5 条仍然注册成功、`/state` 仍在、失败原因被记录下来。
+
+### 测试
+- 合计 **88 例**。
+
 ## [0.8.24] - 2026-11-02 —— 安装说明是错的（`npm i` 不会让 DSH 加载插件）
 
 ### 修复
