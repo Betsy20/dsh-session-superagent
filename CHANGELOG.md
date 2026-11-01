@@ -2,6 +2,25 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.3.3] - 2026-11-01
+
+### 新增
+- **值守能关了**：`POST /session-superagent/watch` 接受 `{ action: "pause" | "resume" | "delete", id }`，
+  `id` 形如 `owner/name#session-…`（`/state` 现在会把 `id` 一起返回）。
+  - `pause`：`enabled=false` 并**清掉那条定时器**（原来只能靠宿主重启才停得下来）；
+  - `resume`：重新起定时器，顺手清掉旧的 `lastError`，卫星不会一上来就是红的；
+  - `delete`：连条目一起删（`seen` 水位也走掉，重新加会重新报一遍历史动态）。
+- **状态栏面板每行**有「暂停 / 恢复 / 删除」；**值守台表格**新增「操作」列，同样两个按钮。删除前 `confirm` 一次。
+- 暂停后的 tick 会直接 return，不再轮询。
+
+### 修复
+- `persistEntry` 会把已删除的条目写回来（tick 与删除的竞态）：现在目标条目不在状态里就跳过写回。
+
+### 测试
+- `applyWatcherAction` 4 组断言（只动目标条目、恢复时清错误、删除不连带、非法动作/未知 id/空状态全部拒绝）；
+- 客户端新增 2 例：状态栏面板每行有暂停/删除、值守台表格有「操作」列且按状态切换暂停/恢复。
+  合计 **29 例**。
+
 ## [0.3.2] - 2026-11-01
 
 ### 变更

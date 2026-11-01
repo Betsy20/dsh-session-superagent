@@ -1,7 +1,7 @@
 # dsh-session-superagent
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.3.2-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
+[![Version](https://img.shields.io/badge/version-0.3.3-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-plugin-orange.svg)](https://github.com/topics/dsh-plugin)
 
 > **一句话**：给一个 DSH 会话装上“盯仓库”的能力——仓库有新 issue/PR，会话自己醒过来，按你预先写好的规则处理。
@@ -27,7 +27,7 @@ GitHub 有新动态 → watcher 轮询 → Agent.followup(消息) → 会话跑�
 | 位置 | 是什么 |
 |---|---|
 | 输入框下面那一行（`轮/步 · token · 上下文环` 所在行） | **总卫星环**：一个环代表这台机器，环上每一颗卫星 = 一个在运行的会话级 superagent。绿=值守中，琥珀=已暂停，红=上次轮询失败；一圈转起来说明至少还有一个在盯。**点一下**展开详情：仓库 / 会话标题 / 间隔 / 上次轮询 / 上次唤醒 / 状态 / 错误原文。 |
-| 中间栏「值守台」标签页 | 增删值守、暂停、配置凭证、读写会话 goal |
+| 中间栏「值守台」标签页 | 新增值守；每行有 **暂停 / 恢复 / 删除**；配置凭证；读写会话 goal |
 | 会话头部 | 不再挂徽章（0.3.2 起移到上面那行） |
 
 没有值守时这里什么都不渲染——不占位，也不空转轮询。

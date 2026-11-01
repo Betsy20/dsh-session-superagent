@@ -33,7 +33,7 @@ window.__ModuleLoader__.load({
       wrap: { padding: '16px 20px', font: '13px/1.5 system-ui, sans-serif', height: '100%', overflow: 'auto' },
       title: { fontSize: 15, fontWeight: 600, margin: '0 0 4px' },
       sub: { opacity: 0.65, margin: '0 0 14px' },
-      row: { display: 'grid', gridTemplateColumns: '1.4fr 1fr 70px 1.2fr 1.2fr 70px', gap: 10, padding: '7px 0', borderBottom: '1px solid rgba(128,128,128,.18)' },
+      row: { display: 'grid', gridTemplateColumns: '1.4fr 1fr 70px 1.2fr 1.2fr 70px 112px', gap: 10, padding: '7px 0', borderBottom: '1px solid rgba(128,128,128,.18)' },
       head: { fontWeight: 600, opacity: 0.7, borderBottom: '1px solid rgba(128,128,128,.35)' },
       mono: { fontFamily: 'ui-monospace, Consolas, monospace', fontSize: 12 },
       badgeOn: { color: '#1a7f37' },
@@ -47,9 +47,11 @@ window.__ModuleLoader__.load({
       label: { minWidth: 72, opacity: 0.75 },
       input: { flex: 1, minWidth: 180, padding: '5px 8px', borderRadius: 6, border: '1px solid rgba(128,128,128,.4)', background: 'transparent', color: 'inherit', font: 'inherit' },
       button: { padding: '5px 12px', borderRadius: 6, border: '1px solid rgba(128,128,128,.5)', background: 'rgba(128,128,128,.12)', color: 'inherit', cursor: 'pointer' },
+      tiny: { padding: '2px 8px', fontSize: 11, lineHeight: '16px', borderRadius: 5, border: '1px solid rgba(128,128,128,.45)', background: 'transparent', color: 'inherit', cursor: 'pointer' },
       ok: { color: '#1a7f37', fontSize: 12 },
     }
 
+    const watcherId = (w) => (w && w.id) || String((w && w.repo) || '') + '#' + String((w && w.sessionId) || '')
     const short = (value, width = 19) => (typeof value === 'string' && value.length > width ? value.slice(0, width - 1) + '…' : (value ?? '—'))
     const when = (iso) => (typeof iso === 'string' ? iso.replace('T', ' ').replace('Z', '').slice(5, 19) : '—')
 
@@ -248,6 +250,22 @@ window.__ModuleLoader__.load({
         : 8
       const bottom = anchor ? Math.max(8, (window.innerHeight || 800) - anchor.y + 8) : 64
 
+      const act = async (w, action) => {
+        if (action === 'delete') {
+          const ok = typeof window !== 'undefined' && typeof window.confirm === 'function'
+            ? window.confirm('删除值守 ' + (w.repo || '') + '？')
+            : true
+          if (!ok) return
+        }
+        try {
+          await call('/watch', { method: 'POST', body: JSON.stringify({ action, id: watcherId(w) }) })
+        } catch {}
+        try {
+          const body = await call('/state')
+          setWatchers(Array.isArray(body && body.watchers) ? body.watchers : [])
+        } catch {}
+      }
+
       const rows = list.map((w) => {
         const state = orbitStateOf(w)
         return h('div', {
@@ -270,7 +288,11 @@ window.__ModuleLoader__.load({
             : null,
           w.lastError
             ? h('div', { style: { paddingLeft: 13, color: '#f85149', overflowWrap: 'anywhere' } }, String(w.lastError).slice(0, 160))
-            : null)
+            : null,
+          h('div', { style: { paddingLeft: 13, marginTop: 5, display: 'flex', gap: 8 } },
+            h('button', { style: S.tiny, onClick: () => act(w, w.enabled ? 'pause' : 'resume') },
+              w.enabled ? '暂停' : '恢复'),
+            h('button', { style: { ...S.tiny, color: '#f85149' }, onClick: () => act(w, 'delete') }, '删除')))
       })
 
       const panel = h('div', {
@@ -290,7 +312,7 @@ window.__ModuleLoader__.load({
           h('span', { style: { opacity: 0.6 } }, running + '/' + list.length + ' 运行中')),
         ...rows,
         h('div', { style: { marginTop: 8, paddingTop: 8, borderTop: BORDER, opacity: 0.55 } },
-          '「值守台」标签页可增删、暂停并配置凭证'))
+          '点「暂停 / 删除」直接停掉；「值守台」标签页可新增与配置凭证'))
 
       return h(React.Fragment, null, button, panel)
     }
@@ -349,6 +371,27 @@ window.__ModuleLoader__.load({
       const watchers = (snapshot.body && snapshot.body.watchers) || []
       const creds = (snapshot.body && snapshot.body.credentials) || { token: 'none', sshKeyPath: 'none' }
       const active = watchers.filter((w) => w.enabled).length
+
+      // 暂停 / 恢复 / 删除一条值守。删除前问一句 —— 删掉后位图（seen 水位）也一起没。
+      const act = async (w, action) => {
+        setNotice(null)
+        if (action === 'delete') {
+          const ok = typeof window !== 'undefined' && typeof window.confirm === 'function'
+            ? window.confirm('删除值守 ' + (w.repo || '') + '？（已读水位一起丢，重新加会重新报一遍历史动态）')
+            : true
+          if (!ok) return
+        }
+        try {
+          await call('/watch', { method: 'POST', body: JSON.stringify({ action, id: watcherId(w) }) })
+          setNotice({
+            ok: true,
+            text: action === 'delete' ? ('已删除 ' + w.repo) : action === 'pause' ? ('已暂停 ' + w.repo) : ('已恢复 ' + w.repo),
+          })
+          load()
+        } catch (error) {
+          setNotice({ ok: false, text: String((error && error.message) || error) })
+        }
+      }
 
       const addWatcher = async () => {
         setNotice(null)
@@ -466,7 +509,8 @@ window.__ModuleLoader__.load({
 
         watchers.length > 0 && h('div', { style: { ...S.row, ...S.head } },
           h('span', null, '仓库'), h('span', null, '会话'), h('span', null, '间隔'),
-          h('span', null, '上次轮询'), h('span', null, '上次唤醒'), h('span', null, '状态')),
+          h('span', null, '上次轮询'), h('span', null, '上次唤醒'), h('span', null, '状态'),
+          h('span', null, '操作')),
 
         watchers.map((w) => h('div', { key: w.repo + '#' + w.sessionId, style: S.row },
           h('span', { style: S.mono }, w.repo),
@@ -480,7 +524,11 @@ window.__ModuleLoader__.load({
           h('span', null, w.intervalSec + 's'),
           h('span', { style: S.mono }, when(w.lastPoll)),
           h('span', { style: S.mono }, typeof w.lastWake === 'string' && w.lastWake.startsWith('failed') ? '失败' : when(w.lastWake)),
-          h('span', { style: w.enabled ? S.badgeOn : S.badgeOff }, w.enabled ? '运行中' : '已暂停'))),
+          h('span', { style: w.enabled ? S.badgeOn : S.badgeOff }, w.enabled ? '运行中' : '已暂停'),
+          h('span', { style: { display: 'flex', gap: 6 } },
+            h('button', { style: S.tiny, onClick: () => act(w, w.enabled ? 'pause' : 'resume') },
+              w.enabled ? '暂停' : '恢复'),
+            h('button', { style: { ...S.tiny, color: '#cf222e' }, onClick: () => act(w, 'delete') }, '删除')))),
 
         watchers.some((w) => w.goal && w.goal.objective) && h('div', { style: { marginTop: 10 } },
           ...watchers.filter((w) => w.goal && w.goal.objective).map((w) =>

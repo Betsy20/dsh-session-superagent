@@ -194,3 +194,37 @@ test('点击展开的面板逐条列出仓库 / 会话 / 间隔 / 轮询 / 状�
   for (const needle of needles) assert.ok(text.includes(needle), '面板缺少「' + needle + '」：' + text.slice(0, 240))
   assert.ok(!text.includes('[object Object]'), 'goal 被当成对象直接拼进了文案')
 })
+
+test('状态栏面板每行都带暂停/删除，能直接关掉一个值守', () => {
+  const { registrations, render } = loadClient()
+  const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
+  const list = [watcher('a/b'), watcher('c/d', { enabled: false })]
+  const nodes = walk(render(orbit, [list, true, { x: 720, y: 860 }]))
+  const labels = nodes
+    .filter((n) => n.type === 'button')
+    .map((b) => (b.props.children || []).filter((c) => typeof c === 'string').join(''))
+  assert.ok(labels.includes('暂停'), '运行中的行要有「暂停」：' + labels.join('|'))
+  assert.ok(labels.includes('恢复'), '已暂停的行要有「恢复」：' + labels.join('|'))
+  assert.ok(labels.includes('删除'), '每行都要能删除：' + labels.join('|'))
+})
+
+test('值守台表格有「操作」列，且暂停/恢复按状态切换', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snapshot = {
+    loading: false, error: null,
+    body: {
+      sessionGoal: null, sessionTitle: '会话',
+      credentials: { token: 'none', sshKeyPath: 'none' },
+      watchers: [
+        watcher('a/b', { id: 'a/b#s1', intervalSec: 30, enabled: true }),
+        watcher('c/d', { id: 'c/d#s2', intervalSec: 60, enabled: false }),
+      ],
+    },
+  }
+  const nodes = walk(render(desk, [snapshot, { repo: '', intervalSec: '60', goal: '' }, '', '', null, '', false]))
+  const texts = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
+  for (const needle of ['操作', '暂停', '恢复', '删除', '运行中', '已暂停']) {
+    assert.ok(texts.includes(needle), '值守台缺少「' + needle + '」')
+  }
+})

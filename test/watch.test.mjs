@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { advanceSeen, decideWake, formatWatchText, newestUpdatedAt, partitionItems, recordReported, splitFresh } from '../lib/watch.js'
+import { advanceSeen, applyWatcherAction, decideWake, formatWatchText, newestUpdatedAt, partitionItems, recordReported, splitFresh } from '../lib/watch.js'
 
 const item = (number, updatedAt) => ({ number, updated_at: updatedAt, state: 'open', title: `t${number}`, html_url: `https://x/${number}`, user: { login: 'me' } })
 
@@ -91,4 +91,34 @@ test('absorbed bumps never resurface once the cooldown is over', () => {
   const later = partitionItems(items, { ...state, lastReported: {} }, { now: t0 + 600_000, cooldownMs: 180_000 })
   assert.equal(later.fresh.length, 0, 'watermark already covered it')
   assert.equal(later.absorbed.length, 0)
+})
+
+test('applyWatcherAction: pause / resume / delete 只动目标那一条', () => {
+  const makeState = () => ({
+    watchers: {
+      'a/b#s1': { id: 'a/b#s1', repo: 'a/b', sessionId: 's1', enabled: true, lastError: 'boom' },
+      'c/d#s2': { id: 'c/d#s2', repo: 'c/d', sessionId: 's2', enabled: true, lastError: null },
+    },
+  })
+
+  let state = makeState()
+  assert.deepEqual(applyWatcherAction(state, { action: 'pause', id: 'a/b#s1' }), { ok: true, action: 'pause', id: 'a/b#s1', enabled: false })
+  assert.equal(state.watchers['a/b#s1'].enabled, false)
+  assert.equal(state.watchers['c/d#s2'].enabled, true, '不该顺手动别的条目')
+
+  state = makeState()
+  state.watchers['a/b#s1'].enabled = false
+  assert.deepEqual(applyWatcherAction(state, { action: 'resume', id: 'a/b#s1' }), { ok: true, action: 'resume', id: 'a/b#s1', enabled: true })
+  assert.equal(state.watchers['a/b#s1'].lastError, null, '恢复时清掉旧的错误，别让卫星一上来就是红的')
+
+  state = makeState()
+  assert.deepEqual(applyWatcherAction(state, { action: 'delete', id: 'a/b#s1' }), { ok: true, action: 'delete', id: 'a/b#s1', deleted: true })
+  assert.equal(state.watchers['a/b#s1'], undefined)
+  assert.ok(state.watchers['c/d#s2'], '删除不该连带别的条目')
+
+  state = makeState()
+  assert.equal(applyWatcherAction(state, { action: 'nope', id: 'a/b#s1' }).ok, false, '未知动作要拒绝')
+  assert.equal(applyWatcherAction(state, { action: 'pause', id: 'x/y#zz' }).ok, false, '未知 id 要拒绝')
+  assert.equal(applyWatcherAction({}, { action: 'pause', id: 'a/b#s1' }).ok, false, '空状态要拒绝')
+  assert.equal(Object.keys(makeState().watchers).length, 2, '被拒绝的调用不能改状态')
 })
