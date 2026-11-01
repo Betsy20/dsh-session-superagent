@@ -94,6 +94,14 @@ window.__ModuleLoader__.load({
       return h('svg', { width: 16, height: 16, viewBox: '0 0 16 16', 'aria-hidden': 'true' }, ring, dot)
     }
 
+    const notedOnce = new Set()
+    /** Diagnostics: write once per page load, never on every poll. */
+    function noteOnce(key, value) {
+      if (notedOnce.has(key)) return
+      notedOnce.add(key)
+      note(key, value)
+    }
+
     function note(key, value) {
       try { fetch(BASE + '/client-note?key=' + encodeURIComponent(key) + '&value=' + encodeURIComponent(String(value || ''))).catch(() => {}) } catch {}
     }
@@ -110,7 +118,7 @@ window.__ModuleLoader__.load({
           try {
             const body = await call('/state' + (sessionId ? '?sessionId=' + encodeURIComponent(sessionId) : ''))
             const mine = (body.watchers || []).find((w) => w.sessionId === sessionId) || null
-            note('badge-state', (mine ? ('found:' + mine.repo) : ('none:' + (body.watchers || []).length + ':' + String(sessionId || '').slice(0, 20))))
+            noteOnce('badge-state', (mine ? ('found:' + mine.repo) : ('none:' + (body.watchers || []).length + ':' + String(sessionId || '').slice(0, 20))))
             if (alive) setWatcher(mine)
           } catch {
             if (alive) setWatcher(null)

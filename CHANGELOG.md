@@ -2,6 +2,21 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.3.1] - 2026-11-01
+
+### 修复
+- **头部徽章从未注册**：0.3.0 的注册代码插入时目标文本已被其他改动替换，字符串替换静默失败，
+  导致组件存在但 `apply()` 没有注册它。现在 `apply()` 整体重写，两处注册分别独立 try/catch 并留探针。
+- 诊断探针改为每次页面加载只写一次（原来 `badge-state` 每 5 秒写状态文件）。
+
+### 验证（Windows 11 + DSH 0.2.1-rc.5 真机）
+```
+apply done · desk-registered ok · badge-registered ok
+badge-mount  session-1e82afca-…
+badge-state  found:MYCF711/dsh-GOkifu-compact
+server.routes 8
+```
+
 ## [0.3.0] - 2026-11-01
 
 ### 新增
