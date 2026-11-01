@@ -14,7 +14,15 @@ category: session
 description:
   en: 'Session-level superagent: watch one GitHub repository and wake this session when an issue or pull request changes. The credential never reaches the model.'
   zh: '会话级 superagent：盯一个 GitHub 仓库，issue/PR 有变化就唤醒本会话；凭证留在插件内，不进模型。'
+icon: https://raw.githubusercontent.com/MYCF711/dsh-session-superagent/main/assets/icon-180.png
 ```
+
+> 已逐条核对上游 `contributing.md`（2026-11-02）：
+> - 文件名 `<owner>__<repo>.yml` ✅
+> - `category: session` 在合法列表里（`agi ui usage theme model identity session memory tools wsl browser vision voice docs skill workflow git notify dev security remote market fun`）✅
+> - 只有 `description.en` 必填；**含 `: ` 的描述必须加引号**（我们的 en 用单引号包了）✅
+> - 要求 `package.json` 声明 `dsh.bundle` —— 我们的 `dsh.bundle.patch` 已声明 ✅
+> - `icon` 可选，已生成 `assets/icon-180.png`（180×180，GitHub raw 直链）✅
 
 分类理由：它是"给一个会话加一对眼睛"，不是 git 工具（不收 git 命令），也不是 usage 统计。
 维护者可能改判——`contributing.md` 明说分类不会导致打回。
