@@ -26,6 +26,12 @@
   结果是 `lastError="会话已不在：请删除或重建这条主理鱼"`、`lastWorktree=null`、**没有** `.dsh-zhuli` 目录
   （修复前会先建一个永远用不上的 worktree）。
 
+### 发布
+- **已发布到 npm**：`dsh-session-superagent@0.8.11`（`npm view` 确认，tarball 220.6 kB / 13 文件）。
+- 顺手把 `latest` 指向 0.8.11，并把 npm 自动生成的 `0.0.0-stage` 占位版标为弃用
+  （否则 `npm i dsh-session-superagent` 会装到那个空占位）。
+- GitHub Release：https://github.com/MYCF711/dsh-session-superagent/releases/tag/v0.8.11
+
 ### 测试
 - 合计 **77 例**（本修复属运行时守卫，靠真机 E2E 验证）。
 

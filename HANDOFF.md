@@ -98,7 +98,7 @@ profile 同步   = 相对 import 全部可解析
 
 | # | 项 | 说明 |
 |---|---|---|
-| 1 | npm publish | 需要用户 `npm login`；包已就绪（`npm pack` 12 文件 / 68.8 kB） |
+| 1 | ~~npm publish~~ | ✅ 2026-11-02 已发 `dsh-session-superagent@0.8.11`（latest 已指向它，占位版已弃用） |
 | 2 | awesome-dsh-plugin 上架 | 仓库满 1 天后可提（11-02 17:53 +08 之后），材料在 `docs/awesome-submission.md` |
 | 3 | 真实仓库的隔离闭环 | 用真会话 + `isolated:true` 跑一次唤醒，确认 agent 在 worktree 里干活 |
 | 4 | 仍未做的审核建议 | SegTabs 焦点跟随、Toast 顶部居中（内联容器已删但没用官方定位）、`/config` 与 `/state` 字段可再收敛 |

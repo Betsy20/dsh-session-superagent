@@ -66,3 +66,12 @@ gh repo fork awesome-dsh-plugin/awesome-dsh-plugin --clone=true --remote=false
 # 在 fork 里新建分支，写入上面的 yml，然后：
 gh pr create --repo awesome-dsh-plugin/awesome-dsh-plugin   --title "Add dsh-session-superagent — session-level superagent"   --body-file <上面的正文>
 ```
+
+---
+
+## npm 包（2026-11-02 已发布）
+
+- 包名：`dsh-session-superagent`
+- 版本：`0.8.11`（`latest` 已指向；`0.0.0-stage` 是 npm 自动占位，已标弃用）
+- 地址：https://www.npmjs.com/package/dsh-session-superagent
+- 安装：`npm i dsh-session-superagent`
