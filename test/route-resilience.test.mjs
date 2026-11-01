@@ -47,3 +47,34 @@ test('某条路由注册失败（重复路由）时，其余路由仍然可用',
 
   rmSync(STATE_DIR, { recursive: true, force: true })
 })
+
+test('卸载时会真的把路由 unregister（否则重载后就是重复路由）', () => {
+  const unregistered = []
+  const cleanups = []
+  const disposeListeners = []
+  const ctx = {
+    tools: { register() {} },
+    webServer: {
+      register(options) {
+        return () => unregistered.push(options.path)
+      },
+    },
+    agents: { get: () => null, currentInitiator: () => null },
+    get: () => null,
+    on(event, cb) { if (event === 'dispose') disposeListeners.push(cb) },
+    // 记录 effect 的清理函数（cordis 在作用域销毁时会调用它）
+    effect(fn) { const cleanup = fn(); if (typeof cleanup === 'function') cleanups.push(cleanup) },
+  }
+  apply(ctx)
+
+  assert.ok(cleanups.length > 0, '应该通过 ctx.effect 挂了清理函数')
+  assert.ok(disposeListeners.length > 0, '也应该挂 dispose 监听')
+
+  for (const cleanup of cleanups) cleanup()
+  assert.equal(unregistered.length, 6, '六条路由都应该被 unregister')
+
+  // dispose 监听也要能安全重复调用（宿主可能两条路都走）
+  for (const listener of disposeListeners) listener()
+  assert.equal(unregistered.length, 6, '重复卸载不应该重复 unregister')
+  rmSync(STATE_DIR, { recursive: true, force: true })
+})
