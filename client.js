@@ -11,7 +11,7 @@ window.__ModuleLoader__.load({
   factory(require) {
     const React = require('react')
     const h = React.createElement
-    const { useCallback, useEffect, useState } = React
+    const { useCallback, useEffect, useRef, useState } = React
 
     const BASE = '/session-superagent'
     const ENDPOINT = BASE + '/state'
@@ -74,24 +74,47 @@ window.__ModuleLoader__.load({
       } catch {}
     }
 
-    function orbitState(w) {
-      if (!w) return null
+    // ── status orbit: composer-dock indicator ─────────────────────────────
+    // One ring for the whole machine. Every satellite on the ring is one
+    // session-level superagent (a live watcher): green = watching, amber =
+    // paused, red = last poll failed. Icon only — details live in the
+    // click-through panel, and a native tooltip carries the one-line summary.
+    function orbitStateOf(w) {
+      if (!w) return 'paused'
       if (w.lastError) return 'error'
-      return w.enabled ? 'active' : 'paused'
+      return w.enabled === false ? 'paused' : 'active'
     }
 
-    function OrbitIcon(props) {
+    const SAT_COLOR = { active: '#3fb950', paused: '#d29922', error: '#f85149' }
+    const STATE_TEXT = { active: '值守中', paused: '已暂停', error: '异常' }
+
+    function OrbitMark(props) {
       ensureOrbitCss()
-      const color = props.state === 'active' ? '#3fb950' : props.state === 'paused' ? '#d29922' : '#f85149'
-      const dot = h('circle', {
-        cx: 8, cy: 2.4, r: 2.05, fill: color,
-        className: props.state === 'active' ? 'sa-orbit-dot-spin' : (props.state === 'error' ? 'sa-orbit-dot-breathe' : undefined),
-        style: props.state === 'active' ? { transformOrigin: '8px 8px' } : undefined,
+      const watchers = props.watchers || []
+      const shown = watchers.slice(0, 6)
+      const states = watchers.map(orbitStateOf)
+      const ringColor = states.indexOf('error') >= 0
+        ? SAT_COLOR.error
+        : states.indexOf('active') >= 0 ? SAT_COLOR.active : SAT_COLOR.paused
+      const dashed = states.indexOf('paused') >= 0
+      const dots = shown.map((w, i) => {
+        const angle = (i / Math.max(shown.length, 1)) * Math.PI * 2 - Math.PI / 2
+        const state = orbitStateOf(w)
+        return h('circle', {
+          key: String(w.repo || '') + '#' + String(w.sessionId || i),
+          cx: 8 + Math.cos(angle) * 6.1,
+          cy: 8 + Math.sin(angle) * 6.1,
+          r: shown.length > 3 ? 1.75 : 2.05,
+          fill: SAT_COLOR[state],
+          className: state === 'error' ? 'sa-orbit-dot-breathe' : undefined,
+        })
       })
-      const ring = props.state === 'paused'
-        ? h('circle', { cx: 8, cy: 8, r: 6.1, fill: 'none', stroke: color, strokeWidth: 1.1, strokeDasharray: '2.2 1.9', opacity: 0.9 })
-        : h('circle', { cx: 8, cy: 8, r: 6.1, fill: 'none', stroke: color, strokeWidth: 1.1, opacity: 0.9 })
-      return h('svg', { width: 16, height: 16, viewBox: '0 0 16 16', 'aria-hidden': 'true' }, ring, dot)
+      return h('svg', { width: 16, height: 16, viewBox: '0 0 16 16', 'aria-hidden': 'true' },
+        h('circle', {
+          cx: 8, cy: 8, r: 6.1, fill: 'none', stroke: ringColor, strokeWidth: 1.1,
+          strokeDasharray: dashed ? '2.2 1.9' : undefined, opacity: 0.9,
+        }),
+        h('g', { className: states.indexOf('active') >= 0 ? 'sa-sat-spin' : undefined }, ...dots))
     }
 
     const notedOnce = new Set()
@@ -106,62 +129,151 @@ window.__ModuleLoader__.load({
       try { fetch(BASE + '/client-note?key=' + encodeURIComponent(key) + '&value=' + encodeURIComponent(String(value || ''))).catch(() => {}) } catch {}
     }
 
-    function OrbitBadge(props) {
-      const sessionId = props && props.sessionId
-      const [watcher, setWatcher] = useState(undefined) // undefined = loading, null = none
+    const ageText = (iso) => {
+      if (typeof iso !== 'string') return '—'
+      const ms = Date.now() - Date.parse(iso)
+      if (!isFinite(ms) || ms < 0) return '—'
+      const s = Math.round(ms / 1000)
+      if (s < 90) return s + ' 秒前'
+      if (s < 5400) return Math.round(s / 60) + ' 分钟前'
+      return Math.round(s / 3600) + ' 小时前'
+    }
+    const wakeText = (value) => {
+      if (typeof value !== 'string' || value === '') return '—'
+      if (value.indexOf('failed') === 0) return '失败'
+      return ageText(value)
+    }
 
-      useEffect(() => { note('badge-mount', String(sessionId || 'NO-SESSIONID')) }, [])
+    const PANEL_W = 344
+    const BORDER = '1px solid var(--dsw-alias-border-l2, rgba(128,128,128,.22))'
+
+    /** Dock entry: the machine-wide ring plus its click-through detail list. */
+    function StatusOrbit() {
+      const [watchers, setWatchers] = useState(null)
+      const [open, setOpen] = useState(false)
+      const [anchor, setAnchor] = useState(null)
+      const btnRef = useRef(null)
+      const panelRef = useRef(null)
 
       useEffect(() => {
         let alive = true
+        noteOnce('orbit-mount', 'ok')
         const load = async () => {
           try {
-            const body = await call('/state' + (sessionId ? '?sessionId=' + encodeURIComponent(sessionId) : ''))
-            const mine = (body.watchers || []).find((w) => w.sessionId === sessionId) || null
-            noteOnce('badge-state', (mine ? ('found:' + mine.repo) : ('none:' + (body.watchers || []).length + ':' + String(sessionId || '').slice(0, 20))))
-            if (alive) setWatcher(mine)
+            const body = await call('/state')
+            if (alive) setWatchers(Array.isArray(body && body.watchers) ? body.watchers : [])
           } catch {
-            if (alive) setWatcher(null)
+            if (alive) setWatchers((prev) => (prev === null ? [] : prev))
           }
         }
         load()
-        const timer = setInterval(load, 5000)
+        const timer = setInterval(load, POLL_MS)
         return () => { alive = false; clearInterval(timer) }
-      }, [sessionId])
+      }, [])
 
-      if (!watcher) return null
-      const state = orbitState(watcher)
-      const age = (iso) => {
-        if (typeof iso !== 'string') return '—'
-        const ms = Date.now() - Date.parse(iso)
-        if (!isFinite(ms) || ms < 0) return '—'
-        const s = Math.round(ms / 1000)
-        if (s < 90) return s + ' 秒前'
-        if (s < 5400) return Math.round(s / 60) + ' 分钟前'
-        return Math.round(s / 3600) + ' 小时前'
+      useEffect(() => {
+        if (!open) return undefined
+        const onDown = (event) => {
+          const target = event.target
+          if (panelRef.current && panelRef.current.contains(target)) return
+          if (btnRef.current && btnRef.current.contains(target)) return
+          setOpen(false)
+        }
+        const onKey = (event) => { if (event.key === 'Escape') setOpen(false) }
+        document.addEventListener('mousedown', onDown, true)
+        document.addEventListener('keydown', onKey, true)
+        return () => {
+          document.removeEventListener('mousedown', onDown, true)
+          document.removeEventListener('keydown', onKey, true)
+        }
+      }, [open])
+
+      const list = watchers || []
+      // Nothing is being watched on this machine: stay out of the dock row
+      // entirely rather than parking a dead icon next to the token counters.
+      if (watchers !== null && list.length === 0) return null
+
+      const running = list.filter((w) => orbitStateOf(w) === 'active').length
+      const broken = list.filter((w) => orbitStateOf(w) === 'error').length
+      const summary = '会话级 superagent：' + running + ' 运行中'
+        + (broken ? '，' + broken + ' 异常' : '')
+        + '（共 ' + list.length + ' 个值守）'
+
+      const toggle = () => {
+        const el = btnRef.current
+        if (el) {
+          const rect = el.getBoundingClientRect()
+          setAnchor({ x: rect.left + rect.width / 2, y: rect.top })
+        }
+        setOpen((value) => !value)
       }
-      // Match the session list's native tooltip shape: name line, relative
-      // time line, state line. Nothing else — the panel carries the details.
-      const statusText = state === 'active' ? '值守中' : state === 'paused' ? '已暂停' : '有错误'
-      const lines = [
-        watcher.repo,
-        '每 ' + watcher.intervalSec + 's · 上次轮询 ' + age(watcher.lastPoll),
-        statusText + (watcher.lastError ? '（' + String(watcher.lastError).slice(0, 60) + '）' : ''),
-      ]
 
-      return h('button', {
+      const button = h('button', {
+        ref: btnRef,
         type: 'button',
-        title: lines.join('\n'),
-        'aria-label': 'superagent 值守状态',
-        onClick: () => {
-          try { window.dispatchEvent(new CustomEvent('session-superagent:open-desk')) } catch {}
-        },
+        title: list.length
+          ? list.map((w) => (w.repo + ' · ' + (w.title || short(w.sessionId, 12)) + ' · ' + STATE_TEXT[orbitStateOf(w)])).join('\n')
+          : 'superagent 值守',
+        'aria-label': summary,
+        'aria-expanded': open ? 'true' : 'false',
+        onClick: toggle,
         style: {
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          width: 24, height: 24, padding: 0, margin: '0 2px',
-          border: 'none', borderRadius: 6, background: 'transparent', cursor: 'pointer', color: 'inherit',
+          height: 20, minWidth: 20, padding: '0 2px', margin: '0 2px',
+          border: 'none', borderRadius: 6,
+          background: open ? 'rgba(128,128,128,.16)' : 'transparent',
+          cursor: 'pointer', color: 'inherit', opacity: watchers === null ? 0.45 : 1,
         },
-      }, h(OrbitIcon, { state }))
+      }, h(OrbitMark, { watchers: list }))
+
+      if (!open) return button
+
+      const left = anchor
+        ? Math.max(8, Math.min(anchor.x - PANEL_W / 2, (window.innerWidth || 1200) - PANEL_W - 8))
+        : 8
+      const bottom = anchor ? Math.max(8, (window.innerHeight || 800) - anchor.y + 8) : 64
+
+      const rows = list.map((w) => {
+        const state = orbitStateOf(w)
+        return h('div', {
+          key: String(w.repo || '') + '#' + String(w.sessionId || ''),
+          style: { padding: '6px 0', borderTop: BORDER },
+        },
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } },
+            h('span', { style: { width: 7, height: 7, borderRadius: '50%', flex: 'none', background: SAT_COLOR[state] } }),
+            h('span', {
+              style: { fontFamily: 'ui-monospace, Consolas, monospace', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+            }, String(w.repo || '?')),
+            h('span', { style: { marginLeft: 'auto', flex: 'none', opacity: 0.7 } }, STATE_TEXT[state])),
+          h('div', { style: { paddingLeft: 13, opacity: 0.72, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } },
+            w.title || short(w.sessionId, 18)),
+          h('div', { style: { paddingLeft: 13, opacity: 0.55 } },
+            '每 ' + w.intervalSec + 's · 轮询 ' + ageText(w.lastPoll) + ' · 唤醒 ' + wakeText(w.lastWake)),
+          w.lastError
+            ? h('div', { style: { paddingLeft: 13, color: '#f85149', overflowWrap: 'anywhere' } }, String(w.lastError).slice(0, 160))
+            : null)
+      })
+
+      const panel = h('div', {
+        ref: panelRef, role: 'dialog', 'aria-label': summary,
+        style: {
+          position: 'fixed', left, bottom, width: PANEL_W, zIndex: 2147483000,
+          border: BORDER, borderRadius: 10,
+          background: 'var(--dsw-alias-bg-base, canvas)',
+          color: 'var(--dsw-alias-label-primary, inherit)',
+          boxShadow: '0 12px 32px rgba(0,0,0,.28)', padding: '10px 12px 8px',
+          font: '12px/1.55 system-ui, sans-serif',
+          maxHeight: 360, overflow: 'auto',
+        },
+      },
+        h('div', { style: { display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 6 } },
+          h('span', { style: { fontWeight: 600, fontSize: 12.5 } }, '会话级 superagent'),
+          h('span', { style: { opacity: 0.6 } }, running + '/' + list.length + ' 运行中')),
+        ...rows,
+        h('div', { style: { marginTop: 8, paddingTop: 8, borderTop: BORDER, opacity: 0.55 } },
+          '「值守台」标签页可增删、暂停并配置凭证'))
+
+      return h(React.Fragment, null, button, panel)
     }
 
     function Field(props) {
@@ -390,20 +502,22 @@ window.__ModuleLoader__.load({
           }
         })
 
-        // ② the orbit badge in the session header
+        // ② the machine-wide orbit in the composer dock row — the same row as
+        //    轮/步 · token 用量 · 上下文环. One ring, one satellite per live
+        //    session-level superagent; click opens the per-agent detail list.
         ctx.effect(() => {
           try {
-            return ctx.slots.inject('conversation.session.header.actions', () => {
+            return ctx.slots.inject('conversation.composer.dock', () => {
               const dispose = ctx.slots.register({
-                name: 'conversation.session.header.actions',
-                id: 'session-superagent-badge',
-                order: 5,
-              }, OrbitBadge)
-              note('badge-registered', 'ok')
+                name: 'conversation.composer.dock',
+                id: 'session-superagent-orbit',
+                order: 2,
+              }, StatusOrbit)
+              note('orbit-registered', 'ok')
               return dispose
             })
           } catch (error) {
-            note('badge-fail', String((error && error.message) || error))
+            note('orbit-fail', String((error && error.message) || error))
             return undefined
           }
         })
