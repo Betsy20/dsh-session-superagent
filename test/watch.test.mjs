@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { advanceSeen, decideWake, formatWatchText, newestUpdatedAt, recordReported, splitFresh } from '../lib/watch.js'
+import { advanceSeen, decideWake, formatWatchText, newestUpdatedAt, partitionItems, recordReported, splitFresh } from '../lib/watch.js'
 
 const item = (number, updatedAt) => ({ number, updated_at: updatedAt, state: 'open', title: `t${number}`, html_url: `https://x/${number}`, user: { login: 'me' } })
 
@@ -71,4 +71,24 @@ test('recordReported stamps every reported item', () => {
   const now = 1_700_000_000_000
   const next = recordReported({ lastReported: { 1: 5 } }, [item(2, 'x')], now)
   assert.deepEqual(next, { 1: 5, 2: now })
+})
+
+test('partitionItems absorbs our own bump instead of delaying it', () => {
+  const now = Date.parse('2026-01-01T00:00:30Z')
+  const items = [item(9, '2026-01-01T00:00:20Z')]
+  const state = { seen: { 9: '2026-01-01T00:00:10Z' }, lastReported: { 9: now - 20_000 } }
+  const { fresh, absorbed } = partitionItems(items, state, { now, cooldownMs: 180_000 })
+  assert.equal(fresh.length, 0)
+  assert.equal(absorbed.length, 1)
+})
+
+test('absorbed bumps never resurface once the cooldown is over', () => {
+  const t0 = Date.parse('2026-01-01T00:00:30Z')
+  const items = [item(9, '2026-01-01T00:00:20Z')]
+  let state = { seen: { 9: '2026-01-01T00:00:10Z' }, lastReported: { 9: t0 - 20_000 } }
+  const first = partitionItems(items, state, { now: t0, cooldownMs: 180_000 })
+  state = { ...state, seen: advanceSeen(state.seen, first.absorbed) }
+  const later = partitionItems(items, { ...state, lastReported: {} }, { now: t0 + 600_000, cooldownMs: 180_000 })
+  assert.equal(later.fresh.length, 0, 'watermark already covered it')
+  assert.equal(later.absorbed.length, 0)
 })
