@@ -1,0 +1,125 @@
+// 一条命令跑完「发版必跑」的七项检查，输出 PASS/FAIL 表并以退出码给出结论。
+//
+// 目的：把 HANDOFF 里那段散文式检查清单变成可执行的东西 —— 清单会过期，脚本不会。
+//
+// 用法：
+//   node scripts/preflight.mjs            全部检查（gh 不可用时冒烟自动 SKIP）
+//   node scripts/preflight.mjs --fast     跳过冒烟（不请求 GitHub、不建 worktree）
+import { execFileSync, spawnSync } from 'node:child_process'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
+const FAST = process.argv.includes('--fast')
+const rows = []
+const record = (name, ok, detail = '') => {
+  rows.push({ name, ok, detail })
+  console.log((ok ? 'PASS ' : 'FAIL ') + name.padEnd(34) + detail)
+}
+const CHILD_ENV = { ...process.env }
+delete CHILD_ENV.DSH_SUPERAGENT_STATE      // 本脚本自己的临时目录，不能污染子进程
+delete CHILD_ENV.DSH_SUPERAGENT_NO_POLL    // 路由检查用的开关，冒烟必须真轮询
+delete CHILD_ENV.DSH_SUPERAGENT_TRIGGER
+const tryRun = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: ROOT, encoding: 'utf8', env: CHILD_ENV, ...opts })
+
+// ① 单测
+{
+  const res = tryRun('node', ['--test'])
+  const out = String(res.stdout || '') + String(res.stderr || '')
+  const tests = (out.match(/# tests (\d+)/) || out.match(/ℹ tests (\d+)/) || [])[1]
+  const pass = (out.match(/# pass (\d+)/) || out.match(/ℹ pass (\d+)/) || [])[1]
+  const fail = (out.match(/# fail (\d+)/) || out.match(/ℹ fail (\d+)/) || [])[1]
+  record('单测 node --test', res.status === 0 && fail === '0', `${pass}/${tests} 通过，失败 ${fail}`)
+}
+
+// ② 语法
+{
+  const files = ['client.js', 'lib/index.js', 'lib/watch.js', 'lib/redact.js', 'lib/body.js']
+  const bad = files.filter((f) => tryRun('node', ['--check', f]).status !== 0)
+  record('语法 node --check', bad.length === 0, bad.length ? '失败：' + bad.join(', ') : `${files.length} 个文件`)
+}
+
+// ③ profile 一致性
+{
+  const res = tryRun('node', ['scripts/sync-profile.mjs', '--check'])
+  const out = String(res.stdout || '')
+  const line = (out.match(/缺失 \d+ \/ 断链 \d+ \/ 陈旧 \d+/) || ['(无输出)'])[0]
+  record('profile 一致性 --check', res.status === 0, line)
+}
+
+// ④ 版本五处一致
+{
+  const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
+  const client = readFileSync(join(ROOT, 'client.js'), 'utf8')
+  const readme = readFileSync(join(ROOT, 'README.md'), 'utf8')
+  const changelog = readFileSync(join(ROOT, 'CHANGELOG.md'), 'utf8')
+  const clientVersion = (client.match(/const CLIENT_VERSION = '([^']+)'/) || [])[1]
+  const badge = (readme.match(/badge\/version-([0-9.]+)-green/) || [])[1]
+  const top = (changelog.match(/## \[([0-9.]+)\]/) || [])[1]
+  const same = clientVersion === pkg.version && badge === pkg.version && top === pkg.version
+  record('版本一致（4 处）', same, `${pkg.version} / client ${clientVersion} / badge ${badge} / changelog ${top}`)
+}
+
+// ⑤ 路由面（期望 6 条）
+{
+  const stateDir = mkdtempSync(join(tmpdir(), 'preflight-'))
+  process.env.DSH_SUPERAGENT_STATE = stateDir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  let count = 0
+  let paths = []
+  try {
+    const mod = await import('../lib/index.js?preflight=' + Date.now())
+    mod.apply({
+      tools: { register() {} },
+      webServer: { register: (r) => { count += 1; paths.push(r.path); return () => {} } },
+      agents: { get: () => null, currentInitiator: () => null },
+      get: () => null, on() {}, effect: (fn) => fn(),
+    })
+  } catch (error) {
+    record('路由面', false, 'apply 抛错：' + (error && error.message))
+  }
+  const expected = ['client-error', 'client-note', 'credentials', 'goal', 'state', 'watch']
+    .map((n) => '/session-superagent/' + n)
+  const ok = count === 6 && expected.every((p) => paths.includes(p))
+  record('路由面（6 条）', ok, `${count} 条：${paths.map((p) => p.split('/').pop()).join(' ')}`)
+  rmSync(stateDir, { recursive: true, force: true })
+}
+
+// ⑥ 打包内容
+{
+  // Windows 上 npm 是 .cmd：用 cmd /c 调它（比 shell:true 安全，也不触发 DEP0190）
+  const res = process.platform === 'win32'
+    ? tryRun('cmd.exe', ['/c', 'npm', 'pack', '--dry-run'])
+    : tryRun('npm', ['pack', '--dry-run'])
+  const out = String(res.stdout || '') + String(res.stderr || '')
+  const files = (out.match(/total files:\s+(\d+)/) || [])[1]
+  const leaked = []
+  for (const needle of ['npm notice test/', 'npm notice .tmp-', 'preview-panel.html', 'release/', 'node_modules/']) {
+    if (out.includes(needle)) leaked.push(needle.trim())
+  }
+  if (/npm notice \d+(\.\d+)?[kM]?B \S+\.tgz/.test(out)) leaked.push('.tgz')
+  record('npm pack 内容', res.status === 0 && leaked.length === 0, `${files} 个文件` + (leaked.length ? '（含：' + leaked.join(', ') + '）' : ''))
+}
+
+// ⑦ 冒烟（需要 gh；不可用则 SKIP，不算失败）
+if (FAST) {
+  console.log('SKIP 冒烟 smoke:observe              --fast 跳过')
+} else {
+  const ghOk = tryRun('gh', ['auth', 'status']).status === 0
+  if (!ghOk) {
+    console.log('SKIP 冒烟 smoke:observe              gh 未登录')
+  } else {
+    const res = tryRun('node', ['scripts/smoke-observe.mjs'], { timeout: 180000 })
+    const out = String(res.stdout || '')
+    const okCount = (out.match(/^OK /gm) || []).length
+    const badCount = (out.match(/^FAIL /gm) || []).length
+    record('冒烟 smoke:observe', res.status === 0 && badCount === 0, `${okCount} 项 OK / ${badCount} 项 FAIL`)
+  }
+}
+
+const failures = rows.filter((r) => !r.ok)
+console.log('---')
+console.log(failures.length === 0 ? `全部通过（${rows.length} 项检查）` : `${failures.length} 项失败`)
+if (failures.length > 0) process.exit(1)

@@ -134,9 +134,11 @@ computed style 核对：模态 `fixed/inset:0`、宽 380 居中；Toast `fixed/t
 ## 七、验证清单（改完必跑）
 
 ```bash
-cd /d/主工作区/projects/dsh-session-superagent
-node --test                        # 85 例
-node --check client.js lib/index.js lib/watch.js
-node scripts/sync-profile.mjs     # 新增文件后必须跑：同步 + 相对 import 自检
-ls -li client.js "/d/DeepSeek Harness/home/profiles/desktop/node_modules/dsh-session-superagent/client.js"  # inode 必须相同
+pnpm run preflight      # 一条命令跑完 7 项：单测 / 语法 / profile 一致性 / 版本一致 / 路由面 / 包内容 / 冒烟
+pnpm run preflight -- --fast   # 跳过冒烟（不请求 GitHub、不建 worktree）
 ```
+
+`scripts/preflight.mjs` 会打印 PASS/FAIL 表并以退出码给结论。其中冒烟一项需要 `gh` 已登录，
+不可用时自动 SKIP（不算失败）。
+
+以前这里是散文清单（容易过期、也记不住要跑哪些），现在脚本是唯一事实源。

@@ -2,6 +2,23 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.19] - 2026-11-02 —— `pnpm run preflight`：把「发版必跑」变成一条命令
+
+### 新增
+- `scripts/preflight.mjs`：七项检查一次跑完并以退出码给结论 ——
+  单测、语法、profile 一致性（`--check`）、版本五处一致、路由面（6 条）、`npm pack` 内容、冒烟（gh 未登录自动 SKIP）。
+  HANDOFF 的验证清单从散文改成这一条命令（散文会过期，脚本不会）。
+- 自测时抓到并修掉一个真问题：preflight 自己的 `DSH_SUPERAGENT_NO_POLL=1` 会**泄漏给子进程**，
+  导致冒烟「3 项 OK / 9 项 FAIL」。现在子进程环境会剔掉这三个开关。
+
+### 变更
+- **包内容精简**：`files` 去掉 `scripts/`，只发运行时需要的 6 项（`lib`、`client.js`、
+  `cordis.patch.yml`、README、CHANGELOG、LICENSE）。`npm pack` 从 14 个文件降到 10 个。
+  开发脚本仍在仓库里（`pnpm run preview` / `smoke:observe` / `preflight` 照旧可用）。
+
+### 测试
+- 合计 **85 例**（本轮无新增用例，改动是工具与打包）。
+
 ## [0.8.18] - 2026-11-02 —— watch_start 工具补齐参数（面板能配的，工具也要能配）
 
 ### 修复
