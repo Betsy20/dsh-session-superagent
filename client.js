@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.3.7'
+    const CLIENT_VERSION = '0.3.8'
     const BASE = '/session-superagent'
     const ENDPOINT = BASE + '/state'
     const POLL_MS = 5000
@@ -318,8 +318,8 @@ window.__ModuleLoader__.load({
         },
       },
         h('div', { style: { display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 6 } },
-          h('span', { style: { fontWeight: 600, fontSize: 12.5 } }, '会话级 superagent'),
-          h('span', { style: { opacity: 0.6 } }, list.length === 0 ? '0 个值守' : running + '/' + list.length + ' 运行中')),
+          h('span', { style: { fontWeight: 600, fontSize: 12.5 } }, '值守'),
+          h('span', { style: { opacity: 0.6 } }, list.length === 0 ? '0 个' : running + '/' + list.length + ' 运行中')),
         list.length === 0
           ? h('div', { style: { padding: '2px 0 4px', opacity: 0.7 } },
             '在「值守台」填 owner/name 添加。')

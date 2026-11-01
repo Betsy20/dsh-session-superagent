@@ -145,7 +145,7 @@ test('空态点开面板显示引导文案', () => {
   const panel = nodes.find((n) => n.props && n.props.role === 'dialog')
   assert.ok(panel, '空态也要能展开面板')
   const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
-  assert.ok(text.includes('0 个值守'), text.slice(0, 120))
+  assert.ok(text.includes('0 个'), text.slice(0, 120))
   assert.ok(text.includes('值守台') && text.includes('owner/name'), '空态要告诉人去哪加：' + text.slice(0, 120))
   assert.ok(!text.includes('暂停'), '没有值守时不该出现暂停/删除的说明')
   assert.equal(panel.props.style.width, 252, '空态面板要比常规面板窄')
@@ -205,7 +205,7 @@ test('点击展开的面板逐条列出仓库 / 会话 / 间隔 / 轮询 / 状�
   assert.equal(panel.props.style.width, 344)
   const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
   const needles = [
-    '会话级 superagent', '1/2 运行中', 'a/b', 'c/d', '值守中', '异常', '每 30s', '401 bad credentials',
+    '值守', '1/2 运行中', 'a/b', 'c/d', '值守中', '异常', '每 30s', '401 bad credentials',
     // 会话标题可能重名，所以每行必须带 8 位会话后缀
     '1e82afca', '7f7155cf',
     // 有 goal 的 superagent 要显示 goal 摘要
