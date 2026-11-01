@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.4'
+    const CLIENT_VERSION = '0.8.5'
     const BASE = '/session-superagent'
     const ENDPOINT = BASE + '/state'
     const POLL_MS = 5000
@@ -122,13 +122,6 @@ window.__ModuleLoader__.load({
       return h('span', { className: 'dt-tag', 'data-tone': tone, title }, children)
     }
 
-    function Pill({ active, onClick, children }) {
-      return h('button', {
-        type: 'button', className: cx('dt-pill', active && 'dt-pill-active'),
-        'aria-pressed': !!active, onClick,
-      }, children)
-    }
-
     /** 页级 tab 条：点当前页会再发一次 onChange（回调里可重置到根部）。 */
     function SegTabs({ items, value, onChange, label }) {
       return h('div', {
@@ -191,23 +184,33 @@ window.__ModuleLoader__.load({
     }
 
     function Modal({ open, title, children, onClose }) {
+      useEffect(() => {
+        if (!open || typeof document === 'undefined') return undefined
+        const onKey = (event) => { if (event.key === 'Escape') onClose() }
+        document.addEventListener('keydown', onKey)
+        return () => document.removeEventListener('keydown', onKey)
+      }, [open, onClose])
       if (!open) return null
-      return h('div', { className: 'dt-modal-backdrop', role: 'presentation', onClick: onClose },
+      // class 必须与移植来的官方 CSS 对齐：dt-modal-root / dt-modal-mask / dt-modal-header
+      return h('div', { className: 'dt-modal-root' },
+        h('div', { className: 'dt-modal-mask', onClick: onClose }),
         h('div', {
-          className: 'dt-modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': typeof title === 'string' ? title : undefined,
-          onClick: (event) => event.stopPropagation(),
+          className: 'dt-modal', role: 'dialog', 'aria-modal': 'true',
+          'aria-label': typeof title === 'string' ? title : undefined,
         },
-          h('div', { className: 'dt-modal-head' },
-            h('span', { className: 'dt-modal-title' }, title),
+          h('div', { className: 'dt-modal-header' },
+            h('span', { className: 'dt-title' }, title),
             h('button', { type: 'button', className: 'dt-modal-close', onClick: onClose, 'aria-label': '关闭' }, h(Icon, { name: 'close' }))),
           h('div', { className: 'dt-modal-body' }, children)))
     }
 
     /** 危险操作二次确认：点一次变成「确定吗」，再点才执行。 */
-    function ConfirmBtn({ label, confirmLabel = '确定执行', onConfirm, variant = 'ghost', icon }) {
+    function ConfirmBtn({ label, confirmLabel = '确定执行', onConfirm, variant = 'ghost', icon, size }) {
       const [armed, setArmed] = useState(false)
       return h(Btn, {
-        variant: armed ? 'danger' : variant,
+        variant,
+        size,
+        className: armed ? 'dt-danger' : undefined,
         icon,
         onClick: () => {
           if (!armed) { setArmed(true); return }
@@ -580,26 +583,18 @@ window.__ModuleLoader__.load({
     /** 轻量 Toast：右下角堆叠，4 秒自动消失。 */
     function useToast() {
       const [items, setItems] = useState([])
+      const timers = useRef([])
+      useEffect(() => () => { for (const timer of timers.current) clearTimeout(timer); timers.current = [] }, [])
       const notify = useCallback((text, tone = 'info') => {
         const id = Math.random().toString(36).slice(2)
         setItems((prev) => [...prev, { id, text, tone }])
-        setTimeout(() => setItems((prev) => prev.filter((item) => item.id !== id)), 4000)
+        const timer = setTimeout(() => setItems((prev) => prev.filter((item) => item.id !== id)), 4000)
+        timers.current.push(timer)
       }, [])
-      const view = items.length === 0 ? null : h('div', { className: 'dt-toast-stack' },
+      const stackStyle = { position: 'fixed', right: 16, bottom: 16, display: 'flex', flexDirection: 'column', gap: 8, zIndex: 2147483000 }
+      const view = items.length === 0 ? null : h('div', { style: stackStyle },
         items.map((item) => h('div', { key: item.id, className: cx('dt-toast', item.tone === 'error' && 'dt-danger') }, item.text)))
       return [view, notify]
-    }
-
-    /** 操作重入保护：同一个动作在途时忽略连点。 */
-    function useAction(task) {
-      const [busy, setBusy] = useState(false)
-      const run = async (...args) => {
-        if (busy) return
-        setBusy(true)
-        try { return await task(...args) }
-        finally { setBusy(false) }
-      }
-      return [run, busy]
     }
 
     function ZhuliPanel(props) {
@@ -729,7 +724,7 @@ window.__ModuleLoader__.load({
 
       const stateTag = (watcher) => {
         const state = orbitStateOf(watcher)
-        const tone = state === 'active' ? 'ok' : state === 'paused' ? 'warn' : 'danger'
+        const tone = state === 'active' ? 'success' : state === 'paused' ? 'warning' : 'danger'
         return h(Tag, { tone }, STATE_TEXT[state])
       }
 
@@ -750,13 +745,13 @@ window.__ModuleLoader__.load({
                 watcher.lastDeferred,
                 watcher.lastError,
               ].filter(Boolean).join(' · '))),
-          h('div', { className: 'dt-row-meta dt-row-meta-tags' },
+          h('div', { className: 'dt-row-meta' },
             stateTag(watcher),
-            watcher.observe ? h(Tag, { tone: 'warn' }, '仅观察') : null,
+            watcher.observe ? h(Tag, { tone: 'warning' }, '仅观察') : null,
             watcher.activeHours ? h(Tag, null, '时段 ' + watcher.activeHours) : null,
             watcher.isolated ? h(Tag, null, isolationText(watcher)) : null,
             filterText(watcher.filters) ? h(Tag, null, filterText(watcher.filters)) : null,
-            backoffText(watcher) ? h(Tag, { tone: 'warn' }, backoffText(watcher)) : null)),
+            backoffText(watcher) ? h(Tag, { tone: 'warning' }, backoffText(watcher)) : null)),
         h('div', { className: 'dt-row-actions' },
           h(Btn, {
             size: 'sm', variant: 'ghost', icon: h(Icon, { name: 'settings' }),
@@ -784,7 +779,7 @@ window.__ModuleLoader__.load({
             confirmLabel: '确认删除', onConfirm: () => act(watcher, 'delete'),
           })))
         const editor = editing === key
-          ? h('div', { className: 'dt-editor' },
+          ? h('div', { className: 'dt-fieldset' },
             field('间隔（秒）', h(Input, { value: draft.intervalSec, onChange: (e) => setDraft({ ...draft, intervalSec: e.target.value }) })),
             field('只处理这些标签', h(Input, { value: draft.labels, placeholder: '逗号分隔，留空 = 全部', onChange: (e) => setDraft({ ...draft, labels: e.target.value }) })),
             field('活跃时段', h(Input, { value: draft.activeHours, placeholder: '09:00-23:00，留空 = 全天', onChange: (e) => setDraft({ ...draft, activeHours: e.target.value }) })),
@@ -844,7 +839,7 @@ window.__ModuleLoader__.load({
         watchers.length === 0
           ? h(Hint, null, '还没有主理鱼。')
           : h('div', { className: 'dt-rows' },
-            watchers.flatMap((watcher) => (watcher.history || []).slice(-6).reverse().map((entry, index) => h('div', { className: 'dt-row dt-row-quiet', key: watcher.repo + entry.at + index },
+            watchers.flatMap((watcher) => (watcher.history || []).slice(-6).reverse().map((entry, index) => h('div', { className: 'dt-row', key: watcher.repo + '#' + watcher.sessionId + entry.at + index },
               h('div', { className: 'dt-row-main' },
                 h(Dot, { state: entry.ok ? 'done' : entry.reason === 'observe' ? 'idle' : 'error', label: entry.ok ? '已唤醒' : (entry.reason || '跳过') }),
                 h('div', { className: 'dt-row-title' },
@@ -878,7 +873,7 @@ window.__ModuleLoader__.load({
           ] })),
         h(Section, { key: 'creds', title: '凭证' },
           h(KeyValues, { rows: [['GitHub token', credentials.token === 'none' ? '未配置（回退到已登录的 gh CLI）' : '已配置'], ['SSH 私钥', credentials.sshKeyPath === 'none' ? '未配置（当前版本不使用）' : '已配置']] }),
-          field('Token', h(Input, { value: token, placeholder: 'ghp_… / github_pat_…（留空不改）', onChange: (e) => setToken(e.target.value) })),
+          field('Token', h(Input, { type: 'password', value: token, placeholder: 'ghp_… / github_pat_…（留空不改）', onChange: (e) => setToken(e.target.value) })),
           h('div', { className: 'dt-actions' }, h(Btn, { variant: 'primary', onClick: saveCredentials }, '保存凭证')),
           h(Hint, null, '不填也能用：插件直接复用已登录的 gh CLI。')),
         h(Section, { key: 'goal', title: '会话 goal' },
@@ -898,7 +893,7 @@ window.__ModuleLoader__.load({
         h('div', { className: 'dt-page-head' },
           h('div', null,
             h('h1', { className: 'dt-page-title' }, '主理鱼'),
-            h('span', { className: 'dt-page-sub' }, sessionId ? '盯办 + 主动办：仓库有动静就叫醒本会话' : '需要会话上下文')),
+            h('span', { className: 'dt-hint' }, sessionId ? '盯办 + 主动办：仓库有动静就叫醒本会话' : '需要会话上下文')),
           h('div', { className: 'dt-toolbar' },
             h(Input, { value: search, placeholder: '搜索仓库 / 编号 / 标题', onChange: (e) => setSearch(e.target.value), 'aria-label': '搜索' }),
             h(Btn, { size: 'sm', variant: 'ghost', icon: h(Icon, { name: 'question' }), onClick: () => setGlossary(true) }, '术语'),

@@ -1,5 +1,4 @@
-// 版本一致性守门：踩过「CHANGELOG 顶部还停在 0.3.6，package.json 已经 0.7.2」，
-// 因为插入新条目的 python replace 找不到锚点时会静默无操作。
+// 版本/契约守门：踩过的坑都在注释里。
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -38,11 +37,60 @@ test('package.json 该有的元数据都在', () => {
 test('lib/index.js 里用到的 watch.js 导出，必须真的被 import 进来', async () => {
   const src = read('../lib/index.js')
   const watch = await import('../lib/watch.js')
-  const end = src.indexOf("} from './watch.js'")
+  const marker = "} from './watch.js'"
+  const end = src.indexOf(marker)
   assert.ok(end > 0, '找不到 watch.js 的 import 块')
   const start = src.lastIndexOf('import {', end) + 'import {'.length
   const imported = new Set(src.slice(start, end).split(',').map((v) => v.trim()).filter(Boolean))
-  const body = src.slice(end + "} from './watch.js'".length)
-  const missing = Object.keys(watch).filter((name) => !imported.has(name) && new RegExp('\b' + name + '\b').test(body))
+  const body = src.slice(end + marker.length)
+  const missing = Object.keys(watch).filter((name) => {
+    if (imported.has(name)) return false
+    return new RegExp('\\b' + name + '\\b').test(body)
+  })
   assert.deepEqual(missing, [], '这些名字被用了却没 import：' + missing.join(', '))
+})
+
+// 第二轮审核的教训：移植官方 GUI 时用了 3 个官方 CSS 里根本不存在的 class，
+// 弹层落到页面底部、状态标签变成裸文字，而测试全是绿的。
+test('client.js 用到的 dt-* 类名都必须在移植来的 CSS 里存在', () => {
+  const client = read('../client.js')
+  // 不用正则读 PORTED_CSS：按引号扫描，避免转义地狱
+  const marker = 'const PORTED_CSS = "'
+  const head = client.indexOf(marker)
+  assert.ok(head >= 0, '找不到 PORTED_CSS')
+  let j = head + marker.length
+  let closed = -1
+  while (j < client.length) {
+    if (client[j] === '\\') {
+      j += 2
+    } else if (client[j] === '"') {
+      closed = j
+      break
+    } else {
+      j += 1
+    }
+  }
+  assert.ok(closed > 0, '找不到 PORTED_CSS 的收尾引号')
+  const css = JSON.parse('"' + client.slice(head + marker.length, closed) + '"')
+
+  const known = new Set()
+  let k = 0
+  while ((k = css.indexOf('.dt-', k)) >= 0) {
+    let end = k + 1
+    while (end < css.length && /[a-z0-9-]/.test(css[end])) end += 1
+    known.add(css.slice(k + 1, end))
+    k = end
+  }
+  assert.ok(known.size > 150, 'CSS 里只解析到 ' + known.size + ' 个类名，解析逻辑可能坏了')
+
+  const used = new Set()
+  const re = /className:\s*'([^']+)'/g
+  let m
+  while ((m = re.exec(client)) !== null) {
+    for (const name of m[1].split(/\s+/)) {
+      if (name.startsWith('dt-')) used.add(name)
+    }
+  }
+  const missing = [...used].filter((name) => !known.has(name))
+  assert.deepEqual(missing, [], '这些 class 用了但 CSS 里没有：' + missing.join(', '))
 })

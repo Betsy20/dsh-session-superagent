@@ -2,6 +2,33 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.5] - 2026-11-01 —— 第二轮严格审核后的修复
+
+`docs/review-2026-11-01.md` 第二轮（GUI 移植专题）给出 **7 个必须修 + 13 条建议**，必须修全部已修：
+
+1. `/config` 引用未定义的 `gh` → 每次调用抛 ReferenceError（`gh` 声明在 `/state` 里）。
+2. `/state` 根本没返回 `gh`（上一版错插到 `/config`），设置页「来源」永远「检测中…」。
+3. GUI 行内保存会清空 watcher 的 `goal`（无条件覆盖）。
+4. GUI 只发 `labels/onlyAssigned`，服务端整对象重建 → `ignoreLabels/skip*/assignee` 被抹成默认。
+5. `isolated` 只能开不能关（`||` 写法），Toggle 成了单向开关。
+6. 术语表 Modal 用了 3 个官方 CSS 里不存在的 class → 弹层落到页面最底部、无遮罩、无 Escape。
+7. Tag tone 传 `ok/warn`，而官方 CSS 只有 `success/warning`；另有 8 个 class 缺失（`dt-btn-danger` 等）。
+
+### 顺带
+- `useToast` 的定时器在卸载后仍然 `setState` → 现在用 ref 存句柄并清理。
+- `ConfirmBtn` 丢掉 `size` 参数、token 输入框明文显示 → 都修了。
+- 删除未使用的 `Pill` / `useAction`；判定页列表 key 加 `sessionId`。
+- 仓库里 tracked 的两个 `.tgz` 移出版本库（`.gitignore` 早已有 `*.tgz`）。
+- README / MAINTENANCE / HANDOFF 的测试数同步到 73。
+
+### 新增守门
+- `client.js` 用到的 `dt-*` 类名必须存在于移植的 CSS 里（这次 7 个必须修里有两个属于这类）。
+- 路由层：`/state` 必带 `gh`、`/config` 不得抛错、编辑保存不得清空 goal / 抹掉未暴露 filters / 单向 isolated。
+- 修掉 `meta.test.mjs` 里 `new RegExp(''+…)` 实为退格符的旧 bug（那条守门此前形同虚设）。
+
+### 测试
+- 合计 **73 例**。
+
 ## [0.8.4] - 2026-11-01 —— 判定页 + 文档收尾
 
 ### 新增

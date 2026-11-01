@@ -163,3 +163,50 @@ test('未知路由不注册（不会误吞）', () => {
 test('cleanup', () => {
   rmSync(STATE_DIR, { recursive: true, force: true })
 })
+
+test('/state 返回 gh 健康；/config 不再抛 ReferenceError', async () => {
+  const state = (await call('GET', '/session-superagent/state')).json()
+  assert.ok('gh' in state, '/state 必须回传 gh 字段（设置页「来源」卡片要用）')
+  assert.equal(typeof state.gh.ok, 'boolean')
+
+  const config = await call('GET', '/session-superagent/config')
+  assert.equal(config.statusCode, 200, '/config 曾经因为引用未定义的 gh 抛 ReferenceError')
+  assert.ok(config.json().credentials, '/config 仍要回凭证摘要')
+})
+
+test('编辑保存不会清空 goal、不会抹掉没暴露的 filters、isolated 可以关', async () => {
+  const created = (await call('POST', '/session-superagent/watch', {
+    repo: 'o/edit',
+    sessionId: 's2',
+    intervalSec: 60,
+    goal: '把 widget 的 issue 都处理完',
+    filters: { labels: ['ai-fix'], ignoreLabels: ['wontfix'], skipClosed: false, assignee: 'alice', onlyAssigned: true },
+    isolated: true,
+  })).json()
+  const id = created.id
+
+  // GUI 行内编辑发出的正是这种 body：只有 labels/onlyAssigned，没有 goal / ignoreLabels / skip*
+  await call('POST', '/session-superagent/watch', {
+    repo: 'o/edit',
+    sessionId: 's2',
+    intervalSec: 120,
+    filters: { labels: ['ai-fix'], onlyAssigned: false },
+    activeHours: '09:00-23:00',
+    isolated: false,
+    observe: true,
+  })
+
+  // entry.goal 不经过 /state 投影（那里回的是真会话 goal），直接读状态文件
+  const raw = JSON.parse(readFileSync(join(STATE_DIR, 'watchers.json'), 'utf8'))
+  const watcher = raw.watchers[id]
+  assert.equal(watcher.intervalSec, 120)
+  assert.equal(watcher.goal, '把 widget 的 issue 都处理完', '没传 goal 不能清空')
+  assert.deepEqual(watcher.filters.labels, ['ai-fix'])
+  assert.deepEqual(watcher.filters.ignoreLabels, ['wontfix'], '没暴露的字段要保持原值')
+  assert.equal(watcher.filters.skipClosed, false)
+  assert.equal(watcher.filters.assignee, 'alice')
+  assert.equal(watcher.isolated, false, 'isolated 必须能关掉')
+  assert.equal(watcher.observe, true)
+
+  await call('POST', '/session-superagent/watch', { action: 'delete', id })
+})
