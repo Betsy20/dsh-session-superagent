@@ -6,7 +6,7 @@
 //   node scripts/preflight.mjs            全部检查（gh 不可用时冒烟自动 SKIP）
 //   node scripts/preflight.mjs --fast     跳过冒烟（不请求 GitHub、不建 worktree）
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -41,12 +41,18 @@ const tryRun = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: ROOT, encod
   record('语法 node --check', bad.length === 0, bad.length ? '失败：' + bad.join(', ') : `${files.length} 个文件`)
 }
 
-// ③ profile 一致性
+// ③ profile 一致性（CI 上没有 profile，自动 SKIP）
 {
-  const res = tryRun('node', ['scripts/sync-profile.mjs', '--check'])
-  const out = String(res.stdout || '')
-  const line = (out.match(/缺失 \d+ \/ 断链 \d+ \/ 陈旧 \d+/) || ['(无输出)'])[0]
-  record('profile 一致性 --check', res.status === 0, line)
+  const home = process.env.DSH_HOME || join(process.env.USERPROFILE || process.env.HOME || '', '.dsh')
+  const profileDir = join(home, 'profiles', 'desktop', 'node_modules', 'dsh-session-superagent')
+  if (!existsSync(profileDir)) {
+    console.log('SKIP profile 一致性 --check        没有 profile 安装目录（CI 环境正常）')
+  } else {
+    const res = tryRun('node', ['scripts/sync-profile.mjs', '--check'])
+    const out = String(res.stdout || '')
+    const line = (out.match(/缺失 \d+ \/ 断链 \d+ \/ 陈旧 \d+/) || ['(无输出)'])[0]
+    record('profile 一致性 --check', res.status === 0, line)
+  }
 }
 
 // ④ 版本五处一致
