@@ -556,7 +556,7 @@ OK   .dsh-zhuli 下正好一个副本
 
 ## [0.8.0] - 2026-11-01 —— 移植官方 superagent 的 GUI
 
-把官方 `dsh-superagent`（D:\主工作区\projects\dsh-superagent-prototype）的**设计系统与信息架构**
+把官方 `dsh-superagent`（本地 checkout 的 dsh-superagent-prototype）的**设计系统与信息架构**
 搬进「主理鱼」标签页，数据接我们自己的 `/state`、`/watch`。
 
 ### 移植了什么

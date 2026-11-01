@@ -1,6 +1,6 @@
 # 官方插件 dsh-superagent 的浏览器端 GUI 信息架构（考古报告）
 
-> 目标：把官方插件 `dsh-superagent@0.1.0`（`D:\主工作区\projects\dsh-superagent-prototype`）的**面板 IA、控件、交互、文案、依赖**完整扒出来，作为「主理鱼」（`dsh-session-superagent`）重写 GUI 的施工蓝图。
+> 目标：把官方插件 `dsh-superagent@0.1.0`（`dsh-superagent-prototype`（本地 checkout））的**面板 IA、控件、交互、文案、依赖**完整扒出来，作为「主理鱼」（`dsh-session-superagent`）重写 GUI 的施工蓝图。
 >
 > **证据约定**
 > - 行号一律指 `lib/client.js`（6883 行，tsdown 产物，保留 `//#region src/...` 模块边界）。
