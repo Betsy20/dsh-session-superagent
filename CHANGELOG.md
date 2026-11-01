@@ -2,6 +2,31 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.15] - 2026-11-02 —— sync-profile 支持修复断链（事故 1 的第二种形态）
+
+### 修什么
+`sync-profile.mjs` 之前只会「补缺失文件」，遇到**已存在但 inode 不同**（断链）只打印一句“注意”。
+断链的来源很日常：任何用「写临时文件再 rename」保存的工具（含某些编辑器的原子写）都会让
+profile 里那份留在旧 inode 上 —— 于是**宿主跑旧代码，仓库里看着是新代码**。
+
+现在三种模式：
+
+```bash
+pnpm run sync:profile           # 补齐缺失（不动断链，只警告）
+pnpm run sync:profile:repair    # 断链重建硬链接 + 清理 profile 里的陈旧文件
+pnpm run sync:profile:check     # 只检查：有缺失/断链/陈旧就 exit 1（CI/发布前用）
+```
+
+实测：profile 里 `README.md` / `CHANGELOG.md` 当时确实是断链，`--repair` 重建后
+`--check` 从 exit 1 变 exit 0。另外故意把 README 换成新 inode，验证 `--check` 会红（exit 1）。
+
+### 守门
+- 新增用例：`sync-profile` 的 `TARGETS` 必须覆盖 `lib/` 下所有 js 文件 ——
+  防止「新增 lib 文件忘了登记」再次导致插件不挂载。
+
+### 测试
+- 合计 **81 例**。
+
 ## [0.8.14] - 2026-11-02 —— 第四轮审核：1 条文档 + 3 条代码建议
 
 审核范围 0.8.9→0.8.13（上一轮门禁只覆盖到 0.8.8）。结论：代码侧无阻塞，文档有 1 处必须修。

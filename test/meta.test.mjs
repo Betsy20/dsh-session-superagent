@@ -134,3 +134,18 @@ test('lib/ 里每个相对 import 都能解析到真实文件', () => {
   }
   assert.deepEqual(missing, [], '相对 import 指向不存在的文件：' + missing.join(', '))
 })
+
+// 事故 1 的复发形态：新增 lib/xxx.js 但没加进 sync-profile 的 TARGETS，
+// 结果 profile 里没有这个文件 -> 宿主 import 失败 -> 插件整体不挂载。
+test('sync-profile 的 TARGETS 必须覆盖 lib/ 下所有 js 文件', () => {
+  const script = read('../scripts/sync-profile.mjs')
+  const start = script.indexOf('const TARGETS = [')
+  const end = script.indexOf(']', start)
+  assert.ok(start > 0 && end > start, '解析不到 TARGETS')
+  const listed = [...script.slice(start, end).matchAll(/'([^']+)'/g)].map((m) => m[1])
+  const libs = readdirSync(fileURLToPath(new URL('../lib/', import.meta.url)))
+    .filter((f) => f.endsWith('.js'))
+    .map((f) => 'lib/' + f)
+  const missing = libs.filter((f) => !listed.includes(f))
+  assert.deepEqual(missing, [], '这些 lib 文件没进 TARGETS（新增文件后必须加）：' + missing.join(', '))
+})
