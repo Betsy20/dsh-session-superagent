@@ -161,14 +161,14 @@ test('未知路由不注册（不会误吞）', () => {
 })
 
 
-test('/state 返回 gh 健康；/config 不再抛 ReferenceError', async () => {
+test('/state 返回 gh 健康；/config 已下线', async () => {
   const state = (await call('GET', '/session-superagent/state')).json()
   assert.ok('gh' in state, '/state 必须回传 gh 字段（设置页「来源」卡片要用）')
   assert.equal(typeof state.gh.ok, 'boolean')
 
-  const config = await call('GET', '/session-superagent/config')
-  assert.equal(config.statusCode, 200, '/config 曾经因为引用未定义的 gh 抛 ReferenceError')
-  assert.ok(config.json().credentials, '/config 仍要回凭证摘要')
+  // /config 已删除（与 /state 重复、是未鉴权 GET，且曾因引用未定义变量抛 ReferenceError）
+  // 路由表里不应再注册它 —— 未注册即 404（宿主不会为未知路径分发到 handler）
+  assert.equal(routes.has('/session-superagent/config'), false, '/config 必须已从路由表移除')
 })
 
 test('编辑保存不会清空 goal、不会抹掉没暴露的 filters、isolated 可以关', async () => {

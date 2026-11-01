@@ -2,6 +2,20 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.12] - 2026-11-02 —— 体验打磨四条
+
+### 改了什么
+- **Toast 改成官方单条语义**：移植来的 `.dt-toast` 是 `position:fixed` 顶部居中、自带淡出动画，
+  同时挂多条会**重叠成一团**。现在同一时刻只显示最新一条，停留时长用官方的 `--dt-toast-hold` 控制，
+  错误态保留淡红底 + `role=status` / `aria-live=polite`。
+- **页签焦点跟随**：方向键/Home/End 切页后，焦点跟到新页签 —— 之前旧页签变 `tabIndex=-1`、
+  新页签变 0，但焦点留在原地，键盘用户会「掉出」tablist。
+- **删掉 `/session-superagent/config`**：它和 `/state` 重复，是未鉴权的 GET，而且上一轮
+  `ReferenceError: gh is not defined` 就出在它身上。现在路由从 8 条减到 7 条，测试改为断言它已下线。
+
+### 测试
+- 合计 **77 例**（`/config` 用例改为「路由表里不应再有它」）。
+
 ## [0.8.11] - 2026-11-02 —— 真机验证隔离执行 + watch_doctor
 
 ### 验证（这轮真的在跑起来的宿主上做的）

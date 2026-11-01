@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.11'
+    const CLIENT_VERSION = '0.8.12'
     const BASE = '/session-superagent'
     const ENDPOINT = BASE + '/state'
     const POLL_MS = 5000
@@ -125,6 +125,7 @@ window.__ModuleLoader__.load({
 
     /** 页级 tab 条：点当前页会再发一次 onChange（回调里可重置到根部）。 */
     function SegTabs({ items, value, onChange, label }) {
+      const buttons = useRef({})
       const walk = (event) => {
         if (items.length === 0) return
         const values = items.map((item) => item.value)
@@ -133,13 +134,19 @@ window.__ModuleLoader__.load({
         if (target === undefined) return
         event.preventDefault()
         const next = values[(target + values.length) % values.length]
-        if (next !== value) onChange(next)
+        if (next !== value) {
+          onChange(next)
+          // 焦点跟随：旧页签变成 tabIndex=-1 后，键盘用户会掉出 tablist
+          const nextButton = buttons.current[next]
+          if (nextButton && typeof nextButton.focus === 'function') nextButton.focus()
+        }
       }
       return h('div', {
         role: 'tablist', 'aria-label': label, className: 'dt-tabs', onKeyDown: walk,
         style: { gridTemplateColumns: 'repeat(' + items.length + ', minmax(0, 1fr))' },
       }, items.map((item) => h('button', {
         key: item.value, type: 'button', role: 'tab',
+        ref: (node) => { buttons.current[item.value] = node },
         'aria-selected': item.value === value,
         tabIndex: item.value === value ? 0 : -1,
         className: 'dt-tab',
@@ -593,26 +600,24 @@ window.__ModuleLoader__.load({
 
     /** 轻量 Toast：右下角堆叠，4 秒自动消失。 */
     function useToast() {
-      const [items, setItems] = useState([])
-      const timers = useRef([])
-      useEffect(() => () => { for (const timer of timers.current) clearTimeout(timer); timers.current = [] }, [])
+      // 官方 .dt-toast 是 position:fixed 顶部居中、且带自动淡出动画 —— 同时挂两条会重叠，
+      // 所以这里保持「同一时刻只有最新一条」，停留时长用官方的 --dt-toast-hold 控制。
+      const [item, setItem] = useState(null)
+      const timer = useRef(null)
+      useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
       const notify = useCallback((text, tone = 'info') => {
-        const id = Math.random().toString(36).slice(2)
-        setItems((prev) => [...prev, { id, text, tone }])
-        const timer = setTimeout(() => {
-          // 用后即删：长会话里这个数组不能只增不减
-          timers.current = timers.current.filter((handle) => handle !== timer)
-          setItems((prev) => prev.filter((item) => item.id !== id))
-        }, 4000)
-        timers.current.push(timer)
+        if (timer.current) clearTimeout(timer.current)
+        setItem({ id: Math.random().toString(36).slice(2), text, tone })
+        timer.current = setTimeout(() => setItem(null), 4000)
       }, [])
-      // .dt-toast 自己就是 position:fixed（顶部居中），这里只做分组，不再加定位样式
-      const view = items.length === 0 ? null : h(React.Fragment, null,
-        items.map((item) => h('div', {
-          key: item.id,
-          className: cx('dt-toast', item.tone === 'error' && 'dt-danger'),
-          style: item.tone === 'error' ? { background: 'color-mix(in srgb, #f85149 14%, var(--dsw-alias-bg-layer-1, #fff))' } : undefined,
-        }, item.text)))
+      const view = item === null ? null : h('div', {
+        className: cx('dt-toast', item.tone === 'error' && 'dt-danger'),
+        role: 'status',
+        'aria-live': 'polite',
+        style: item.tone === 'error'
+          ? { '--dt-toast-hold': '3600ms', background: 'color-mix(in srgb, #f85149 14%, var(--dsw-alias-bg-layer-1, #fff))' }
+          : { '--dt-toast-hold': '3600ms' },
+      }, item.text)
       return [view, notify]
     }
 
