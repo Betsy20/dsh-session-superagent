@@ -2,6 +2,21 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.2.1] - 2026-11-01
+
+### 修复
+- **面板数据 404**：路由注册的服务名是 `webServer`（大写 S），不是包文档写的 `httpServer`。
+  `inject` 改为 `['tools','agents','webServer']`，直接 `ctx.webServer.register(...)`。
+- 移除了会静默失败的 `ctx.inject` 延迟注册路径；`registerRoutes` 失败时把错误写进状态文件 `server.error`。
+
+### 新增（诊断）
+- 客户端加载时 `GET /session-superagent/client-hello`、注册失败时 `GET /session-superagent/client-error`，
+  结果落在状态文件 `client.{hello,error}`，用于区分「客户端没被加载」与「注册抛错」。
+- 面板 tab 的 `order` 从 50 调到 30，避免被挤进溢出菜单。
+
+### 验证
+- 真机：Windows 11 + DSH 0.2.1-rc.5，面板显示 1 个 watcher（`MYCF711/dsh-GOkifu-compact`，30s，运行中）。
+
 ## [0.2.0] - 2026-11-01
 
 ### 新增

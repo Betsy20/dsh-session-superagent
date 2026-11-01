@@ -95,12 +95,22 @@ window.__ModuleLoader__.load({
     return {
       inject: ['slots'],
       apply(ctx) {
-        ctx.effect(() => ctx.slots.inject('conversation.view', () => ctx.slots.register({
-          name: 'conversation.view',
-          id: 'session-superagent-desk',
-          order: 50,
-          label: '值守台',
-        }, DutyDesk)))
+        // Report once so the host half can tell "not served" from "registration failed".
+        try { fetch('/session-superagent/client-hello', { method: 'GET' }).catch(() => {}) } catch {}
+        ctx.effect(() => {
+          try {
+            return ctx.slots.inject('conversation.view', () => ctx.slots.register({
+              name: 'conversation.view',
+              id: 'session-superagent-desk',
+              order: 30,
+              label: '值守台',
+            }, DutyDesk))
+          } catch (error) {
+            const message = String((error && error.message) || error).slice(0, 300)
+            try { fetch('/session-superagent/client-error?msg=' + encodeURIComponent(message)).catch(() => {}) } catch {}
+            throw error
+          }
+        })
       },
     }
   },
