@@ -22,6 +22,9 @@
   没有会话就直接把 `lastError` 写成「会话已不在：请删除或重建这条主理鱼」并跳过本轮，
   不再先 `git worktree add` 再 wake 失败（实测那条会留下一个永远用不上的 worktree）。
 - 测试现场已清理（worktree、`zhuli/*` 分支、临时仓库）。
+- **重启后在 0.8.11 上复验**：造一条 `sessionId` 不存在的 `isolated:true` watcher，
+  结果是 `lastError="会话已不在：请删除或重建这条主理鱼"`、`lastWorktree=null`、**没有** `.dsh-zhuli` 目录
+  （修复前会先建一个永远用不上的 worktree）。
 
 ### 测试
 - 合计 **77 例**（本修复属运行时守卫，靠真机 E2E 验证）。

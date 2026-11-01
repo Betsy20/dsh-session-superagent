@@ -1,11 +1,11 @@
-# HANDOFF —— 会话交接（2026-11-02 01:25，v0.8.10）
+# HANDOFF —— 会话交接（2026-11-02 02:45，v0.8.11）
 
 > 写给**接手的下一个 agent / 下一个会话**。读完它 + `docs/competitive-analysis.md` + `docs/deepseek-papers.md`，就能接着干，不用翻聊天记录。
 
 ## 一、项目现状
 
 - 仓库：https://github.com/MYCF711/dsh-session-superagent
-- 版本：**v0.8.10**
+- 版本：**v0.8.11**
 - 本地：`D:\主工作区\projects\dsh-session-superagent`（profile 里以 `file:` 安装，**硬链接**：改源码即改 profile 内文件）
 - 真机：Windows 11 + DSH 0.2.1-rc.5，`node --test` **77/77**（重启后真机复验通过）
 
@@ -62,14 +62,38 @@ profile 同步   = 相对 import 全部可解析
 4. **`taskkill` / `schtasks` 的 `/run` 被 MSYS 改写** → `MSYS2_ARG_CONV_EXCL='*'`。
 5. **`web_search` 工具在本机不可用**（magpie 端点不返回 search blocks）→ 用 `curl` + `gh api`；脚本在 `E:\Documents\deepseek-harness\default-workspace\research\web.py`。
 
-## 四、下一步（按性价比）
+## 四、验证与审核台账
+
+### 审核（三轮，全部有结论落盘）
+| 轮 | 对象 | 结论 | 落盘 |
+|---|---|---|---|
+| 一 | v0.7.4 全仓 | 8 个必须修 + 14 建议 | `docs/review-2026-11-01.md` |
+| 二 | v0.8.4 GUI 移植 | 7 个必须修 + 13 建议；复核再抓出第 8 个（删除按钮 className 被覆盖） | 同上 |
+| 三 | v0.8.8 发布门禁 | 2 个阻塞（goal 只算没拼、缓存 TTL 失效）；修复后复核 **「可以发布，无阻塞项」** | 同上 |
+
+### 真机验证（不是单测，是跑起来的宿主上做的）
+| 时间 | 验了什么 | 证据 |
+|---|---|---|
+| 01:25 | 重启后插件挂载 | `server.routes=8`、`/state /config` 200、`client-version` 一致 |
+| 01:41 | `watch_doctor` 五项检查 | gh 登录 / 仓库可访问 / ack 标签 / 隔离目录是 git 仓库 / 上次轮询与错误 |
+| 01:41 | 隔离执行 E2E | `git worktree list` 出现 `.dsh-zhuli/<id>` + `zhuli/<id>`；`lastWorktree`、`history` 正确 |
+| 02:41 | 幽灵会话守卫（0.8.11） | 会话不存在时 `lastError="会话已不在…"`、**不建** worktree（修复前会白建一个） |
+| 02:41 | 真实业务闭环前的数据面 | `/state.gh` = `gh version 2.101.0`；建→查→删 watcher 全部往返正常 |
+
+### 两次生产事故（都已修 + 有守门）
+| 事故 | 根因 | 守门 |
+|---|---|---|
+| GBK 路径乱码导致 body 解码失败 | Python/Git 输出 CP936 | `decodeBody` 字节层兜底 + 7 例路由测试 |
+| 重启后插件整体不挂载（路由/工具全消失） | 新增 `lib/body.js` 没进 profile（`file:` 安装只对已有文件建硬链接） | `scripts/sync-profile.mjs`（同步 + 相对 import 自检） |
+
+## 五、下一步（按性价比）
 
 | # | 项 | 说明 |
 |---|---|---|
-| 1 | ~~真机验证隔离执行~~ | ✅ 2026-11-01 验证：`git worktree list` 出现 `.dsh-zhuli/<id>` + `zhuli/<id>` 分支 |
-| 2 | ~~隔离工作区清理~~ | ✅ 0.6.2 实现 `staleWorktrees` + `cleanupWorktrees`，默认回收超过 3 天没动的 |
-| 3 | npm publish | 需要 `npm login` |
-| 4 | awesome-dsh-plugin 上架 | 仓库满 1 天后可提（11-02 17:53 +08 之后），材料在 `docs/awesome-submission.md` |
+| 1 | npm publish | 需要用户 `npm login`；包已就绪（`npm pack` 12 文件 / 68.8 kB） |
+| 2 | awesome-dsh-plugin 上架 | 仓库满 1 天后可提（11-02 17:53 +08 之后），材料在 `docs/awesome-submission.md` |
+| 3 | 真实仓库的隔离闭环 | 用真会话 + `isolated:true` 跑一次唤醒，确认 agent 在 worktree 里干活 |
+| 4 | 仍未做的审核建议 | SegTabs 焦点跟随、Toast 顶部居中（内联容器已删但没用官方定位）、`/config` 与 `/state` 字段可再收敛 |
 
 ## 五、验证清单（改完必跑）
 
