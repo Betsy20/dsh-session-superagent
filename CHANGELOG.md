@@ -2,6 +2,18 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.2.0] - 2026-11-01
+
+### 新增
+- **「值守台」中栏面板**：注册到 `conversation.view`，与 Chat / Trajectory / Waterfall 并排。
+  每 5 秒读取 `/session-superagent/state`，显示每个 watcher 的仓库、会话、间隔、上次轮询、上次唤醒、运行状态与错误。
+- 服务端新增只读路由 `/session-superagent/state`（`ctx.httpServer`，可选注入；无 Web 表面的宿主照常提供工具）。
+- `inject` 改为 `{ required: ['tools','agents'], optional: ['httpServer'] }`。
+
+### 说明
+- 面板只读：不提供暂停/恢复按钮，也不显示任何凭证。
+- 浏览器侧零依赖（React 由宿主提供）。
+
 ## [0.1.2] - 2026-11-01
 
 ### 修复
