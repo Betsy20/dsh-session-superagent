@@ -2,6 +2,26 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.22] - 2026-11-02 —— 未预期异常也要退避（0.8.21 的同一类问题再补一刀）
+
+0.8.21 修的是「读 `ctx.agents` 会抛」。修完回头看 tick 的兜底：
+
+```js
+} catch (error) {
+  entry.lastError = String(error.message)   // 只记错误
+}
+```
+
+也就是说 **任何**未预期异常都会让 watcher 按 `intervalSec` 无限重试 —— 正是 inactive-context
+那次的症状（`consecutiveFailures: 0`、`nextAt: None`）。现在 catch 里也 `bumpFailure(entry, every)`，
+坏掉的东西最多 30 分钟试一次，不会持续打 GitHub。
+
+### 说明
+这属于「同类问题系统性收口」，不是新功能：凡是走出 `pollOnce` 正常分支的失败，现在都会进退避窗口。
+
+### 测试
+- 合计 **87 例**（该分支需要真实定时器上下文，靠重载后的真机复验确认）。
+
 ## [0.8.21] - 2026-11-02 —— 真机复验抓到的**唤醒致命 bug**：inactive context
 
 宿主重载后（`routes: 6`，0.8.14–0.8.20 全部生效）做了真机复验，造了一条绑定「不存在会话」的 watcher：
