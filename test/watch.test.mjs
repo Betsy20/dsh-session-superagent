@@ -1,11 +1,13 @@
 import test from 'node:test'
+import { readFileSync } from 'node:fs'
 import assert from 'node:assert/strict'
 
 import { decodeBody } from '../lib/body.js'
+import * as watchModule from '../lib/watch.js'
 import {
   advanceSeen, applyWatcherAction, batchFresh, decideWake, formatWatchText, newestUpdatedAt,
   hasAckLabel, nextDelayMs, normalizeFilters, partitionItems, passesFilters, pruneSeen, pruneWakeTimes,
-  recordReported, splitFresh, worktreePlan,
+  recordReported, splitFresh, staleWorktrees, worktreePlan,
 } from '../lib/watch.js'
 
 const item = (number, updatedAt) => ({ number, updated_at: updatedAt, state: 'open', title: `t${number}`, html_url: `https://x/${number}`, user: { login: 'me' } })
@@ -260,4 +262,32 @@ test('decodeBody：UTF-8 正常解，GBK 字节自动兜底', () => {
   const gbk = Buffer.from([0x44, 0x3a, 0x2f, 0xd6, 0xf7, 0xb9, 0xa4, 0xd7, 0xf7, 0xc7, 0xf8]) // D:/主工作区 的 GBK 字节
   assert.equal(decodeBody(gbk), 'D:/主工作区')
   assert.equal(decodeBody(Buffer.alloc(0)), '')
+})
+
+test('staleWorktrees：只挑超龄的，脏输入直接跳过', () => {
+  const now = Date.parse('2026-11-01T12:00:00Z')
+  const entries = [
+    { name: 'old', mtimeMs: now - 5 * 24 * 3600 * 1000 },
+    { name: 'fresh', mtimeMs: now - 3600 * 1000 },
+    { name: 'bad', mtimeMs: 'x' },
+    null,
+  ]
+  assert.deepEqual(staleWorktrees(entries, { now }).map((e) => e.name), ['old'])
+  assert.deepEqual(staleWorktrees(entries, { now, keepMs: 0 }).map((e) => e.name), ['old', 'fresh'])
+  assert.equal(staleWorktrees([]).length, 0)
+  assert.equal(staleWorktrees(undefined).length, 0)
+})
+
+test('lib/index.js 从 watch.js 导入的每个名字都必须真的导出', () => {
+  // 踩过：给 watch.js 加函数时忘了写文件，index.js 却先 import 了 —— node --check 查不出来，
+  // 宿主重启时才会整块插件加载失败。这条用例专门守这个洞。
+  const src = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+  const marker = "} from './watch.js'"
+  const end = src.indexOf(marker)
+  assert.ok(end > 0, '找不到 index.js 里对 watch.js 的 import 块')
+  const start = src.lastIndexOf('import {', end) + 'import {'.length
+  const names = src.slice(start, end).split(',').map((v) => v.trim()).filter(Boolean)
+  assert.ok(names.length > 5, '只解析到 ' + names.length + ' 个名字，解析逻辑可能错了')
+  const missing = names.filter((n) => !(n in watchModule))
+  assert.deepEqual(missing, [], '这些名字没从 watch.js 导出：' + missing.join(', '))
 })

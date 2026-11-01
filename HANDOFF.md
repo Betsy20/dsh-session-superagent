@@ -45,8 +45,8 @@
 
 | # | 项 | 说明 |
 |---|---|---|
-| 1 | **真机验证隔离执行** | 0.6.0 已实现（`isolated:true` → 每次唤醒开 `git worktree`），但还没在重启后的宿主上跑过一次 |
-| 2 | 隔离工作区清理 | `.dsh-zhuli/` 会一直累积；需要一个「超过 N 天自动 `worktree remove`」的回收 |
+| 1 | ~~真机验证隔离执行~~ | ✅ 2026-11-01 验证：`git worktree list` 出现 `.dsh-zhuli/<id>` + `zhuli/<id>` 分支 |
+| 2 | ~~隔离工作区清理~~ | ✅ 0.6.2 实现 `staleWorktrees` + `cleanupWorktrees`，默认回收超过 3 天没动的 |
 | 3 | npm publish | 需要 `npm login` |
 | 4 | awesome-dsh-plugin 上架 | 仓库满 1 天后可提（11-02 17:53 +08 之后），材料在 `docs/awesome-submission.md` |
 
