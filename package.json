@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-superagent",
-  "version": "0.8.22",
+  "version": "0.8.23",
   "description": "Session-level superagent for DeepSeek Harness: watch a GitHub repository and wake a session when something needs doing. Credentials never reach the model.",
   "type": "module",
   "main": "lib/index.js",
@@ -17,7 +17,10 @@
     "README.md",
     "CHANGELOG.md",
     "LICENSE",
-    "client.js"
+    "client.js",
+    "UPDATING.md",
+    "CHECKLIST.md",
+    "MAINTENANCE.md"
   ],
   "engines": {
     "node": ">=22.19.0",

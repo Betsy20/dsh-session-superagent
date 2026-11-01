@@ -1,7 +1,7 @@
 # dsh-session-superagent
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.8.22-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
+[![Version](https://img.shields.io/badge/version-0.8.23-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
 [![npm](https://img.shields.io/npm/v/dsh-session-superagent.svg)](https://www.npmjs.com/package/dsh-session-superagent)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-plugin-orange.svg)](https://github.com/topics/dsh-plugin)
 
@@ -92,6 +92,19 @@ node --test          # 87 项单测
 ```
 
 版本与发布流程见 [UPDATING.md](UPDATING.md)，交付门见 [CHECKLIST.md](CHECKLIST.md)，接手台账见 [MAINTENANCE.md](MAINTENANCE.md)。
+
+## 故障排查（都是真实踩过的）
+
+| 症状 | 原因 | 处理 |
+|---|---|---|
+| 面板空白、`watch_*` 工具消失、`/session-superagent/*` 全 404 | 新增的 `lib/*.js` 没同步进 profile（`file:` 安装只对**已有**文件建硬链接），宿主 import 失败 → 整个插件不挂载 | `pnpm run sync:profile`，然后重载插件 |
+| 改了代码但线上行为没变 | 同一类问题：文件被原子写替换后**硬链接断了**，profile 里还是旧 inode | `pnpm run sync:profile:check` 看漂移，`sync:profile:repair` 修 |
+| 轮询报 `cannot get required service "agents" in inactive context` | 0.8.21 之前的 bug：定时器里直接读 `ctx.agents` | 升级到 ≥0.8.21 |
+| 绑定的会话已删除，watcher 还在打 GitHub | 0.8.14 之前的 bug：该类失败没进退避 | 升级到 ≥0.8.14（0.8.22 起未预期异常也会退避） |
+| `npm i dsh-session-superagent@<新版本>` 报 `ETARGET` | 刚发布，npm 客户端元数据缓存还没刷新 | 等 1-2 分钟，或 `npm i <tarball URL>` / `--prefer-online` |
+| 有动静但会话没被叫醒 | 会话忙 / 时段外 / 每小时上限 / 被子过滤器刷掉 | `watch_status` 会显示 `deferred=` / `paused`；面板「总览」的「最近被过滤」给原因 |
+
+`pnpm run preflight` 一条命令可自查：单测、语法、profile 一致性、版本一致、路由面、包内容、冒烟。
 
 ## 许可
 

@@ -2,6 +2,18 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.23] - 2026-11-02 —— README 补「故障排查」，并把链接到的文档发进包
+
+### 文档
+- README 新增**故障排查**表，全部来自真实事故：新增文件没进 profile 导致插件不挂载、
+  硬链接断了导致「改了但没生效」、`inactive context`、幽灵会话不退避、
+  npm 刚发布时的 `ETARGET`、以及「有动静但没被叫醒」该看哪里（`watch_status` 的 `deferred=`、面板的「最近被过滤」）。
+- README 底部链接的 `UPDATING.md` / `CHECKLIST.md` / `MAINTENANCE.md` 之前**不在 `files` 里**，
+  npm 页面上点了是 404。现在一起发出去（`npm pack` 10 → 13 个文件）。
+
+### 测试
+- 合计 **87 例**。
+
 ## [0.8.22] - 2026-11-02 —— 未预期异常也要退避（0.8.21 的同一类问题再补一刀）
 
 0.8.21 修的是「读 `ctx.agents` 会抛」。修完回头看 tick 的兜底：
