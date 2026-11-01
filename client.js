@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.0'
+    const CLIENT_VERSION = '0.8.1'
     const BASE = '/session-superagent'
     const ENDPOINT = BASE + '/state'
     const POLL_MS = 5000
@@ -551,6 +551,57 @@ window.__ModuleLoader__.load({
 
     // ── 主理鱼面板（按官方 GUI 的信息架构重写：总览 / 触发 / 设置）────────────────
     // 布局、类名、控件都来自上面移植的 dt-* 设计系统，数据和动作接我们自己的 /state、/watch。
+    // ── 官方 GUI 的三个交互件（移植自 src/client/provider.tsx + draft.tsx + src/client/controls.tsx）──
+
+    /** 轮询：可见时按 interval，隐藏时降频 6 倍；上一轮没跑完就跳过；卸载时清干净。 */
+    function usePoll(task, intervalMs = POLL_MS) {
+      const ref = useRef(task)
+      ref.current = task
+      const busy = useRef(false)
+      useEffect(() => {
+        let alive = true
+        let timer = null
+        const step = async () => {
+          if (!alive) return
+          const hidden = typeof document !== 'undefined' && document.hidden === true
+          const delay = hidden ? intervalMs * 6 : intervalMs
+          if (!busy.current) {
+            busy.current = true
+            try { await ref.current() } catch {}
+            finally { busy.current = false }
+          }
+          if (alive) timer = setTimeout(step, delay)
+        }
+        step()
+        return () => { alive = false; if (timer) clearTimeout(timer) }
+      }, [intervalMs])
+    }
+
+    /** 轻量 Toast：右下角堆叠，4 秒自动消失。 */
+    function useToast() {
+      const [items, setItems] = useState([])
+      const notify = useCallback((text, tone = 'info') => {
+        const id = Math.random().toString(36).slice(2)
+        setItems((prev) => [...prev, { id, text, tone }])
+        setTimeout(() => setItems((prev) => prev.filter((item) => item.id !== id)), 4000)
+      }, [])
+      const view = items.length === 0 ? null : h('div', { className: 'dt-toast-stack' },
+        items.map((item) => h('div', { key: item.id, className: cx('dt-toast', item.tone === 'error' && 'dt-danger') }, item.text)))
+      return [view, notify]
+    }
+
+    /** 操作重入保护：同一个动作在途时忽略连点。 */
+    function useAction(task) {
+      const [busy, setBusy] = useState(false)
+      const run = async (...args) => {
+        if (busy) return
+        setBusy(true)
+        try { return await task(...args) }
+        finally { setBusy(false) }
+      }
+      return [run, busy]
+    }
+
     function ZhuliPanel(props) {
       const sessionId = props && props.sessionId
       const [snap, setSnap] = useState({ loading: true, error: null, body: null })
@@ -563,6 +614,9 @@ window.__ModuleLoader__.load({
       const [token, setToken] = useState('')
       const [goalDraft, setGoalDraft] = useState('')
       const [goalTouched, setGoalTouched] = useState(false)
+      const [toastView, notify] = useToast()
+      const [editing, setEditing] = useState(null)
+      const [draft, setDraft] = useState({})
 
       const load = useCallback(async () => {
         try {
@@ -575,12 +629,8 @@ window.__ModuleLoader__.load({
         }
       }, [])
 
-      useEffect(() => {
-        ensurePortedCss()
-        load()
-        const timer = setInterval(load, POLL_MS)
-        return () => clearInterval(timer)
-      }, [load])
+      useEffect(() => { ensurePortedCss() }, [])
+      usePoll(load, POLL_MS)
 
       const body = snap.body || {}
       const watchers = body.watchers || []
@@ -596,12 +646,34 @@ window.__ModuleLoader__.load({
         setNotice(null)
         try {
           await work()
-          if (done) setNotice({ ok: true, text: done })
+          if (done) notify(done)
           await load()
         } catch (error) {
-          setNotice({ ok: false, text: String((error && error.message) || error) })
+          const text = String((error && error.message) || error)
+          setNotice({ ok: false, text })
+          notify(text, 'error')
         }
       }
+
+      /** 保存某条 watcher 的编辑（同一 repo+sessionId 即更新，enabled 不传 = 保持原值）。 */
+      const saveEdit = (watcher) => run(async () => {
+        await call('/watch', {
+          method: 'POST',
+          body: JSON.stringify({
+            repo: watcher.repo,
+            sessionId: watcher.sessionId,
+            intervalSec: Number(draft.intervalSec) || watcher.intervalSec,
+            filters: {
+              labels: String(draft.labels || '').split(',').map((v) => v.trim()).filter(Boolean),
+              onlyAssigned: !!draft.onlyAssigned,
+            },
+            activeHours: draft.activeHours || '',
+            isolated: !!draft.isolated,
+            workdir: draft.workdir || '',
+          }),
+        })
+        setEditing(null)
+      }, '已保存：' + watcher.repo)
 
       const act = (watcher, action) => run(async () => {
         await call('/watch', { method: 'POST', body: JSON.stringify({ action, id: watcherId(watcher) }) })
@@ -657,7 +729,9 @@ window.__ModuleLoader__.load({
         return h(Tag, { tone }, STATE_TEXT[state])
       }
 
-      const row = (watcher) => h('div', { className: 'dt-row', key: watcher.repo + '#' + watcher.sessionId },
+      const row = (watcher) => {
+        const key = watcher.repo + '#' + watcher.sessionId
+        const rowBody = h('div', { className: 'dt-row' },
         h('div', { className: 'dt-row-main' },
           h(Dot, { state: orbitStateOf(watcher) === 'active' ? 'done' : orbitStateOf(watcher) === 'error' ? 'error' : 'idle', label: STATE_TEXT[orbitStateOf(watcher)] }),
           h('div', { className: 'dt-row-title' },
@@ -679,6 +753,20 @@ window.__ModuleLoader__.load({
             filterText(watcher.filters) ? h(Tag, null, filterText(watcher.filters)) : null,
             backoffText(watcher) ? h(Tag, { tone: 'warn' }, backoffText(watcher)) : null)),
         h('div', { className: 'dt-row-actions' },
+          h(Btn, {
+            size: 'sm', variant: 'ghost', icon: h(Icon, { name: 'settings' }),
+            onClick: () => {
+              setEditing(editing === key ? null : key)
+              setDraft({
+                intervalSec: String(watcher.intervalSec ?? 60),
+                labels: ((watcher.filters && watcher.filters.labels) || []).join(','),
+                onlyAssigned: !!(watcher.filters && watcher.filters.onlyAssigned),
+                activeHours: watcher.activeHours || '',
+                isolated: !!watcher.isolated,
+                workdir: watcher.workdir || '',
+              })
+            },
+          }, editing === key ? '收起' : '编辑'),
           h(Btn, { size: 'sm', variant: 'outline', icon: h(Icon, { name: 'refresh' }), onClick: () => act(watcher, 'poll') }, '立刻'),
           h(Btn, {
             size: 'sm', variant: 'ghost',
@@ -689,8 +777,35 @@ window.__ModuleLoader__.load({
             size: 'sm', variant: 'ghost', icon: h(Icon, { name: 'trash' }), label: '删除',
             confirmLabel: '确认删除', onConfirm: () => act(watcher, 'delete'),
           })))
+        const editor = editing === key
+          ? h('div', { className: 'dt-editor' },
+            field('间隔（秒）', h(Input, { value: draft.intervalSec, onChange: (e) => setDraft({ ...draft, intervalSec: e.target.value }) })),
+            field('只处理这些标签', h(Input, { value: draft.labels, placeholder: '逗号分隔，留空 = 全部', onChange: (e) => setDraft({ ...draft, labels: e.target.value }) })),
+            field('活跃时段', h(Input, { value: draft.activeHours, placeholder: '09:00-23:00，留空 = 全天', onChange: (e) => setDraft({ ...draft, activeHours: e.target.value }) })),
+            h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.onlyAssigned, onChange: (v) => setDraft({ ...draft, onlyAssigned: v }), label: '只看已指派' }), '只处理已指派给人的条目'),
+            h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.isolated, onChange: (v) => setDraft({ ...draft, isolated: v }), label: '隔离执行' }), '隔离执行（每次唤醒开一次性 worktree）'),
+            draft.isolated ? field('隔离工作目录', h(Input, { value: draft.workdir || '', placeholder: '绝对路径，留空 = 当前工作目录', onChange: (e) => setDraft({ ...draft, workdir: e.target.value }) })) : null,
+            h('div', { className: 'dt-actions' },
+              h(Btn, { size: 'sm', variant: 'primary', onClick: () => saveEdit(watcher) }, '保存'),
+              h(Btn, { size: 'sm', onClick: () => setEditing(null) }, '放弃')))
+          : null
+        return h(React.Fragment, { key }, rowBody, editor)
+      }
+
+      const problems = []
+      for (const watcher of watchers) {
+        if (watcher.lastError) problems.push({ key: 'e-' + watcher.repo, text: watcher.repo + ' 轮询失败：' + watcher.lastError })
+        else if (watcher.lastDeferred) problems.push({ key: 'd-' + watcher.repo, text: watcher.repo + ' 暂停唤醒：' + watcher.lastDeferred })
+      }
+      if (watchers.length > 0 && credentials.token === 'none') {
+        problems.push({ key: 'cred', text: '未配置 token，正在复用已登录的 gh CLI（可用 panel 填 token 换成独立凭据）' })
+      }
 
       const overview = [
+        problems.length > 0
+          ? h(Section, { key: 'problems', title: '需要关注', count: problems.length },
+            h('ul', { className: 'dt-plain-list' }, problems.map((item) => h('li', { key: item.key, className: 'dt-danger' }, item.text))))
+          : null,
         h('div', { className: 'dt-stats', key: 'stats' },
           h('div', { className: 'dt-stat' }, h('span', { className: 'dt-stat-value' }, String(watchers.length)), h('span', null, '条主理鱼')),
           h('div', { className: 'dt-stat' }, h('span', { className: 'dt-stat-value' }, String(running)), h('span', null, '主理中')),
@@ -747,7 +862,8 @@ window.__ModuleLoader__.load({
           items: [{ value: 'overview', label: '总览' }, { value: 'trigger', label: '触发' }, { value: 'settings', label: '设置' }],
           value: tab, onChange: setTab, label: '主理鱼分区',
         }),
-        notice ? h('div', { className: 'dt-banner ' + (notice.ok ? 'dt-info' : 'dt-banner dt-danger') }, notice.text) : null,
+        notice ? h('div', { className: 'dt-banner dt-danger' }, notice.text) : null,
+        toastView,
         snap.error ? h('div', { className: 'dt-banner dt-danger' }, '读取失败：' + snap.error) : null,
         snap.loading && !snap.body ? h(Hint, null, '正在读取…') : null,
         tab === 'overview' ? overview : null,

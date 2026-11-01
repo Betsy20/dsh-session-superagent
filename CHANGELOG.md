@@ -2,6 +2,27 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.1] - 2026-11-01 —— 按官方 IA 报告补三块
+
+`docs/official-gui-ia.md`（931 行，独立考古员产出）给的施工建议前三条，这一版做完前两条的全部 + 第三条：
+
+### 新增
+- **`usePoll`**（官方 provider 策略）：可见时 5s、**页面隐藏时降频 6 倍**、上一轮没跑完就跳过、卸载清干净。
+  替掉原来的裸 `setInterval`。
+- **Toast**：操作反馈改成右下角堆叠提示（4 秒消失），错误同时留在顶部横幅。
+- **「需要关注」清单**（对标官方 problems）：把 `lastError` / `lastDeferred` / 未配置凭证
+  汇总成可读问题列表，而不是散落在每行红字里。
+- **行内编辑**（对标官方 SourceCard + SaveBar 精简版）：每条主理鱼多了「编辑」按钮，
+  可以就地改间隔 / 标签过滤 / 时段 / 只看指派 / 隔离 / 工作目录，带「保存 / 放弃」；
+  保存走同一个 `POST /watch`（同 repo+sessionId 即更新，`enabled` 不传保持原值）。
+
+### 修复
+- 改 `intervalSec` 之前要重启宿主才生效 —— 因为 `startWatcher` 见到 timer 已存在会直接返回。
+  现在保存配置后先 `stopWatcher` 再 `startWatcher`。
+
+### 测试
+- 新增 2 例：problems 清单、编辑态出现「保存/放弃」。合计 **65 例**。
+
 ## [0.8.0] - 2026-11-01 —— 移植官方 superagent 的 GUI
 
 把官方 `dsh-superagent`（D:\主工作区\projects\dsh-superagent-prototype）的**设计系统与信息架构**

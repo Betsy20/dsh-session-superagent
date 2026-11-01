@@ -98,6 +98,11 @@ function walk(node, out = []) {
   return out
 }
 
+
+/** 主理鱼面板的 useState 队列：snap / tab / notice / form / token / goalDraft / goalTouched / toast / editing / draft */
+const deskForm = { repo: '', intervalSec: '60', goal: '', labels: '', onlyAssigned: false, activeHours: '', isolated: false, workdir: '' }
+const deskQueue = (snapshot, editing = null, draft = {}, tab = 'overview') => [snapshot, tab, null, deskForm, '', '', false, [], editing, draft]
+
 const watcher = (repo, extra = {}) => ({
   repo,
   sessionId: 'session-' + repo,
@@ -243,7 +248,7 @@ test('主理鱼面板：总览有统计与每行操作（移植官方 GUI 后）
     },
   }
   const form = { repo: '', intervalSec: '60', goal: '', labels: '', onlyAssigned: false, activeHours: '', isolated: false, workdir: '' }
-  const nodes = walk(render(desk, [snapshot, 'overview', null, form, '', '', false]))
+  const nodes = walk(render(desk, deskQueue(snapshot)))
   const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
   for (const needle of ['主理鱼', '总览', '触发', '设置', '条主理鱼', '主理中', '已暂停', '全部暂停']) {
     assert.ok(text.includes(needle), '面板缺少「' + needle + '」：' + text.slice(0, 200))
@@ -271,7 +276,7 @@ test('主理鱼面板：退避中与隔离状态以标签形式出现', () => {
     },
   }
   const form = { repo: '', intervalSec: '60', goal: '', labels: '', onlyAssigned: false, activeHours: '', isolated: false, workdir: '' }
-  const nodes = walk(render(desk, [snapshot, 'overview', null, form, '', '', false]))
+  const nodes = walk(render(desk, deskQueue(snapshot)))
   const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
   assert.ok(/退避 \d+s/.test(text), '要显示退避：' + text.slice(0, 240))
   assert.ok(text.includes('隔离 · '), '要显示隔离：' + text.slice(0, 240))
@@ -319,7 +324,7 @@ test('值守台有全部暂停/全部恢复按钮', () => {
       watchers: [watcher('a/b', { id: 'a/b#s1', enabled: true })],
     },
   }
-  const nodes = walk(render(desk, [snapshot, { repo: '', intervalSec: '60', goal: '', labels: '', onlyAssigned: false }, '', '', null, '', false]))
+  const nodes = walk(render(desk, deskQueue(snapshot)))
   const labels = nodes.filter((n) => n.type === 'button')
     .map((b) => (b.props.children || []).filter((c) => typeof c === 'string').join(''))
   assert.ok(labels.includes('全部暂停'), labels.join('|'))
@@ -339,4 +344,47 @@ test('面板显示最近一次唤醒的结果', () => {
   const failed = render(orbit, [[watcher('a/b', { history: [{ at, numbers: [7], ok: false, reason: 'session not live' }] })], true, { x: 720, y: 860 }])
   const failedText = walk(failed).filter((n) => n.type === '#text').map((n) => n.text).join(' ')
   assert.ok(failedText.includes('上次唤醒失败 #7'), failedText.slice(0, 220))
+})
+
+test('主理鱼面板：失败会在「需要关注」里变成一条可读问题', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snapshot = {
+    loading: false, error: null,
+    body: {
+      sessionGoal: null, sessionTitle: '会话',
+      credentials: { token: 'none', sshKeyPath: 'none' },
+      watchers: [watcher('a/b', { id: 'a/b#s1', enabled: true, lastError: 'gh: Not Found (HTTP 404)' })],
+    },
+  }
+  const form = { repo: '', intervalSec: '60', goal: '', labels: '', onlyAssigned: false, activeHours: '', isolated: false, workdir: '' }
+  const nodes = walk(render(desk, deskQueue(snapshot)))
+  const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
+  assert.ok(text.includes('需要关注'), '要有 problems 区块：' + text.slice(0, 200))
+  assert.ok(text.includes('轮询失败'), '要把 lastError 变成人话')
+  assert.ok(text.includes('未配置 token'), '凭证提示也算一条问题')
+})
+
+test('主理鱼面板：每行有「编辑」按钮（点开后可改间隔/过滤/时段/隔离）', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snapshot = {
+    loading: false, error: null,
+    body: {
+      sessionGoal: null, sessionTitle: '会话',
+      credentials: { token: 'configured', sshKeyPath: 'none' },
+      watchers: [watcher('a/b', { id: 'a/b#s1', enabled: true })],
+    },
+  }
+  const form = { repo: '', intervalSec: '60', goal: '', labels: '', onlyAssigned: false, activeHours: '', isolated: false, workdir: '' }
+  const nodes = walk(render(desk, deskQueue(snapshot)))
+  const labels = nodes.filter((n) => n.type === 'button')
+    .map((b) => (b.props.children || []).filter((c) => typeof c === 'string').join(''))
+  assert.ok(labels.includes('编辑'), labels.join('|'))
+  // 打开编辑态：editing === id 时出现保存/放弃
+  const editing = walk(render(desk, deskQueue(snapshot, 'a/b#session-a/b', { intervalSec: '60', labels: '', activeHours: '', isolated: false })))
+  const editingLabels = editing.filter((n) => n.type === 'button')
+    .map((b) => (b.props.children || []).filter((c) => typeof c === 'string').join(''))
+  assert.ok(editingLabels.includes('保存'), '编辑态要有保存：' + editingLabels.join('|'))
+  assert.ok(editingLabels.includes('放弃'), '编辑态要有放弃')
 })
