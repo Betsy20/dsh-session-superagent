@@ -153,6 +153,29 @@ profile 同步   = 相对 import 全部可解析
 computed style 核对：模态 `fixed/inset:0`、宽 380 居中；Toast `fixed/top:40px/z:1100`、299×46 深底白字；
 标签 `success` 绿 / `warning` 琥珀；列表行 102–122px（三线结构）。
 
+### 交付终态快照（2026-11-02 04:14）
+
+```
+preflight（全量，7 项）                                         全部通过
+  单测 93/93 · 语法 5 文件 · profile 一致（0 缺失/0 断链/0 陈旧）
+  版本五处 0.8.31 · 路由面 6 条 · npm pack 13 文件 · 冒烟 12 项 OK
+npm latest = 0.8.31（tarball 直装验证：routes 6、client 语法通过）
+CI（GitHub Actions，Node 22 & 24）                              success
+审核轮次：4 轮（8 + 7 + 2 + 0 个必须修，最后一轮「代码侧无阻塞」）
+```
+
+**唯一未闭环的事（外部条件）**：服务端改动只能在**真正重启** DSH 后生效 ——
+热重载会写新的 `server.at`（说明新实例挂上了），但 **HTTP 请求仍由旧 handler 处理**：
+
+```
+真机判定实验（20:13 重载后）：
+  POST /watch -> 200（旧代码没有 0.8.31 的 503 守卫）
+  随后 tick  -> lastError = cannot get required service "agents" in inactive context
+```
+
+也就是说：热重载换不掉服务端 handler；**改完 lib/ 必须重启一次 DSH**。
+在那之前从面板加的 watcher 会跑在旧代码上，行为可能异常（工具路径不受影响）。
+
 ## 六、下一步（按性价比）
 
 | # | 项 | 说明 |
