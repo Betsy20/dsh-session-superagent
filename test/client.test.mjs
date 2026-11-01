@@ -121,13 +121,32 @@ test('client.js 注册值守台与 composer dock 上的轨道环', () => {
   // 0.3.2 起不再挂会话头部
   assert.ok(!names.some((n) => n.includes('header.actions')), '头部徽章应已移除')
   const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
-  assert.equal(orbit.opts.order, 2, 'order 要让轨道环排在 activity/usage 之后')
+  assert.ok(orbit.opts.order < 0, 'order 要是负数，才能排在 activity(0)/usage(1) 左边')
 })
 
-test('没有值守时整个条目返回 null，不占位', () => {
+test('0 个值守也占位：灰色空环、没有卫星、不转', () => {
   const { registrations, render } = loadClient()
   const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
-  assert.equal(render(orbit, [[]]), null)
+  const tree = render(orbit, [[]])
+  assert.ok(tree, '0 值守不该整条消失，否则看着像功能坏了')
+  const nodes = walk(tree)
+  const circles = nodes.filter((n) => n.type === 'circle')
+  assert.equal(circles.length, 1, '只有一个环，没有卫星')
+  assert.equal(circles[0].props.stroke, 'currentColor', '空态用继承色（灰）')
+  assert.equal(circles[0].props.opacity, 0.38, '空态压暗')
+  assert.equal(nodes.filter((n) => n.type === 'animateTransform' || n.type === 'animate').length, 0, '空态不该有动画')
+  assert.match(String(tree.props.title), /还没有值守/)
+})
+
+test('空态点开面板显示引导文案', () => {
+  const { registrations, render } = loadClient()
+  const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
+  const nodes = walk(render(orbit, [[], true, { x: 720, y: 860 }]))
+  const panel = nodes.find((n) => n.props && n.props.role === 'dialog')
+  assert.ok(panel, '空态也要能展开面板')
+  const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
+  assert.ok(text.includes('0 个值守'), text.slice(0, 120))
+  assert.ok(text.includes('还没有值守'), text.slice(0, 120))
 })
 
 test('卫星数跟随值守数，超过 6 个截断', () => {
@@ -153,8 +172,7 @@ test('值守中才转：靠 SVG 自带的 SMIL，不靠外部样式表', () => {
   assert.equal(active[0].props.type, 'rotate')
   assert.equal(active[0].props.from, '0 8 8', '旋转中心必须是环心')
   assert.equal(active[0].props.repeatCount, 'indefinite')
-  // 没有值守时整条不渲染，连 SVG 都没有（不是渲染一个静止的环）
-  assert.equal(render(orbit, [[]]), null)
+  // 没有值守时仍然渲染，只是灰环没卫星（见空态那条用例）
 })
 
 test('异常卫星呼吸、正常卫星不呼吸，环自己在呼吸', () => {

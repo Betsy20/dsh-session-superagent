@@ -86,6 +86,7 @@ const svgOf = (watchers) => {
 
 const w = (repo, extra = {}) => ({ repo, sessionId: 'session-' + repo, intervalSec: 30, enabled: true, lastPoll: null, lastWake: null, lastError: null, title: repo, ...extra })
 const cases = [
+  ['0 个 · 空态（灰环占位，无卫星）', []],
   ['1 个 · 值守中', [w('MYCF711/dsh-GOkifu-compact')]],
   ['3 个 · 全部值守中', [w('a/b'), w('c/d'), w('e/f')]],
   ['3 个 · 混合（绿=值守中 / 琥珀=已暂停 / 红=轮询失败）', [w('a/b'), w('c/d', { enabled: false }), w('e/f', { lastError: 'boom' })]],

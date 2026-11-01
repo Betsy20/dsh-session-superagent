@@ -83,9 +83,14 @@ window.__ModuleLoader__.load({
       const shown = watchers.slice(0, 6)
       const states = watchers.map(orbitStateOf)
       const anyActive = states.indexOf('active') >= 0
-      const ringColor = states.indexOf('error') >= 0
-        ? SAT_COLOR.error
-        : anyActive ? SAT_COLOR.active : SAT_COLOR.paused
+      // Zero watchers still draws the ring, just grey: an idle machine should
+      // read as "nothing being watched", not as "the plugin is broken".
+      const empty = states.length === 0
+      const ringColor = empty
+        ? 'currentColor'
+        : states.indexOf('error') >= 0
+          ? SAT_COLOR.error
+          : anyActive ? SAT_COLOR.active : SAT_COLOR.paused
       const dashed = states.indexOf('paused') >= 0
       const still = prefersReducedMotion()
 
@@ -121,7 +126,8 @@ window.__ModuleLoader__.load({
       },
         h('circle', {
           cx: 8, cy: 8, r: 6.1, fill: 'none', stroke: ringColor, strokeWidth: 1.1,
-          strokeDasharray: dashed ? '2.2 1.9' : undefined, opacity: 0.9,
+          strokeDasharray: dashed ? '2.2 1.9' : undefined,
+          opacity: empty ? 0.38 : 0.9,
         }, breathe),
         h('g', null, spin, dots))
     }
@@ -206,15 +212,15 @@ window.__ModuleLoader__.load({
       }, [open])
 
       const list = watchers || []
-      // Nothing is being watched on this machine: stay out of the dock row
-      // entirely rather than parking a dead icon next to the token counters.
-      if (watchers !== null && list.length === 0) return null
-
+      // Never hide the entry: with nothing being watched it stays as a grey
+      // ring, so the affordance is always findable in the dock row.
       const running = list.filter((w) => orbitStateOf(w) === 'active').length
       const broken = list.filter((w) => orbitStateOf(w) === 'error').length
-      const summary = '会话级 superagent：' + running + ' 运行中'
-        + (broken ? '，' + broken + ' 异常' : '')
-        + '（共 ' + list.length + ' 个值守）'
+      const summary = list.length === 0
+        ? '会话级 superagent：还没有值守'
+        : '会话级 superagent：' + running + ' 运行中'
+          + (broken ? '，' + broken + ' 异常' : '')
+          + '（共 ' + list.length + ' 个值守）'
 
       const toggle = () => {
         const el = btnRef.current
@@ -230,7 +236,7 @@ window.__ModuleLoader__.load({
         type: 'button',
         title: list.length
           ? list.map((w) => (w.repo + ' · ' + (w.title || '未命名会话') + ' · ' + sessionTag(w.sessionId) + ' · ' + STATE_TEXT[orbitStateOf(w)])).join('\n')
-          : 'superagent 值守',
+          : '还没有值守 —— 打开「值守台」添加一个仓库',
         'aria-label': summary,
         'aria-expanded': open ? 'true' : 'false',
         onClick: toggle,
@@ -309,7 +315,11 @@ window.__ModuleLoader__.load({
       },
         h('div', { style: { display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 6 } },
           h('span', { style: { fontWeight: 600, fontSize: 12.5 } }, '会话级 superagent'),
-          h('span', { style: { opacity: 0.6 } }, running + '/' + list.length + ' 运行中')),
+          h('span', { style: { opacity: 0.6 } }, list.length === 0 ? '0 个值守' : running + '/' + list.length + ' 运行中')),
+        list.length === 0
+          ? h('div', { style: { padding: '8px 0 2px', opacity: 0.7 } },
+            '还没有值守。打开「值守台」标签页，填一个 owner/name 添加。')
+          : null,
         ...rows,
         h('div', { style: { marginTop: 8, paddingTop: 8, borderTop: BORDER, opacity: 0.55 } },
           '点「暂停 / 删除」直接停掉；「值守台」标签页可新增与配置凭证'))
@@ -582,7 +592,8 @@ window.__ModuleLoader__.load({
               const dispose = ctx.slots.register({
                 name: 'conversation.composer.dock',
                 id: 'session-superagent-orbit',
-                order: 2,
+                order: -10, // 最左端：activity/usage 是 0/1，上下文环在槽位之外
+
               }, StatusOrbit)
               note('orbit-registered', 'ok')
               return dispose
