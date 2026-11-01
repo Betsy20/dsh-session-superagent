@@ -2,6 +2,23 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.3.0] - 2026-11-01
+
+### 新增
+- **会话头部轨道点徽章**（`conversation.session.header.actions`，仅图标 + 原生 tooltip）：
+  - 值守中：绿点沿环匀速绕行（3s/圈）
+  - 已暂停：虚线环 + 琥珀点静止
+  - 有错误：实线环 + 红点呼吸闪烁
+  - tooltip 三行：仓库 / 每 Ns + 上次轮询 / 状态（与会话列表原生 tooltip 同构）
+- **真实会话 goal**：面板读写 `ctx.goals`，与 `/goal` 命令、`create_goal`/`update_goal` 工具同一份状态，5 秒轮询双向同步。
+- **面板显示会话标题**：服务端从会话日志 `session/title` 事件解析（按 mtime 缓存），替换原始 session id；标题前加状态点。
+- **凭证配置**：面板可填 GitHub token / SSH 私钥路径，存 `~/.dsh/state/session-superagent/secrets.json`（0600），只回显掩码摘要；所有 `gh` 调用自动带 `GH_TOKEN`。
+- **新增值守**：面板直接添加 watcher，绑定当前会话。
+
+### 说明
+- 侧栏会话列表行**没有**可插入的槽位（`sidebar.workspaces` 是 single slot，由 ui-workspace 独占），
+  所以徽章放在会话头部；列表行图标需要上游暴露 row badge 槽位。
+
 ## [0.2.1] - 2026-11-01
 
 ### 修复
