@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.33'
+    const CLIENT_VERSION = '0.8.34'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -48,11 +48,25 @@ window.__ModuleLoader__.load({
 
     const POLL_MS = 5000
 
-    async function call(path, options) {
-      const res = await fetch(BASE + path, {
+    async function call(path, options, retried) {
+      const init = {
         ...(options || {}),
         headers: { 'content-type': 'application/json', accept: 'application/json', ...((options && options.headers) || {}) },
-      })
+      }
+      let res
+      try {
+        res = await fetch(BASE + path, init)
+      } catch (error) {
+        // 前缀失效（这一代被新实例接管并释放了）：重新探一次再试，还不行就把错抛出去
+        if (retried) throw error
+        await discoverBase()
+        return call(path, options, true)
+      }
+      // 旧前缀被释放后宿主会 404：同样重探一次
+      if (res.status === 404 && !retried) {
+        await discoverBase()
+        return call(path, options, true)
+      }
       const text = await res.text()
       let body = null
       try { body = text ? JSON.parse(text) : null } catch { body = { raw: text } }
