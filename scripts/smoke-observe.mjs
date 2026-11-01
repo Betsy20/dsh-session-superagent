@@ -12,6 +12,14 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const REPO = process.argv[2] || 'MYCF711/dsh-GOkifu-compact'
+
+// 先确认 gh 可用且已登录：没登录时应当「明确跳过」，而不是把网络/凭证问题混报成逻辑失败。
+try {
+  execFileSync('gh', ['auth', 'status'], { stdio: 'pipe' })
+} catch {
+  console.log('SKIP   gh 未登录或不可用（先跑 gh auth login），本次冒烟无法进行')
+  process.exit(0)
+}
 const realSetInterval = globalThis.setInterval
 const realSetTimeout = globalThis.setTimeout
 const realClearInterval = globalThis.clearInterval
