@@ -83,13 +83,20 @@ test('client.js 用到的 dt-* 类名都必须在移植来的 CSS 里存在', ()
   }
   assert.ok(known.size > 150, 'CSS 里只解析到 ' + known.size + ' 个类名，解析逻辑可能坏了')
 
+  // 扫两遍：className 里的整串，以及任意位置的字面量（catch cx('dt-foo') / 'dt-btn-danger' 这类）
   const used = new Set()
-  const re = /className:\s*'([^']+)'/g
+  const reClass = /className:\s*'([^']+)'/g
   let m
-  while ((m = re.exec(client)) !== null) {
+  while ((m = reClass.exec(client)) !== null) {
     for (const name of m[1].split(/\s+/)) {
       if (name.startsWith('dt-')) used.add(name)
     }
+  }
+  const reLiteral = /'([a-z0-9-]+)'/g
+  while ((m = reLiteral.exec(client)) !== null) {
+    const name = m[1]
+    // 只收形如 dt-xxx 的完整类名；以 '-' 结尾的是拼接前缀，跳过
+    if (/^dt-[a-z0-9-]+[a-z0-9]$/.test(name)) used.add(name)
   }
   const missing = [...used].filter((name) => !known.has(name))
   assert.deepEqual(missing, [], '这些 class 用了但 CSS 里没有：' + missing.join(', '))

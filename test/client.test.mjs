@@ -470,3 +470,24 @@ test('主理鱼面板：「判定」页把每轮结果和原因列出来', () =>
   assert.ok(text.includes('仅观察（未唤醒）'), 'observe 的要标出来')
   assert.ok(text.includes('#13'), '要显示编号')
 })
+
+test('删除按钮必须保留 dt-btn 基类（第二轮审核发现 className 被 ...rest 覆盖过）', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snapshot = {
+    loading: false, error: null,
+    body: {
+      sessionGoal: null, sessionTitle: '会话',
+      credentials: { token: 'configured', sshKeyPath: 'none' },
+      watchers: [watcher('a/b', { id: 'a/b#s1' })],
+    },
+  }
+  const nodes = walk(render(desk, deskQueue(snapshot)))
+  const buttons = nodes.filter((n) => n.type === 'button')
+  const labels = buttons.map((b) => (b.props.children || []).filter((c) => typeof c === 'string').join(''))
+  const deleteIndex = labels.indexOf('删除')
+  assert.ok(deleteIndex >= 0, '找不到删除按钮：' + labels.join('|'))
+  const deleteClass = String(buttons[deleteIndex].props.className || '')
+  assert.ok(deleteClass.includes('dt-btn '), '删除按钮丢了 dt-btn 基类：' + deleteClass)
+  assert.ok(deleteClass.includes('dt-btn-sm'), '删除按钮丢了尺寸类：' + deleteClass)
+})

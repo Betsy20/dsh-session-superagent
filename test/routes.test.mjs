@@ -160,9 +160,6 @@ test('未知路由不注册（不会误吞）', () => {
   assert.equal(routes.has('/session-superagent/nope'), false)
 })
 
-test('cleanup', () => {
-  rmSync(STATE_DIR, { recursive: true, force: true })
-})
 
 test('/state 返回 gh 健康；/config 不再抛 ReferenceError', async () => {
   const state = (await call('GET', '/session-superagent/state')).json()
@@ -209,4 +206,8 @@ test('编辑保存不会清空 goal、不会抹掉没暴露的 filters、isolate
   assert.equal(watcher.observe, true)
 
   await call('POST', '/session-superagent/watch', { action: 'delete', id })
+})
+
+test('cleanup', () => {
+  rmSync(STATE_DIR, { recursive: true, force: true })
 })

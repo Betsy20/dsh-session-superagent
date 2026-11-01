@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.5'
+    const CLIENT_VERSION = '0.8.6'
     const BASE = '/session-superagent'
     const ENDPOINT = BASE + '/state'
     const POLL_MS = 5000
@@ -112,8 +112,9 @@ window.__ModuleLoader__.load({
 
     const cx = (...names) => names.filter(Boolean).join(' ')
 
-    function Btn({ variant = 'ghost', size = 'md', icon, children, ...rest }) {
-      return h('button', { type: 'button', className: cx('dt-btn', 'dt-btn-' + variant, 'dt-btn-' + size), ...rest },
+    function Btn({ variant = 'ghost', size = 'md', icon, children, className, ...rest }) {
+      // className 必须最后合并：之前 ...rest 直接覆盖，导致 ConfirmBtn 的删除按钮丢掉全部样式
+      return h('button', { type: 'button', ...rest, className: cx('dt-btn', 'dt-btn-' + variant, 'dt-btn-' + size, className) },
         icon !== undefined ? h('span', { className: 'dt-btn-icon' }, icon) : null,
         children)
     }
@@ -591,9 +592,13 @@ window.__ModuleLoader__.load({
         const timer = setTimeout(() => setItems((prev) => prev.filter((item) => item.id !== id)), 4000)
         timers.current.push(timer)
       }, [])
-      const stackStyle = { position: 'fixed', right: 16, bottom: 16, display: 'flex', flexDirection: 'column', gap: 8, zIndex: 2147483000 }
-      const view = items.length === 0 ? null : h('div', { style: stackStyle },
-        items.map((item) => h('div', { key: item.id, className: cx('dt-toast', item.tone === 'error' && 'dt-danger') }, item.text)))
+      // .dt-toast 自己就是 position:fixed（顶部居中），这里只做分组，不再加定位样式
+      const view = items.length === 0 ? null : h(React.Fragment, null,
+        items.map((item) => h('div', {
+          key: item.id,
+          className: cx('dt-toast', item.tone === 'error' && 'dt-danger'),
+          style: item.tone === 'error' ? { background: 'color-mix(in srgb, #f85149 14%, var(--dsw-alias-bg-layer-1, #fff))' } : undefined,
+        }, item.text)))
       return [view, notify]
     }
 
@@ -639,7 +644,10 @@ window.__ModuleLoader__.load({
         setGoalDraft(sessionGoal.objective || '')
       }, [goalTouched, sessionGoal])
 
+      const busyRef = useRef(false)
       const run = async (work, done) => {
+        if (busyRef.current) return
+        busyRef.current = true
         setNotice(null)
         try {
           await work()
@@ -649,6 +657,8 @@ window.__ModuleLoader__.load({
           const text = String((error && error.message) || error)
           setNotice({ ok: false, text })
           notify(text, 'error')
+        } finally {
+          busyRef.current = false
         }
       }
 
