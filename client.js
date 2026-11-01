@@ -842,7 +842,7 @@ window.__ModuleLoader__.load({
         watchers.some((w) => (w.filteredLog || []).length > 0)
           ? h(Section, { key: 'filtered', title: '最近被过滤', count: watchers.reduce((n, w) => n + (w.filteredLog || []).length, 0) },
             h('ul', { className: 'dt-plain-list' },
-              watchers.flatMap((w) => (w.filteredLog || []).slice(-2).map((entry) => h('li', { key: w.repo + '#' + entry.number + entry.at },
+              watchers.flatMap((w) => (w.filteredLog || []).slice(-2).map((entry) => h('li', { key: w.repo + '#' + w.sessionId + entry.number + entry.at },
                 '#' + entry.number + ' ' + (entry.title || '') + ' — ' + entry.reason)))))
           : null,
         problems.length > 0
