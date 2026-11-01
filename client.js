@@ -164,6 +164,8 @@ window.__ModuleLoader__.load({
 
         h('div', { style: S.card },
           h('p', { style: S.cardTitle }, '会话 goal'),
+          h('div', { style: { ...S.mono, marginBottom: 4, opacity: 0.85 } },
+            '会话：' + ((snapshot.body && snapshot.body.sessionTitle) || short(sessionId || ''))),
           h('div', { style: { ...S.mono, marginBottom: 8, opacity: 0.75 } },
             sessionGoal
               ? ('当前：' + (sessionGoal.phase || '?') + ' · revision ' + (sessionGoal.revision ?? '-'))
@@ -220,7 +222,13 @@ window.__ModuleLoader__.load({
 
         watchers.map((w) => h('div', { key: w.repo + '#' + w.sessionId, style: S.row },
           h('span', { style: S.mono }, w.repo),
-          h('span', { style: S.mono }, short(w.sessionId)),
+          h('span', { style: S.mono, display: 'flex', gap: 6, alignItems: 'center' },
+            h('span', {
+              title: w.sessionId,
+              style: { width: 7, height: 7, borderRadius: '50%', flex: 'none',
+                background: w.lastError ? '#cf222e' : (w.enabled ? '#1a7f37' : '#9a6700') },
+            }),
+            h('span', { title: w.sessionId }, w.title || short(w.sessionId))),
           h('span', null, w.intervalSec + 's'),
           h('span', { style: S.mono }, when(w.lastPoll)),
           h('span', { style: S.mono }, typeof w.lastWake === 'string' && w.lastWake.startsWith('failed') ? '失败' : when(w.lastWake)),
