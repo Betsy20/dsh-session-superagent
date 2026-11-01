@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.26'
+    const CLIENT_VERSION = '0.8.27'
     const BASE = '/session-superagent'
     const ENDPOINT = BASE + '/state'
     const POLL_MS = 5000
@@ -739,7 +739,7 @@ window.__ModuleLoader__.load({
           }),
         })
         setForm({ repo: '', intervalSec: form.intervalSec, goal: '', labels: '', onlyAssigned: false, activeHours: form.activeHours, isolated: form.isolated, workdir: form.workdir, observe: form.observe })
-      }, '已添加，30 秒内开始轮询')
+      }, '已添加，首轮立即开始轮询')
 
       const saveCredentials = () => run(async () => {
         const payload = {}
