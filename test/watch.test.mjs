@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import {
   advanceSeen, applyWatcherAction, batchFresh, decideWake, formatWatchText, newestUpdatedAt,
   hasAckLabel, nextDelayMs, normalizeFilters, partitionItems, passesFilters, pruneSeen, pruneWakeTimes,
-  recordReported, splitFresh,
+  recordReported, splitFresh, worktreePlan,
 } from '../lib/watch.js'
 
 const item = (number, updatedAt) => ({ number, updated_at: updatedAt, state: 'open', title: `t${number}`, html_url: `https://x/${number}`, user: { login: 'me' } })
@@ -228,4 +228,27 @@ test('pruneSeen：超龄与超量的记录都被丢掉，留下的按新到旧',
   const capped = pruneSeen(seen, { now, maxEntries: 1 })
   assert.deepEqual(Object.keys(capped), ['2'], '超量时只留最新的')
   assert.deepEqual(pruneSeen(undefined, { now }), {})
+})
+
+test('worktreePlan：路径安全、分支成对、每次不同', () => {
+  const a = worktreePlan({ workdir: 'D:/repo/', repo: 'MYCF711/dsh-session-superagent', sessionTag: 'session-1e82afca-8be2', stamp: 1730000000000 })
+  assert.ok(a.dir.startsWith('D:/repo/.dsh-zhuli/MYCF711-dsh-session-superagent-1e82afca-'), a.dir)
+  assert.equal(a.branch, 'zhuli/' + a.id)
+  const b = worktreePlan({ workdir: 'D:/repo', repo: 'MYCF711/dsh-session-superagent', sessionTag: 'session-1e82afca-8be2', stamp: 1730000001000 })
+  assert.notEqual(a.id, b.id, '时间戳不同就该是不同 worktree')
+  const odd = worktreePlan({ workdir: 'D:/repo', repo: 'a b/c!d', sessionTag: 'session-!!!', stamp: 1 })
+  assert.ok(!odd.id.includes(' '), '空格要清洗掉：' + odd.id)
+  assert.ok(!odd.id.includes('!'), '特殊字符要清洗掉：' + odd.id)
+})
+
+test('formatWatchText 带隔离工作区/隔离失败说明', () => {
+  const one = [item(1, '2026-01-01T00:00:00Z')]
+  const ok = formatWatchText('o/r', one, { isolation: { dir: 'D:/x/.dsh-zhuli/a', branch: 'zhuli/a' } })
+  assert.ok(ok.includes('【隔离工作区】D:/x/.dsh-zhuli/a'), ok)
+  assert.ok(ok.includes('zhuli/a'))
+  assert.ok(ok.includes('别碰主工作区'))
+  const bad = formatWatchText('o/r', one, { isolation: { error: 'not a git repo' } })
+  assert.ok(bad.includes('【隔离失败】not a git repo'), bad)
+  const plain = formatWatchText('o/r', one)
+  assert.ok(!plain.includes('隔离'), '没有隔离选项时不该出现这段')
 })
