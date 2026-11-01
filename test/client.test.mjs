@@ -313,3 +313,18 @@ test('值守台有全部暂停/全部恢复按钮', () => {
   assert.ok(labels.includes('全部暂停'), labels.join('|'))
   assert.ok(labels.includes('全部恢复'), labels.join('|'))
 })
+
+test('面板显示最近一次唤醒的结果', () => {
+  const { registrations, render } = loadClient()
+  const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
+  const at = new Date(Date.now() - 120000).toISOString()
+  const list = [watcher('a/b', { history: [{ at, numbers: [12, 13], ok: true, reason: null }] })]
+  const nodes = walk(render(orbit, [list, true, { x: 720, y: 860 }]))
+  const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
+  assert.ok(text.includes('上次唤醒 #12 #13'), text.slice(0, 220))
+  assert.ok(text.includes('2 分钟前'), text.slice(0, 220))
+
+  const failed = render(orbit, [[watcher('a/b', { history: [{ at, numbers: [7], ok: false, reason: 'session not live' }] })], true, { x: 720, y: 860 }])
+  const failedText = walk(failed).filter((n) => n.type === '#text').map((n) => n.text).join(' ')
+  assert.ok(failedText.includes('上次唤醒失败 #7'), failedText.slice(0, 220))
+})

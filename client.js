@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.7.1'
+    const CLIENT_VERSION = '0.7.2'
     const BASE = '/session-superagent'
     const ENDPOINT = BASE + '/state'
     const POLL_MS = 5000
@@ -175,6 +175,15 @@ window.__ModuleLoader__.load({
       return '隔离 · ' + (pathTail(w.lastWorktree) || pathTail(w.workdir) || '未建')
     }
 
+    /** 最近一次唤醒的结果（面板第二行用）。 */
+    const historyText = (w) => {
+      const list = (w && w.history) || []
+      const last = list[list.length - 1]
+      if (!last) return ''
+      const nums = (last.numbers || []).map((n) => '#' + n).join(' ')
+      return (last.ok ? '上次唤醒 ' : '上次唤醒失败 ') + nums + ' · ' + ageText(last.at)
+    }
+
     /** 失败退避中显示剩余秒数，否则空串。 */
     const backoffText = (w) => {
       if (!w || !w.nextAt) return ''
@@ -321,13 +330,14 @@ window.__ModuleLoader__.load({
             (w.title || '未命名会话') + ' · ' + sessionTag(w.sessionId)),
           h('div', { style: { paddingLeft: 13, opacity: 0.55 } },
             '每 ' + w.intervalSec + 's · 轮询 ' + ageText(w.lastPoll) + ' · 唤醒 ' + wakeText(w.lastWake)),
-          (filterText(w.filters) || isolationText(w) || backoffText(w) || w.activeHours || w.lastDeferred)
+          (filterText(w.filters) || isolationText(w) || backoffText(w) || w.activeHours || historyText(w) || w.lastDeferred)
             ? h('div', { style: { paddingLeft: 13, opacity: 0.5, overflowWrap: 'anywhere' } },
               [
                 filterText(w.filters),
                 w.activeHours ? '时段 ' + w.activeHours : '',
                 isolationText(w),
                 backoffText(w),
+                historyText(w),
                 w.lastDeferred,
               ].filter(Boolean).join(' · '))
             : null,
