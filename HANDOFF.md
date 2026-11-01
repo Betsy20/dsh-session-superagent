@@ -86,7 +86,15 @@ profile 同步   = 相对 import 全部可解析
 | GBK 路径乱码导致 body 解码失败 | Python/Git 输出 CP936 | `decodeBody` 字节层兜底 + 7 例路由测试 |
 | 重启后插件整体不挂载（路由/工具全消失） | 新增 `lib/body.js` 没进 profile（`file:` 安装只对已有文件建硬链接） | `scripts/sync-profile.mjs`（同步 + 相对 import 自检） |
 
-## 五、下一步（按性价比）
+## 五、自动化约定（每小时定时任务）
+
+- 定时任务每轮**第一步是自愈 goal**：`get_goal`，若不是 active 就 `create_goal`/`update_goal resume`。
+  自动化不允许停在「无 goal / goal 已封存」状态 —— 这是用户明确要求的行为。
+- 每轮开工先 `node --test`，红了先修红再干别的。
+- 哨兵数据：`/session-superagent/state`（含 `server.at`、`client.note:client-version`、`gh`）。
+- **新增文件后必须 `pnpm run sync:profile`**，否则下次重启插件整体不挂载（2026-11-01 23:59 事故）。
+
+## 六、下一步（按性价比）
 
 | # | 项 | 说明 |
 |---|---|---|
