@@ -78,7 +78,7 @@ profile 同步   = 相对 import 全部可解析
 ### 真机验证（不是单测，是跑起来的宿主上做的）
 | 时间 | 验了什么 | 证据 |
 |---|---|---|
-| 01:25 | 重启后插件挂载 | `server.routes=8`、`/state /config` 200、`client-version` 一致 |
+| 01:25 | 重启后插件挂载 | `server.routes=8`、`/state /config` 200、`client-version` 一致（注：`/config` 已在 **0.8.12 删除**，现为 7 条路由） |
 | 01:41 | `watch_doctor` 五项检查 | gh 登录 / 仓库可访问 / ack 标签 / 隔离目录是 git 仓库 / 上次轮询与错误 |
 | 01:41 | 隔离执行 E2E | `git worktree list` 出现 `.dsh-zhuli/<id>` + `zhuli/<id>`；`lastWorktree`、`history` 正确 |
 | 02:41 | 幽灵会话守卫（0.8.11） | 会话不存在时 `lastError="会话已不在…"`、**不建** worktree（修复前会白建一个） |
