@@ -1,7 +1,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { advanceSeen, applyWatcherAction, decideWake, formatWatchText, newestUpdatedAt, partitionItems, recordReported, splitFresh } from '../lib/watch.js'
+import {
+  advanceSeen, applyWatcherAction, batchFresh, decideWake, formatWatchText, newestUpdatedAt,
+  nextDelayMs, normalizeFilters, partitionItems, passesFilters, pruneWakeTimes, recordReported, splitFresh,
+} from '../lib/watch.js'
 
 const item = (number, updatedAt) => ({ number, updated_at: updatedAt, state: 'open', title: `t${number}`, html_url: `https://x/${number}`, user: { login: 'me' } })
 
@@ -40,11 +43,23 @@ test('decideWake refuses a running agent and allows an idle one', () => {
   assert.equal(decideWake(undefined).ok, true, 'unknown status is not a blocker')
 })
 
-test('formatWatchText is stable and greppable', () => {
-  const text = formatWatchText('o/r', [item(7, '2026-01-07T00:00:00Z')])
-  assert.match(text, /^【watch】o\/r 有 1 条新动态：/)
-  assert.match(text, /#7 \[open\] t7 — @me \(issue\) https:\/\/x\/7/)
+test('formatWatchText 是任务书：类型/标签/指派/链接齐全', () => {
+  const rich = {
+    number: 7, updated_at: '2026-01-07T00:00:00Z', state: 'open', title: 't7',
+    html_url: 'https://x/7', user: { login: 'me' },
+    labels: [{ name: 'bug' }, { name: 'ai-fix' }],
+    assignees: [{ login: 'alice' }],
+  }
+  const text = formatWatchText('o/r', [rich])
+  assert.match(text, /^【主理鱼】o\/r 有 1 条新动态：/)
+  assert.match(text, /#7 \[open\] t7 — @me \(issue\) 标签: bug, ai-fix 指派: @alice https:\/\/x\/7/)
+  assert.match(text, /AGENTS\.md/)
   assert.match(text, /不要扩大范围/)
+})
+
+test('formatWatchText 把没铺开的条目给成编号，不丢信息', () => {
+  const text = formatWatchText('o/r', [item(1, '2026-01-01T00:00:00Z')], { more: 3, restNumbers: [2, 3, 4] })
+  assert.match(text, /另有 3 条：#2 #3 #4/)
 })
 
 test('newestUpdatedAt picks the newest timestamp', () => {
@@ -121,4 +136,68 @@ test('applyWatcherAction: pause / resume / delete 只动目标那一条', () => 
   assert.equal(applyWatcherAction(state, { action: 'pause', id: 'x/y#zz' }).ok, false, '未知 id 要拒绝')
   assert.equal(applyWatcherAction({}, { action: 'pause', id: 'a/b#s1' }).ok, false, '空状态要拒绝')
   assert.equal(Object.keys(makeState().watchers).length, 2, '被拒绝的调用不能改状态')
+})
+
+// ── 竞品蒸馏：过滤器 / 批量 / 退避 / 每小时上限 ──────────────────────────
+
+test('passesFilters：默认跳过机器人、草稿、非 open', () => {
+  const bot = { number: 1, state: 'open', user: { login: 'dependabot[bot]', type: 'Bot' } }
+  const draft = { number: 2, state: 'open', user: { login: 'me' }, draft: true, pull_request: {} }
+  const closed = { number: 3, state: 'closed', user: { login: 'me' } }
+  const ok = { number: 4, state: 'open', user: { login: 'me' } }
+  assert.equal(passesFilters(bot), false)
+  assert.equal(passesFilters(draft), false)
+  assert.equal(passesFilters(closed), false)
+  assert.equal(passesFilters(ok), true)
+  // 显式关掉这些闸就别拦
+  assert.equal(passesFilters(bot, { skipBots: false }), true)
+  assert.equal(passesFilters(closed, { skipClosed: false }), true)
+})
+
+test('passesFilters：label 白名单/黑名单与「只看指派」', () => {
+  const withLabels = (names) => ({ number: 9, state: 'open', user: { login: 'me' }, labels: names.map((name) => ({ name })) })
+  assert.equal(passesFilters(withLabels(['bug']), normalizeFilters({ labels: ['AI-Fix'] })), false, '大小写不同但没这个标签')
+  assert.equal(passesFilters(withLabels(['ai-fix']), normalizeFilters({ labels: ['AI-Fix'] })), true, '标签匹配忽略大小写')
+  assert.equal(passesFilters(withLabels(['bug', 'wontfix']), normalizeFilters({ ignoreLabels: ['wontfix'] })), false)
+  assert.equal(passesFilters(withLabels(['bug']), normalizeFilters({ ignoreLabels: ['wontfix'] })), true)
+
+  const assigned = { number: 10, state: 'open', user: { login: 'me' }, assignees: [{ login: 'Alice' }] }
+  assert.equal(passesFilters(assigned, normalizeFilters({ onlyAssigned: true })), true)
+  assert.equal(passesFilters(assigned, normalizeFilters({ onlyAssigned: true, assignee: 'alice' })), true)
+  assert.equal(passesFilters(assigned, normalizeFilters({ onlyAssigned: true, assignee: 'bob' })), false)
+  assert.equal(passesFilters(withLabels(['bug']), normalizeFilters({ onlyAssigned: true })), false, '没人指派就跳过')
+})
+
+test('normalizeFilters 宽容处理脏输入', () => {
+  const f = normalizeFilters({ labels: [' a ', '', 'b'], skipBots: false, assignee: '  ' })
+  assert.deepEqual(f.labels, ['a', 'b'])
+  assert.equal(f.skipBots, false)
+  assert.equal(f.assignee, null)
+  assert.equal(normalizeFilters(null).skipDrafts, true)
+})
+
+test('batchFresh 只取前 N 条，N 非法时退回 3', () => {
+  const list = [1, 2, 3, 4, 5]
+  assert.deepEqual(batchFresh(list, 2), [1, 2])
+  assert.deepEqual(batchFresh(list, 0), [1, 2, 3])
+  assert.deepEqual(batchFresh([], 5), [])
+})
+
+test('nextDelayMs：失败翻倍，封顶 30 分钟，成功复位', () => {
+  const base = 30000
+  assert.equal(nextDelayMs({ consecutiveFailures: 0 }, base), base)
+  assert.equal(nextDelayMs({ consecutiveFailures: 1 }, base), 60000)
+  assert.equal(nextDelayMs({ consecutiveFailures: 3 }, base), 240000)
+  assert.equal(nextDelayMs({ consecutiveFailures: 20 }, base), 30 * 60 * 1000, '封顶 30 分钟')
+})
+
+test('pruneWakeTimes 只保留最近一小时的唤醒', () => {
+  const now = Date.parse('2026-11-01T12:00:00Z')
+  const times = [
+    Date.parse('2026-11-01T10:00:00Z'),
+    Date.parse('2026-11-01T11:30:00Z'),
+    Date.parse('2026-11-01T11:59:00Z'),
+  ]
+  assert.deepEqual(pruneWakeTimes(times, now), [times[1], times[2]])
+  assert.deepEqual(pruneWakeTimes(undefined, now), [])
 })
