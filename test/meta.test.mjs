@@ -32,3 +32,17 @@ test('package.json 该有的元数据都在', () => {
   assert.ok(pkg.files.includes('client.js'), 'client.js 必须发出去，否则面板加载不到')
   assert.ok(pkg.files.includes('cordis.patch.yml'), 'patch 必须发出去，否则装不上')
 })
+
+// 审核找出来的真实事故：recordReported 在 index.js 里被调用却从未 import，
+// 每次成功唤醒都抛 ReferenceError，却没有任何用例跑到那条路径。这条守门专门堵它。
+test('lib/index.js 里用到的 watch.js 导出，必须真的被 import 进来', async () => {
+  const src = read('../lib/index.js')
+  const watch = await import('../lib/watch.js')
+  const end = src.indexOf("} from './watch.js'")
+  assert.ok(end > 0, '找不到 watch.js 的 import 块')
+  const start = src.lastIndexOf('import {', end) + 'import {'.length
+  const imported = new Set(src.slice(start, end).split(',').map((v) => v.trim()).filter(Boolean))
+  const body = src.slice(end + "} from './watch.js'".length)
+  const missing = Object.keys(watch).filter((name) => !imported.has(name) && new RegExp('\b' + name + '\b').test(body))
+  assert.deepEqual(missing, [], '这些名字被用了却没 import：' + missing.join(', '))
+})

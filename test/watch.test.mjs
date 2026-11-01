@@ -7,7 +7,7 @@ import * as watchModule from '../lib/watch.js'
 import {
   advanceSeen, applyWatcherAction, batchFresh, decideWake, formatWatchText, newestUpdatedAt,
   hasAckLabel, nextDelayMs, normalizeFilters, partitionItems, passesFilters, pruneSeen, pruneWakeTimes,
-  inActiveHours, recordReported, splitFresh, staleWorktrees, worktreePlan,
+  inActiveHours, mergePollResult, recordReported, splitFresh, staleWorktrees, worktreePlan,
 } from '../lib/watch.js'
 
 const item = (number, updatedAt) => ({ number, updated_at: updatedAt, state: 'open', title: `t${number}`, html_url: `https://x/${number}`, user: { login: 'me' } })
@@ -302,4 +302,17 @@ test('inActiveHours：普通时段 / 跨夜 / 空值', () => {
   assert.equal(inActiveHours('', at(3)), true, '空 = 一直活跃')
   assert.equal(inActiveHours('乱写', at(3)), true, '格式不对就退化成一直活跃')
   assert.equal(inActiveHours('09:00-09:00', at(3)), true, '起止相同也按一直活跃处理')
+})
+
+test('mergePollResult：配置字段以盘上为准，轮询结果才写回', () => {
+  const stored = { id: 'a/b#s1', enabled: false, intervalSec: 30, filters: { labels: ['x'] }, seen: {}, lastPoll: 'old' }
+  const polled = { id: 'a/b#s1', enabled: true, intervalSec: 999, seen: { 1: 'now' }, lastPoll: 'new', lastWake: 'w', extraGarbage: 1 }
+  const merged = mergePollResult(stored, polled)
+  assert.equal(merged.enabled, false, '暂停不能被 tick 收尾写回成运行中')
+  assert.equal(merged.intervalSec, 30, '间隔属于配置，不从内存覆盖')
+  assert.deepEqual(merged.filters, { labels: ['x'] }, '过滤器属于配置')
+  assert.deepEqual(merged.seen, { 1: 'now' }, 'seen 是轮询结果，要写回')
+  assert.equal(merged.lastPoll, 'new')
+  assert.equal(merged.lastWake, 'w')
+  assert.equal(merged.extraGarbage, undefined, '白名单之外的内存字段不落盘')
 })

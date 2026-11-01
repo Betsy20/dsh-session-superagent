@@ -2,6 +2,27 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.7.5] - 2026-11-01 —— 严格审核后的修复
+
+审核专员（独立上下文、只读、9 个复现脚本）对 v0.7.4 给出 **8 个必须修 + 14 个建议**，
+完整结论见 `docs/review-2026-11-01.md`。八个必须修**全部已修**：
+
+1. `recordReported` 从未 import —— 每次成功唤醒都抛 `ReferenceError`（冷却吸收因此在线上是死的）。
+2. `polling` 并发闸跨对象失效 —— 同一条 issue 被唤醒 3 次、建 3 个 worktree。改成 `inFlight: Set`。
+3. 每小时上限分支边「攒」边吞掉条目 —— 现在只记 `lastDeferred`，不动水位。
+4. tick 收尾把「暂停」写回成运行中 —— 抽出 `mergePollResult()`，配置字段以盘上为准。
+5. 隔离区在 idle 检查之前创建，忙时每轮白建 worktree —— 先 `decideWake` 再隔离。
+6. `dispose` 没清定时器 —— 现在清 `timers` 与 5s sweep。
+7. `trigger.json` 测试通道随包发布 —— 默认关闭，需 `DSH_SUPERAGENT_TRIGGER=1`。
+8. SSH 私钥功能是空的且掩码泄露全路径 —— 面板不再回显路径，token 只回 `configured`。
+
+### 顺带修的
+- `workdir` 要求绝对路径 + 存在；`enabled` 未传时保持原值；状态文件改原子写；
+  `client-note` 加键白名单；`github` 工具拒绝 `-` 开头的 path；9 处过期文档。
+
+### 测试
+- 新增 import 守门（能钉住 #1 这类事故）+ `mergePollResult` 用例。合计 **63 例**。
+
 ## [0.7.4] - 2026-11-01
 
 ### 新增

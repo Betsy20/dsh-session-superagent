@@ -1,7 +1,7 @@
 # dsh-session-superagent
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.7.4-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
+[![Version](https://img.shields.io/badge/version-0.7.5-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-plugin-orange.svg)](https://github.com/topics/dsh-plugin)
 
 > **一句话**：给一个 DSH 会话装上一条 **主理鱼**——
@@ -66,7 +66,7 @@ watch_start({ repo: "owner/name", intervalSec: 60 })
 
 1. `watch_start` 登记 watcher（状态存 `~/.dsh/state/session-superagent/watchers.json`）；
 2. 你在仓库提一个 issue；
-3. 轮询命中 → 会话收到 `【watch】owner/name 有 1 条新动态：…`；
+3. 轮询命中 → 会话收到 `【主理鱼】owner/name 有 1 条新动态：…`；
 4. 会话按 `AGENTS.md` 判断：bug 直接修、范围外的功能请求回复“待定”、需要决策则提问；
 5. 处理完写回 issue/PR。
 
@@ -75,7 +75,8 @@ watch_start({ repo: "owner/name", intervalSec: 60 })
 - **凭证**：插件通过已登录的 `gh` CLI 调用 API，token 不落 workspace、不进会话；所有输出过 `redact()`（`ghp_*` / `github_pat_*` / PEM 私钥 / Authorization 头）。
 - **写保护**：`POST/PATCH/PUT/DELETE` 必须显式传 `confirm: true`，否则直接拒绝。
 - **注入纪律**：只在 `agent.status === 'idle'` 时唤醒；逐条水位（`seen[number]`）保证自己的写操作不会把自己叫醒。
-- **不做的事**：不改你的 profile、不重启宿主、不删除任何文件。
+- **不做的事**：不改你的 profile、不重启宿主；只会在隔离模式（`isolated`）下创建并回收自己的
+  `.dsh-zhuli/` worktree（超过 `isolateKeepDays` 才会 `git worktree remove --force`）。
 
 ## 已知限制
 
@@ -87,7 +88,7 @@ watch_start({ repo: "owner/name", intervalSec: 60 })
 ## 开发
 
 ```sh
-node --test          # 20 项单测
+node --test          # 63 项单测
 ```
 
 版本与发布流程见 [UPDATING.md](UPDATING.md)，交付门见 [CHECKLIST.md](CHECKLIST.md)，接手台账见 [MAINTENANCE.md](MAINTENANCE.md)。

@@ -56,7 +56,7 @@ The official `dsh-superagent` prototype runs as its own profile with a ticket st
 
 ## Tests
 
-`node --test` — 20 unit tests over the pure logic (`lib/watch.js`, `lib/redact.js`).
+`node --test` — 63 tests: pure logic (`lib/watch.js`, `lib/redact.js`, `lib/body.js`), route layer (`test/routes.test.mjs`), client render smoke (`test/client.test.mjs`), and meta/version guards.
 ```
 
 ## 提交命令（明天 17:53 之后）
