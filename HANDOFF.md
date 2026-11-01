@@ -78,6 +78,7 @@ profile 同步   = 相对 import 全部可解析
 | 01:41 | `watch_doctor` 五项检查 | gh 登录 / 仓库可访问 / ack 标签 / 隔离目录是 git 仓库 / 上次轮询与错误 |
 | 01:41 | 隔离执行 E2E | `git worktree list` 出现 `.dsh-zhuli/<id>` + `zhuli/<id>`；`lastWorktree`、`history` 正确 |
 | 02:41 | 幽灵会话守卫（0.8.11） | 会话不存在时 `lastError="会话已不在…"`、**不建** worktree（修复前会白建一个） |
+| 03:0x | **ack 幂等闭环（真 GitHub）** | `watch_ack` 给 `MYCF711/dsh-GOkifu-compact#2` 打上 `主理鱼:已处理`（中文+冒号 GitHub 接受），再 ack 一次不报错；随后已把标签与定义都撤掉 |
 | 02:50 | npm 发布可安装性 | `npm i dsh-session-superagent@0.8.12` → `apply()` 成功、路由 7 条、client 语法通过 |
 | 02:41 | 真实业务闭环前的数据面 | `/state.gh` = `gh version 2.101.0`；建→查→删 watcher 全部往返正常 |
 

@@ -21,6 +21,12 @@ history: [{"numbers":[4,2,3,1],"ok":false,"reason":"observe"}]
 filteredLog: []        ← 改成 labels:["ai-fix"] 后仍为空（3 个 issue 都没这个标签）
 ```
 
+### 发布与真机验证
+- 已发 `dsh-session-superagent@0.8.13`。
+- **`watch_ack` 第一次在真仓库上验证**：给 `MYCF711/dsh-GOkifu-compact#2` 打上 `主理鱼:已处理`——
+  GitHub **接受中文 + 冒号**的标签名（此前审核把它列为"未验证"）；重复 ack 幂等不报错；
+  验证完已把 issue 标签与仓库标签定义都撤掉，不留痕迹。
+
 ### 测试
 - 合计 **79 例**。
 
