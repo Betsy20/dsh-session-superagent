@@ -5,15 +5,14 @@
 ## 一、项目现状
 
 - 仓库：https://github.com/MYCF711/dsh-session-superagent
-- 版本：**v0.8.15**
+- 版本：**v0.8.20**
 - 本地：`D:\主工作区\projects\dsh-session-superagent`（profile 里以 `file:` 安装，**硬链接**：改源码即改 profile 内文件）
 - 真机：Windows 11 + DSH 0.2.1-rc.5，`node --test` **85/85**（重启后真机复验通过）
 
 | 能力 | 实现位置 | 验证方式 |
 |---|---|---|
-| 主理鱼标签页（移植官方 GUI） | `client.js` → `conversation.view`，用 `docs/official-gui-ia.md` 的 IA 重建 | `desk-registered ok` + 70 例测试 |
+| 主理鱼标签页（移植官方 GUI） | `client.js` → `conversation.view`，用 `docs/official-gui-ia.md` 的 IA 重建 | `desk-registered ok` + 85 例测试 |
 | 状态栏「主理鱼」轨道环（0 条灰环占位 / 卫星公转 / 点击看详情） | `client.js` → `conversation.composer.dock`（`order: -10` 最左端） | `/client-note?key=client-version` 探针 + 面板实测 |
-| 主理鱼 tab（增删/暂停/立刻跑/配过滤器/凭证/goal） | `client.js` → `conversation.view` | `desk-registered ok` |
 | 轮询 + 唤醒 | `lib/index.js` + `lib/watch.js` | `lastPoll` 前进；`followup` 唤醒 |
 | 过滤器 / 批量 / 每小时上限 / 失败退避 | `lib/watch.js` 纯函数 + `/watch` 路由 | `node --test`（`passesFilters` / `batchFresh` / `nextDelayMs` / `pruneWakeTimes`） |
 | 活跃时段（含跨夜） | `inActiveHours()` + pollOnce 时段闸 | `node --test`（普通/跨夜/空值/起止相同） |
@@ -22,6 +21,20 @@
 | 幂等标记 | `watch_ack` 工具 + `hasAckLabel` | 打 `主理鱼:已处理` 标签后轮询跳过 |
 | 会话 goal（真 goal） | `ctx.goals` | 面板读写，5s 轮询 |
 | 凭证 | `~/.dsh/state/session-superagent/secrets.json` 0600 | 只回显掩码 |
+
+**在会话里自查（不需要知道端口）**：
+
+| 想知道什么 | 用什么 | 说明 |
+|---|---|---|
+| 有哪些主理鱼、上次轮询/唤醒/错误 | `watch_status` 工具 | 一行一条，带 observe/isolated/paused/labels/deferred 标记 |
+| 环境是否可用（gh 登录、仓库可读、隔离目录是 git 仓） | `watch_doctor` 工具 | 五项检查一次出结果 |
+| 原始状态（过滤记录、水位、历史） | 读 `~/.dsh/state/session-superagent/watchers.json` | 这就是权威数据源；比 HTTP 省事 |
+| 面板/HTTP 接口 | 宿主端口 + `/session-superagent/state` | 端口每次重启都变：看会话上下文里的 `Current DeepSeek Harness Web GUI URL`，或 `netstat` 按 DSH 进程 PID 查 |
+
+冷启动演练（2026-11-02 03:2x）就是照这条路径走的：`watch_start({observe:true, labels:[...]})` →
+`watch_status` → 状态文件确认 `observe: true / filteredLog 4 条`。
+发现两个摩擦点并已修：工具返回只说 `every 3600s`，看不出 observe/过滤到底生效没有（现在会回显 `[observe-only labels=ai-fix …]`）；
+`watch_status` 同样不回显这些（现在也回显）。
 
 **重启后真机复验（2026-11-02 01:25，v0.8.10）**：
 

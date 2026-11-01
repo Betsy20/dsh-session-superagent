@@ -2,6 +2,23 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.20] - 2026-11-02 —— 冷启动演练：工具返回要能证明「选项生效了」
+
+照 HANDOFF + README 走一遍「加 watcher → 观察 → 确认」（不看代码，只看文档），暴露的摩擦点：
+
+### 修复
+- **`watch_start` 的返回看不出生效项**：只说 `watching … every 3600s`，`observe` / 过滤 / 时段 / 限流
+  到底有没有落上，只能再开面板或读状态文件。现在返回会带回显：
+  `[observe-only（只记录不唤醒） labels=ai-fix batch=5 perHour=6 goal="…"]`，更新已有 watcher 时标 `(updated existing watcher)`。
+- **`watch_status` 同样不回显**：现在每行带 `observe / isolated / paused / hours= / labels= / onlyAssigned / deferred=`，
+  一眼能看出「为什么没动静」。
+- HANDOFF 补「在会话里自查」小表：首选工具（`watch_status` / `watch_doctor`），其次直接读状态文件，
+  HTTP 只在面板/调试时用 —— 并写清端口每次重启都会变、怎么找（会话上下文里的 GUI URL 或按 PID 查 netstat）。
+  冷启动演练时就是卡在「端口找不到」这一步。
+
+### 测试
+- 合计 **85 例**。
+
 ## [0.8.19] - 2026-11-02 —— `pnpm run preflight`：把「发版必跑」变成一条命令
 
 ### 新增
