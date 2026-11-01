@@ -9,7 +9,7 @@
 
 ## 二、当前状态（2026-11-01）
 
-- [x] 七个工具可用（github / repo_here / watch_start / watch_status / watch_stop / watch_ack / watch_doctor），`node --test` 85/85 通过
+- [x] 七个工具可用（github / repo_here / watch_start / watch_status / watch_stop / watch_ack / watch_doctor），`node --test` 87/87 通过
 - [x] 自回声抑制（逐条水位）
 - [x] 仅空闲注入（避免草稿回放）
 - [x] 唤醒失败不推进水位

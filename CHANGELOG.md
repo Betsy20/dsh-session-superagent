@@ -2,6 +2,36 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.21] - 2026-11-02 —— 真机复验抓到的**唤醒致命 bug**：inactive context
+
+宿主重载后（`routes: 6`，0.8.14–0.8.20 全部生效）做了真机复验，造了一条绑定「不存在会话」的 watcher：
+
+```
+lastError: cannot get required service "agents" in inactive context
+consecutiveFailures: 0     ← 没进退避
+nextAt: None               ← 每 intervalSec 都会再打一次 GitHub
+```
+
+### 根因
+定时器回调跑在**非活跃上下文**里，直接读 `ctx.agents` 会抛错。读 `goals` 一直用的是
+`ctx.get('goals')`（不抛），唯独 `agents` 用的是 `ctx.agents` —— 这行代码在**每一次真唤醒**、
+每一次「会话还在不在」判断上都会执行。
+
+### 影响
+- 幽灵会话判断（0.8.11）在本机其实从没跑到过：轮询在更早的一行就抛了。
+- 更严重的是：**如果宿主对定时器上下文同样报错，真实唤醒也会失败**（看起来"在盯"，其实一次都没成）。
+
+### 修复
+新增 `agentsService(ctx)`：优先 `ctx.get('agents')`，取不到再兜底直接读；`wake()`、
+`pollOnce()` 与两个工具（`watch_start` / `watch_stop`）全部改走它。
+
+### 守门
+新增 `test/agents-context.test.mjs`：用一个**读 `ctx.agents` 就抛**的宿主替身，验证
+`watch_start` / `watch_status` 仍然正常，并断言不会把宿主的上下文错误当成轮询错误。这条路以前完全没测过。
+
+### 测试
+- 合计 **87 例**。
+
 ## [0.8.20] - 2026-11-02 —— 冷启动演练：工具返回要能证明「选项生效了」
 
 照 HANDOFF + README 走一遍「加 watcher → 观察 → 确认」（不看代码，只看文档），暴露的摩擦点：
