@@ -24,6 +24,19 @@ pnpm run sync:profile:check     # 只检查：有缺失/断链/陈旧就 exit 1�
 - 新增用例：`sync-profile` 的 `TARGETS` 必须覆盖 `lib/` 下所有 js 文件 ——
   防止「新增 lib 文件忘了登记」再次导致插件不挂载。
 
+### 发布
+- 已发 `dsh-session-superagent@0.8.15`（registry `latest = 0.8.15`）。
+- tarball 直装验证：`version 0.8.15`、**routes 6**、`client.js` 语法通过、包内 `scripts/` 三个脚本齐全。
+
+### 发布前快照（每次发版都跑这一套）
+```
+node --test                     81/81
+node --check client.js lib/*.js scripts/*.mjs   全过
+sync-profile --check            缺失 0 / 断链 0 / 陈旧 0，相对 import 全可解析
+smoke-observe                   两场景 12 项 OK
+npm pack --dry-run              13 文件 / 75.4 kB
+```
+
 ### 测试
 - 合计 **81 例**。
 

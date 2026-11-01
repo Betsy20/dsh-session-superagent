@@ -5,7 +5,7 @@
 ## 一、项目现状
 
 - 仓库：https://github.com/MYCF711/dsh-session-superagent
-- 版本：**v0.8.14**
+- 版本：**v0.8.15**
 - 本地：`D:\主工作区\projects\dsh-session-superagent`（profile 里以 `file:` 安装，**硬链接**：改源码即改 profile 内文件）
 - 真机：Windows 11 + DSH 0.2.1-rc.5，`node --test` **77/77**（重启后真机复验通过）
 
@@ -82,6 +82,7 @@ profile 同步   = 相对 import 全部可解析
 | 01:41 | `watch_doctor` 五项检查 | gh 登录 / 仓库可访问 / ack 标签 / 隔离目录是 git 仓库 / 上次轮询与错误 |
 | 01:41 | 隔离执行 E2E | `git worktree list` 出现 `.dsh-zhuli/<id>` + `zhuli/<id>`；`lastWorktree`、`history` 正确 |
 | 02:41 | 幽灵会话守卫（0.8.11） | 会话不存在时 `lastError="会话已不在…"`、**不建** worktree（修复前会白建一个） |
+| 03:1x | 0.8.15 发布前快照 | 测试 81/81、语法全过、profile 一致性 0 漂移、冒烟 12/12、包 13 文件/75.4kB、tarball 直装 routes=6 |
 | 03:4x | npm 0.8.14 可安装性 | tarball 直装 → `apply()` 成功、路由 6 条、`lib/` 齐全（注意刚发布时 `npm i pkg@ver` 可能 ETARGET，用 tarball URL） |
 | 03:1x | `/state` 真实性能 | 真机 92 个会话日志 / 4 个分组；有 watcher 时连打 5 次 1.7–2.0 ms（索引缓存命中） |
 | 03:01 | **0.8.13 线上复验（真宿主）** | 宿主重启后 `routes=7`、`client=0.8.13`；严格标签过滤时 `filteredLog` 显示 4 条「不在标签白名单: ai-fix」且 `lastDeferred=null`；放宽过滤后变「仅观察：本轮本会唤醒 4 条（#2 #4 #3 #1）」而**唤醒数为 0** |
