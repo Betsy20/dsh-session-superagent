@@ -74,7 +74,16 @@ profile 同步   = 相对 import 全部可解析
     这类探针都必须先 `process.env.DSH_SUPERAGENT_STATE = <临时目录>`；`preflight` 与三个测试文件
     已经这么做了。看到 `server.failed` 里有东西时，先确认那条记录是不是自己刚跑的探针。
 
-11. **本地模拟 `apply()` 会写真实状态文件（重复条目，保留以免打乱编号）**：`server` 字段被模拟脚本的报错覆盖过
+11. **宿主热重载 = 重新 import 一份模块，模块级变量一律重置。**（2026-11-02 20:0x 血的教训）
+    我以为是「同一个模块再 apply 一次」，用模块级 `activeRoutes` 接管旧路由 —— 真机上完全没生效：
+    新实例的数组是空的，旧实例的路由继续吃 HTTP 请求，而它的 ctx 已经 dispose，
+    于是**面板建的 watcher 第一轮就报 `inactive context`**。
+    结论：凡是「要跨重载生效」的状态（路由 disposer、定时器句柄、并发闸），
+    必须挂 `globalThis` 并用 `Symbol.for` 做键（`lib/index.js` 里三处：
+    `activeRoutes` / `sharedTimers` / `sharedInFlight`）。守门用例见 `test/cross-instance.test.mjs`
+    （用 `import('...?instance=2')` 真的模拟一次重载）。
+
+12. **本地模拟 `apply()` 会写真实状态文件（重复条目，保留以免打乱编号）**：`server` 字段被模拟脚本的报错覆盖过
    （`webserver: duplicate exact route ...`）。写这类脚本必须先设 `DSH_SUPERAGENT_STATE` 指向临时目录，
    `scripts/smoke-observe.mjs` 就是这么做的。
 
