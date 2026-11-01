@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.6'
+    const CLIENT_VERSION = '0.8.7'
     const BASE = '/session-superagent'
     const ENDPOINT = BASE + '/state'
     const POLL_MS = 5000
@@ -125,8 +125,17 @@ window.__ModuleLoader__.load({
 
     /** 页级 tab 条：点当前页会再发一次 onChange（回调里可重置到根部）。 */
     function SegTabs({ items, value, onChange, label }) {
+      const walk = (event) => {
+        const values = items.map((item) => item.value)
+        const index = values.indexOf(value)
+        const target = { ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: values.length - 1 }[event.key]
+        if (target === undefined) return
+        event.preventDefault()
+        const next = values[(target + values.length) % values.length]
+        if (next !== value) onChange(next)
+      }
       return h('div', {
-        role: 'tablist', 'aria-label': label, className: 'dt-tabs',
+        role: 'tablist', 'aria-label': label, className: 'dt-tabs', onKeyDown: walk,
         style: { gridTemplateColumns: 'repeat(' + items.length + ', minmax(0, 1fr))' },
       }, items.map((item) => h('button', {
         key: item.value, type: 'button', role: 'tab',
@@ -150,14 +159,14 @@ window.__ModuleLoader__.load({
       }, h('span', { className: 'dt-switch-thumb' }))
     }
 
-    function StateDot({ state }) {
+    function StateDot({ state, className }) {
       if (state === 'ongoing') {
         return h('svg', { className: 'dt-spinner', 'data-state': 'ongoing', width: 14, height: 14, viewBox: '0 0 24 24', 'aria-hidden': 'true' },
           h('g', null,
             h('circle', { cx: 12, cy: 12, r: 9.5 }),
             h('animateTransform', { attributeName: 'transform', type: 'rotate', from: '0 12 12', to: '360 12 12', dur: '1.6s', repeatCount: 'indefinite' })))
       }
-      return h('span', { className: 'dt-state-dot', 'data-state': state, 'aria-hidden': 'true' })
+      return h('span', { className: cx('dt-state-dot', className), 'data-state': state, 'aria-hidden': 'true' })
     }
 
     function Dot({ state, label }) {
@@ -752,6 +761,7 @@ window.__ModuleLoader__.load({
                 '轮询 ' + ageText(watcher.lastPoll),
                 '唤醒 ' + wakeText(watcher.lastWake),
                 historyText(watcher),
+                watcher.goal && watcher.goal.objective ? 'goal: ' + String(watcher.goal.objective).slice(0, 40) : '',
                 watcher.lastDeferred,
                 watcher.lastError,
               ].filter(Boolean).join(' · '))),
@@ -903,7 +913,9 @@ window.__ModuleLoader__.load({
         h('div', { className: 'dt-page-head' },
           h('div', null,
             h('h1', { className: 'dt-page-title' }, '主理鱼'),
-            h('span', { className: 'dt-hint' }, sessionId ? '盯办 + 主动办：仓库有动静就叫醒本会话' : '需要会话上下文')),
+            h('span', { className: 'dt-hint' },
+              (body.sessionTitle ? '会话：' + body.sessionTitle + ' · ' : '')
+              + (sessionId ? '盯办 + 主动办：仓库有动静就叫醒本会话' : '需要会话上下文'))),
           h('div', { className: 'dt-toolbar' },
             h(Input, { value: search, placeholder: '搜索仓库 / 编号 / 标题', onChange: (e) => setSearch(e.target.value), 'aria-label': '搜索' }),
             h(Btn, { size: 'sm', variant: 'ghost', icon: h(Icon, { name: 'question' }), onClick: () => setGlossary(true) }, '术语'),

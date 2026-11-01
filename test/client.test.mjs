@@ -491,3 +491,21 @@ test('删除按钮必须保留 dt-btn 基类（第二轮审核发现 className �
   assert.ok(deleteClass.includes('dt-btn '), '删除按钮丢了 dt-btn 基类：' + deleteClass)
   assert.ok(deleteClass.includes('dt-btn-sm'), '删除按钮丢了尺寸类：' + deleteClass)
 })
+
+test('面板恢复显示会话标题与每行 goal', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snapshot = {
+    loading: false, error: null,
+    body: {
+      sessionTitle: '主理鱼重构',
+      sessionGoal: null,
+      credentials: { token: 'configured', sshKeyPath: 'none' },
+      watchers: [watcher('a/b', { id: 'a/b#s1', goal: { objective: '把 widget 的 issue 都处理完', phase: null, revision: 2 } })],
+    },
+  }
+  const nodes = walk(render(desk, deskQueue(snapshot)))
+  const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
+  assert.ok(text.includes('会话：主理鱼重构'), '头部要显示会话标题：' + text.slice(0, 180))
+  assert.ok(text.includes('goal: 把 widget 的 issue'), '每行要显示 goal：' + text.slice(0, 240))
+})
