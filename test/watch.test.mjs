@@ -7,7 +7,8 @@ import * as watchModule from '../lib/watch.js'
 import {
   advanceSeen, applyWatcherAction, batchFresh, decideWake, formatWatchText, newestUpdatedAt,
   hasAckLabel, nextDelayMs, normalizeFilters, partitionItems, passesFilters, pruneSeen, pruneWakeTimes,
-  inActiveHours, mergePollResult, recordReported, splitFresh, staleWorktrees, worktreePlan,
+  inActiveHours, mergePollResult, filterReason, pushFiltered, recordReported, splitFresh,
+  staleWorktrees, worktreePlan,
 } from '../lib/watch.js'
 
 const item = (number, updatedAt) => ({ number, updated_at: updatedAt, state: 'open', title: `t${number}`, html_url: `https://x/${number}`, user: { login: 'me' } })
@@ -315,4 +316,23 @@ test('mergePollResult：配置字段以盘上为准，轮询结果才写回', ()
   assert.equal(merged.lastPoll, 'new')
   assert.equal(merged.lastWake, 'w')
   assert.equal(merged.extraGarbage, undefined, '白名单之外的内存字段不落盘')
+})
+
+test('filterReason：每种过滤都给得出人话原因', () => {
+  const base = { number: 1, state: 'open', user: { login: 'me' } }
+  assert.equal(filterReason(base), null, '什么都没配时应该通过')
+  assert.equal(filterReason({ ...base, state: 'closed' }), '已关闭')
+  assert.equal(filterReason({ ...base, draft: true }), '草稿 PR')
+  assert.equal(filterReason({ ...base, user: { login: 'x[bot]' } }), '机器人')
+  assert.equal(filterReason({ ...base, labels: [{ name: 'wontfix' }] }, normalizeFilters({ ignoreLabels: ['wontfix'] })), '排除标签: wontfix')
+  assert.equal(filterReason({ ...base, labels: [{ name: 'bug' }] }, normalizeFilters({ labels: ['ai-fix'] })), '不在标签白名单: ai-fix')
+  assert.equal(filterReason(base, normalizeFilters({ onlyAssigned: true })), '没有指派给人')
+  assert.equal(filterReason({ ...base, assignees: [{ login: 'bob' }] }, normalizeFilters({ onlyAssigned: true, assignee: 'alice' })), '未指派给 @alice')
+})
+
+test('pushFiltered：环形缓冲只留最近 max 条', () => {
+  let log
+  for (let i = 0; i < 8; i += 1) log = pushFiltered(log, { number: i, reason: 'r' + i }, 5)
+  assert.equal(log.length, 5)
+  assert.deepEqual(log.map((x) => x.number), [3, 4, 5, 6, 7])
 })

@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.1'
+    const CLIENT_VERSION = '0.8.2'
     const BASE = '/session-superagent'
     const ENDPOINT = BASE + '/state'
     const POLL_MS = 5000
@@ -670,6 +670,7 @@ window.__ModuleLoader__.load({
             activeHours: draft.activeHours || '',
             isolated: !!draft.isolated,
             workdir: draft.workdir || '',
+            observe: !!draft.observe,
           }),
         })
         setEditing(null)
@@ -702,9 +703,10 @@ window.__ModuleLoader__.load({
             activeHours: form.activeHours || '',
             isolated: !!form.isolated,
             workdir: form.workdir || '',
+            observe: !!form.observe,
           }),
         })
-        setForm({ repo: '', intervalSec: form.intervalSec, goal: '', labels: '', onlyAssigned: false, activeHours: form.activeHours, isolated: form.isolated, workdir: form.workdir })
+        setForm({ repo: '', intervalSec: form.intervalSec, goal: '', labels: '', onlyAssigned: false, activeHours: form.activeHours, isolated: form.isolated, workdir: form.workdir, observe: form.observe })
       }, '已添加，30 秒内开始轮询')
 
       const saveCredentials = () => run(async () => {
@@ -748,6 +750,7 @@ window.__ModuleLoader__.load({
               ].filter(Boolean).join(' · '))),
           h('div', { className: 'dt-row-meta dt-row-meta-tags' },
             stateTag(watcher),
+            watcher.observe ? h(Tag, { tone: 'warn' }, '仅观察') : null,
             watcher.activeHours ? h(Tag, null, '时段 ' + watcher.activeHours) : null,
             watcher.isolated ? h(Tag, null, isolationText(watcher)) : null,
             filterText(watcher.filters) ? h(Tag, null, filterText(watcher.filters)) : null,
@@ -764,6 +767,7 @@ window.__ModuleLoader__.load({
                 activeHours: watcher.activeHours || '',
                 isolated: !!watcher.isolated,
                 workdir: watcher.workdir || '',
+                observe: !!watcher.observe,
               })
             },
           }, editing === key ? '收起' : '编辑'),
@@ -783,6 +787,7 @@ window.__ModuleLoader__.load({
             field('只处理这些标签', h(Input, { value: draft.labels, placeholder: '逗号分隔，留空 = 全部', onChange: (e) => setDraft({ ...draft, labels: e.target.value }) })),
             field('活跃时段', h(Input, { value: draft.activeHours, placeholder: '09:00-23:00，留空 = 全天', onChange: (e) => setDraft({ ...draft, activeHours: e.target.value }) })),
             h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.onlyAssigned, onChange: (v) => setDraft({ ...draft, onlyAssigned: v }), label: '只看已指派' }), '只处理已指派给人的条目'),
+            h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.observe, onChange: (v) => setDraft({ ...draft, observe: v }), label: '仅观察' }), '仅观察（只记录不唤醒）'),
             h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.isolated, onChange: (v) => setDraft({ ...draft, isolated: v }), label: '隔离执行' }), '隔离执行（每次唤醒开一次性 worktree）'),
             draft.isolated ? field('隔离工作目录', h(Input, { value: draft.workdir || '', placeholder: '绝对路径，留空 = 当前工作目录', onChange: (e) => setDraft({ ...draft, workdir: e.target.value }) })) : null,
             h('div', { className: 'dt-actions' },
@@ -802,6 +807,12 @@ window.__ModuleLoader__.load({
       }
 
       const overview = [
+        watchers.some((w) => (w.filteredLog || []).length > 0)
+          ? h(Section, { key: 'filtered', title: '最近被过滤', count: watchers.reduce((n, w) => n + (w.filteredLog || []).length, 0) },
+            h('ul', { className: 'dt-plain-list' },
+              watchers.flatMap((w) => (w.filteredLog || []).slice(-2).map((entry) => h('li', { key: w.repo + '#' + entry.number + entry.at },
+                '#' + entry.number + ' ' + (entry.title || '') + ' — ' + entry.reason)))))
+          : null,
         problems.length > 0
           ? h(Section, { key: 'problems', title: '需要关注', count: problems.length },
             h('ul', { className: 'dt-plain-list' }, problems.map((item) => h('li', { key: item.key, className: 'dt-danger' }, item.text))))
@@ -824,6 +835,7 @@ window.__ModuleLoader__.load({
           field('只处理这些标签', h(Input, { value: form.labels, placeholder: '逗号分隔，留空 = 全部', onChange: (e) => setForm({ ...form, labels: e.target.value }) })),
           field('活跃时段', h(Input, { value: form.activeHours, placeholder: '09:00-23:00，留空 = 全天', onChange: (e) => setForm({ ...form, activeHours: e.target.value }) })),
           h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: form.onlyAssigned, onChange: (v) => setForm({ ...form, onlyAssigned: v }), label: '只看已指派' }), '只处理已指派给人的条目'),
+          h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!form.observe, onChange: (v) => setForm({ ...form, observe: v }), label: '仅观察' }), '仅观察（只记录本会唤醒哪几条，不真唤醒）'),
           h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: form.isolated, onChange: (v) => setForm({ ...form, isolated: v }), label: '隔离执行' }), '隔离执行（每次唤醒开一次性 worktree）'),
           form.isolated ? field('隔离工作目录', h(Input, { value: form.workdir, placeholder: '绝对路径，留空 = 当前工作目录', onChange: (e) => setForm({ ...form, workdir: e.target.value }) })) : null,
           h('div', { className: 'dt-actions' },

@@ -388,3 +388,28 @@ test('主理鱼面板：每行有「编辑」按钮（点开后可改间隔/过�
   assert.ok(editingLabels.includes('保存'), '编辑态要有保存：' + editingLabels.join('|'))
   assert.ok(editingLabels.includes('放弃'), '编辑态要有放弃')
 })
+
+test('主理鱼面板：仅观察标签 + 最近被过滤清单', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snapshot = {
+    loading: false, error: null,
+    body: {
+      sessionGoal: null, sessionTitle: '会话',
+      credentials: { token: 'configured', sshKeyPath: 'none' },
+      watchers: [watcher('a/b', {
+        id: 'a/b#s1', enabled: true, observe: true,
+        filteredLog: [
+          { at: '2026-11-01T12:00:00Z', number: 7, title: '机器人提的依赖升级', reason: '机器人' },
+          { at: '2026-11-01T12:00:00Z', number: 8, title: '草稿', reason: '草稿 PR' },
+        ],
+      })],
+    },
+  }
+  const nodes = walk(render(desk, deskQueue(snapshot)))
+  const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
+  assert.ok(text.includes('仅观察'), '要有仅观察标签：' + text.slice(0, 200))
+  assert.ok(text.includes('最近被过滤'), '要有过滤清单')
+  assert.ok(text.includes('机器人'), '要显示过滤原因')
+  assert.ok(text.includes('#7'), '要显示被过滤的编号')
+})

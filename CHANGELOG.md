@@ -2,6 +2,23 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.2] - 2026-11-01 —— 观察模式 + 可解释的过滤
+
+对应 `docs/official-gui-ia.md` 映射表里两个 ➕（官方 `observe` 模式、`source/filtered` 折叠）。
+
+### 新增
+- **仅观察模式**（`observe: true`，对标官方 off/observe/auto 三态里的 observe）：
+  照常判定、照常写水位，但**不真唤醒**，只把「本轮本会唤醒哪几条」记进 `lastDeferred` 与 `history`。
+  灰度上线/调规则时先用它看行为，不用担心手一抖就把会话叫醒。
+- **过滤记录**（对应官方 `source/filtered`）：每次轮询把被过滤掉的条目记最多 5 条 +
+  人话原因（`已关闭` / `草稿 PR` / `机器人` / `排除标签: x` / `不在标签白名单: x` / `没有指派给人` / `已 ack`），
+  面板总览多一个「最近被过滤」区块。这是「主理鱼到底在不在干活」最直接的证据。
+- 新增 `filterReason()`：`passesFilters` 现在只是它的布尔包装，原来只能回答「过/不过」，
+  现在能回答「因为哪条规则不过」。
+
+### 测试
+- 新增 `filterReason` 7 种原因 + `pushFiltered` 环形缓冲 + 面板「仅观察/最近被过滤」。合计 **68 例**。
+
 ## [0.8.1] - 2026-11-01 —— 按官方 IA 报告补三块
 
 `docs/official-gui-ia.md`（931 行，独立考古员产出）给的施工建议前三条，这一版做完前两条的全部 + 第三条：
