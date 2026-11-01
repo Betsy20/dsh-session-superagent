@@ -14,26 +14,38 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.32'
+    const CLIENT_VERSION = '0.8.33'
     let BASE = '/session-superagent'
     /**
-     * 服务端热重载后旧 handler 摘不掉，会整组换到 `/session-superagent/rN` 重放。
-     * 这里逐个探一遍，认「routeBase 与请求前缀一致」的那个；老版本没有这个字段，就留在默认前缀。
+     * 挑「最新的那个服务端实例」。
+     *
+     * 宿主重载时旧 handler 摘不掉，所以可能同时存在多个前缀：默认的（旧代码）和 `/rN`（新代码）。
+     * 甚至出现过「新实例在默认前缀注册成功、但请求仍被旧 handler 接走」的情况 ——
+     * 所以不能只看「注册成功」，要按实例自报的版本 + routeBase 匹配来选。
      */
     async function discoverBase() {
       const candidates = [BASE]
       for (let i = 2; i <= 8; i += 1) candidates.push('/session-superagent/r' + i)
+      const versionScore = (v) => {
+        const parts = String(v || '0').split('.').map((n) => Number(n) || 0)
+        return parts[0] * 1e6 + parts[1] * 1e3 + parts[2]
+      }
+      let best = null
       for (const base of candidates) {
         try {
           const res = await fetch(base + '/state', { headers: { accept: 'application/json' } })
           if (!res.ok) continue
           const body = await res.json()
-          if (body && body.routeBase === base) { BASE = base; return base }
+          // 只有「自报前缀 = 我请求的前缀」才说明这个实例真的在这条路径上服务
+          if (!body || body.routeBase !== base) continue
+          const score = versionScore(body.serverVersion)
+          if (!best || score > best.score) best = { base, score }
         } catch {}
       }
+      if (best) BASE = best.base
       return BASE
     }
-    const ENDPOINT = BASE + '/state'
+
     const POLL_MS = 5000
 
     async function call(path, options) {

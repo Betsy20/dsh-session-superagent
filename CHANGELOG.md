@@ -2,6 +2,28 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.33] - 2026-11-02 —— 客户端按版本挑「最新的那个服务端实例」
+
+### 背景
+0.8.32 让服务端在撞车时换前缀重放，客户端按「routeBase 与请求前缀一致」认领。真机又暴露一个新情况：
+
+```
+server.base = '/session-superagent'（21:45 那次挂载没报重复、路由 6 条全成功）
+GET  /session-superagent/state   -> 没有 routeBase（请求仍被旧 handler 接走）
+POST /session-superagent/watch   -> 建的 watcher 仍报 inactive context
+```
+
+也就是说「注册成功」不等于「这个实例在服务」。只看前缀匹配会挑到错的实例。
+
+### 改法
+- 服务端在 `/state` 里自报 `serverVersion`（`SERVER_VERSION` 常量，meta 测试守着与 package.json 同步）；
+- 客户端把所有候选前缀都探一遍，只认「`routeBase === 请求前缀`」的，然后在其中**按版本取最新**。
+
+这样即便某个实例在默认前缀"假装成功"，只要 `/rN` 上有更新的实例，面板就会用 `/rN`。
+
+### 测试
+- 新增守门：`SERVER_VERSION` 必须等于 `package.json` 版本。合计 **94 例**。
+
 ## [0.8.32] - 2026-11-02 —— 热重载后整组换前缀，面板自己找得到
 
 ### 背景（真机实测）

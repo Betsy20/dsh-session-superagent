@@ -149,3 +149,9 @@ test('sync-profile 的 TARGETS 必须覆盖 lib/ 下所有 js 文件', () => {
   const missing = libs.filter((f) => !listed.includes(f))
   assert.deepEqual(missing, [], '这些 lib 文件没进 TARGETS（新增文件后必须加）：' + missing.join(', '))
 })
+
+test('SERVER_VERSION = package.json 版本', () => {
+  const v = read('../lib/index.js').match(/export const SERVER_VERSION = '([\d.]+)'/)
+  assert.ok(v, 'lib/index.js 里没有 SERVER_VERSION')
+  assert.equal(v[1], pkg.version)
+})
