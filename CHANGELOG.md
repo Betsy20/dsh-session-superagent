@@ -2,6 +2,35 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.30] - 2026-11-02 —— 0.8.28 没修好：宿主重载是「重新 import 一份模块」
+
+### 真机判定实验（20:00 重载后，routes 6 / failed []）
+面板（HTTP）建的 watcher **仍然报**：
+
+```
+lastError: cannot get required service "agents" in inactive context
+consecutiveFailures: 0 / nextAt: None
+```
+
+说明 0.8.28 的模块级 `activeRoutes` 没有生效 —— 因为**宿主重载是重新 import 一份模块**，
+模块级变量全新（数组是空的），新实例根本不知道旧实例注册过什么。
+
+### 修复
+把三个必须跨实例共享的结构挂到 `globalThis` 上（用 `Symbol.for` 做键）：
+
+| 结构 | 为什么必须共享 |
+|---|---|
+| `activeRoutes`（路由 disposer） | 新实例要能摘掉旧实例的路由，否则旧 ctx 继续吃 HTTP |
+| `timers`（定时器句柄） | 旧实例的 tick 还持有已 dispose 的 ctx，必须清掉 |
+| `inFlight`（并发闸） | 旧实例没跑完的那轮，新实例不能同时再跑一遍 |
+
+### 守门
+新增 `test/cross-instance.test.mjs`：用 `import('../lib/index.js?instance=1')` 与 `?instance=2`
+模拟两次 import，断言第二个实例会摘掉第一个实例注册的 6 条路由。
+
+### 测试
+- 合计 **92 例**。
+
 ## [0.8.29] - 2026-11-02 —— `watch_doctor` 现在会告诉你「面板接口死没死」
 
 这一轮的真机事故（重复路由 → 六条接口全灭）有个共同特征：**工具还是好的，只有面板挂了**。
