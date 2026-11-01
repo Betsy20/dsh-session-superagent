@@ -45,10 +45,10 @@
 
 | # | 项 | 说明 |
 |---|---|---|
-| 1 | `isolated: true`（git worktree 隔离） | 对应 DeepSeek DSec 的沙箱思路；现在主理鱼直接改你的工作区，撞上未提交改动就是事故 |
-| 2 | 面板显示过滤器/退避状态 | `/state` 已回传 `filters` / `nextAt` / `lastDeferred`，UI 还没画 |
+| 1 | **真机验证隔离执行** | 0.6.0 已实现（`isolated:true` → 每次唤醒开 `git worktree`），但还没在重启后的宿主上跑过一次 |
+| 2 | 隔离工作区清理 | `.dsh-zhuli/` 会一直累积；需要一个「超过 N 天自动 `worktree remove`」的回收 |
 | 3 | npm publish | 需要 `npm login` |
-| 4 | awesome-dsh-plugin 上架 | 仓库满 1 天后可提，材料在 `docs/awesome-submission.md` |
+| 4 | awesome-dsh-plugin 上架 | 仓库满 1 天后可提（11-02 17:53 +08 之后），材料在 `docs/awesome-submission.md` |
 
 ## 五、验证清单（改完必跑）
 
