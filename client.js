@@ -129,6 +129,14 @@ window.__ModuleLoader__.load({
       try { fetch(BASE + '/client-note?key=' + encodeURIComponent(key) + '&value=' + encodeURIComponent(String(value || ''))).catch(() => {}) } catch {}
     }
 
+    /** 8-char session tag. Titles come from the title model and several sessions
+     *  can share one, so every row carries the id suffix to stay unambiguous. */
+    const sessionTag = (id) => {
+      const raw = String(id || '')
+      const core = raw.indexOf('session-') === 0 ? raw.slice(8) : raw
+      return core.slice(0, 8) || '—'
+    }
+
     const ageText = (iso) => {
       if (typeof iso !== 'string') return '—'
       const ms = Date.now() - Date.parse(iso)
@@ -212,7 +220,7 @@ window.__ModuleLoader__.load({
         ref: btnRef,
         type: 'button',
         title: list.length
-          ? list.map((w) => (w.repo + ' · ' + (w.title || short(w.sessionId, 12)) + ' · ' + STATE_TEXT[orbitStateOf(w)])).join('\n')
+          ? list.map((w) => (w.repo + ' · ' + (w.title || '未命名会话') + ' · ' + sessionTag(w.sessionId) + ' · ' + STATE_TEXT[orbitStateOf(w)])).join('\n')
           : 'superagent 值守',
         'aria-label': summary,
         'aria-expanded': open ? 'true' : 'false',
@@ -246,9 +254,13 @@ window.__ModuleLoader__.load({
             }, String(w.repo || '?')),
             h('span', { style: { marginLeft: 'auto', flex: 'none', opacity: 0.7 } }, STATE_TEXT[state])),
           h('div', { style: { paddingLeft: 13, opacity: 0.72, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } },
-            w.title || short(w.sessionId, 18)),
+            (w.title || '未命名会话') + ' · ' + sessionTag(w.sessionId)),
           h('div', { style: { paddingLeft: 13, opacity: 0.55 } },
             '每 ' + w.intervalSec + 's · 轮询 ' + ageText(w.lastPoll) + ' · 唤醒 ' + wakeText(w.lastWake)),
+          w.goal && w.goal.objective
+            ? h('div', { style: { paddingLeft: 13, opacity: 0.55, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } },
+              'goal · ' + String(w.goal.objective).slice(0, 60))
+            : null,
           w.lastError
             ? h('div', { style: { paddingLeft: 13, color: '#f85149', overflowWrap: 'anywhere' } }, String(w.lastError).slice(0, 160))
             : null)
@@ -463,9 +475,10 @@ window.__ModuleLoader__.load({
           h('span', { style: S.mono }, typeof w.lastWake === 'string' && w.lastWake.startsWith('failed') ? '失败' : when(w.lastWake)),
           h('span', { style: w.enabled ? S.badgeOn : S.badgeOff }, w.enabled ? '运行中' : '已暂停'))),
 
-        watchers.some((w) => w.goal) && h('div', { style: { marginTop: 10 } },
-          ...watchers.filter((w) => w.goal).map((w) =>
-            h('div', { key: 'goal-' + w.repo, style: { ...S.mono, opacity: 0.7 } }, w.repo + ': ' + w.goal))),
+        watchers.some((w) => w.goal && w.goal.objective) && h('div', { style: { marginTop: 10 } },
+          ...watchers.filter((w) => w.goal && w.goal.objective).map((w) =>
+            h('div', { key: 'goal-' + w.repo, style: { ...S.mono, opacity: 0.7 } },
+              w.repo + ': ' + String(w.goal.objective).slice(0, 90)))),
 
         watchers.some((w) => w.lastError) && h('div', { style: { marginTop: 10 } },
           ...watchers.filter((w) => w.lastError).map((w) =>

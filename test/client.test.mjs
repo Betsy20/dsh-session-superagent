@@ -151,14 +151,23 @@ test('值守中才转，暂停/异常不转也不丢', () => {
 test('点击展开的面板逐条列出仓库 / 会话 / 间隔 / 轮询 / 状态', () => {
   const { registrations, render } = loadClient()
   const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
-  const list = [watcher('a/b'), watcher('c/d', { lastError: 'HttpError: 401 bad credentials' })]
+  const list = [
+    watcher('a/b', { sessionId: 'session-1e82afca-8be2-42f9-8186-2bd274e30342', goal: { objective: '让值守台实时同步 goal', phase: null, revision: 3 } }),
+    watcher('c/d', { sessionId: 'session-7f7155cf-20f0-4d9a', lastError: 'HttpError: 401 bad credentials' }),
+  ]
   const nodes = walk(render(orbit, [list, true, { x: 720, y: 860 }]))
   const panel = nodes.find((n) => n.props && n.props.role === 'dialog')
   assert.ok(panel, '面板没有渲染')
   assert.equal(panel.props.style.position, 'fixed')
   assert.equal(panel.props.style.width, 344)
   const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
-  for (const needle of ['会话级 superagent', '1/2 运行中', 'a/b', 'c/d', '值守中', '异常', '每 30s', '401 bad credentials']) {
-    assert.ok(text.includes(needle), '面板缺少「' + needle + '」：' + text.slice(0, 200))
-  }
+  const needles = [
+    '会话级 superagent', '1/2 运行中', 'a/b', 'c/d', '值守中', '异常', '每 30s', '401 bad credentials',
+    // 会话标题可能重名，所以每行必须带 8 位会话后缀
+    '1e82afca', '7f7155cf',
+    // 有 goal 的 superagent 要显示 goal 摘要
+    'goal · 让值守台实时同步 goal',
+  ]
+  for (const needle of needles) assert.ok(text.includes(needle), '面板缺少「' + needle + '」：' + text.slice(0, 240))
+  assert.ok(!text.includes('[object Object]'), 'goal 被当成对象直接拼进了文案')
 })
