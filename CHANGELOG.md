@@ -16,6 +16,14 @@
   HTTP 只在面板/调试时用 —— 并写清端口每次重启都会变、怎么找（会话上下文里的 GUI URL 或按 PID 查 netstat）。
   冷启动演练时就是卡在「端口找不到」这一步。
 
+### 发布
+- 已发 `dsh-session-superagent@0.8.20`（一次性带上 0.8.17–0.8.20 的改动；`latest = 0.8.20`）。
+- tarball 直装验证：`version 0.8.20`、**routes 6**、`client.js` 语法通过、
+  包内只有 7 项（CHANGELOG/LICENSE/README/client.js/cordis.patch.yml/lib/package.json）。
+- **CI 已接入 `preflight --fast`**：GitHub Actions 在 Node 22 / 24 两个矩阵上跑
+  「单测 / 语法 / 版本一致 / 路由面 / 包内容」，本地无 profile 时该检查自动 SKIP。
+  运行记录：`gh run list` → `test (22)` 与 `test (24)` 均 success。
+
 ### 测试
 - 合计 **85 例**。
 
