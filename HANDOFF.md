@@ -29,7 +29,7 @@
 | 有哪些主理鱼、上次轮询/唤醒/错误 | `watch_status` 工具 | 一行一条，带 observe/isolated/paused/labels/deferred 标记 |
 | 环境是否可用（gh 登录、仓库可读、隔离目录是 git 仓） | `watch_doctor` 工具 | 五项检查一次出结果 |
 | 原始状态（过滤记录、水位、历史） | 读 `~/.dsh/state/session-superagent/watchers.json` | 这就是权威数据源；比 HTTP 省事 |
-| 面板/HTTP 接口 | 宿主端口 + `/session-superagent/state` | 端口每次重启都变：看会话上下文里的 `Current DeepSeek Harness Web GUI URL`，或 `netstat` 按 DSH 进程 PID 查 |
+| 面板/HTTP 接口 | 宿主端口 + `/session-superagent/state` | 端口每次重启都变：优先看会话上下文里的 GUI URL，或 `netstat` 按 DSH 进程 PID 查。**探测时要核对返回的是 JSON（含 `gh`/`watchers`）**——本机有别的服务对任意路径都回 200，按状态码猜端口会误判 |
 
 冷启动演练（2026-11-02 03:2x）就是照这条路径走的：`watch_start({observe:true, labels:[...]})` →
 `watch_status` → 状态文件确认 `observe: true / filteredLog 4 条`。
