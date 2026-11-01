@@ -223,3 +223,13 @@ test('路由面收敛：只保留 6 条（/config 与 /client-hello 已下线）
   ].sort()
   assert.deepEqual([...routes.keys()].sort(), expected)
 })
+
+test('面板可设限流：batchLimit / maxWakesPerHour 会被夹紧并回传', async () => {
+  const created = (await call('POST', '/session-superagent/watch', {
+    repo: 'o/limits', sessionId: 's9', intervalSec: 60, batchLimit: 3, maxWakesPerHour: 99,
+  })).json()
+  const watcher = (await call('GET', '/session-superagent/state')).json().watchers.find((w) => w.id === created.id)
+  assert.equal(watcher.batchLimit, 3)
+  assert.equal(watcher.maxWakesPerHour, 60, '每小时上限要夹到 1-60')
+  await call('POST', '/session-superagent/watch', { action: 'delete', id: created.id })
+})

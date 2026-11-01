@@ -1,7 +1,7 @@
 # dsh-session-superagent
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.8.16-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
+[![Version](https://img.shields.io/badge/version-0.8.17-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
 [![npm](https://img.shields.io/npm/v/dsh-session-superagent.svg)](https://www.npmjs.com/package/dsh-session-superagent)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-plugin-orange.svg)](https://github.com/topics/dsh-plugin)
 
@@ -21,7 +21,7 @@
 | 盯仓库 | `watch_start` / `watch_status` / `watch_stop` | 30–3600 秒轮询；有变化时用 `Agent.followup()` 唤醒**本会话** |
 | 传递规则 | 仓库里的 `AGENTS.md` | 唤醒消息只说“有新动态”，怎么处理由项目规则决定 |
 | 收窄范围 | `filters` | 只处理带指定标签、或已指派给人的条目；默认跳过机器人、草稿 PR、已关闭条目 |
-| 限流 | `batchLimit` / `maxWakesPerHour` | 单次最多铺开 N 条，每小时最多唤醒 N 次，超了攒着 |
+| 限流 | `batchLimit` / `maxWakesPerHour` | 单次最多铺开 N 条（默认 5，1-20），每小时最多唤醒 N 次（默认 6，1-60），超了攒着；**面板「触发」页可改** |
 | 幂等 | `watch_ack` 工具 | 处理完给条目打「主理鱼:已处理」标签（标签不存在会自动建），轮询直接跳过（换机器也不重报）；支持 `numbers: "12,13"` 批量 |
 | 时段 | `activeHours` | 只在 `09:00-23:00` 这类时段唤醒，夜里攒着；支持跨夜 `22:00-06:00` |
 | 隔离 | `isolated` | 每次唤醒前开一次性 `git worktree`，改副本、推 `zhuli/*` 分支，不动主工作区；超过 3 天的旧副本自动回收 |

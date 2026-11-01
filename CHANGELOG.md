@@ -2,6 +2,19 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.17] - 2026-11-02 —— README 声明与面板能力对齐（限流可改）
+
+对着 README 逐条核代码时发现的落差：`batchLimit` / `maxWakesPerHour` 在服务端和工具里都支持，
+**面板却没法设** —— 用户按 README 找这两个开关会找不到。
+
+### 修复
+- 「触发」页新增两个字段：**单次最多唤醒条数**（默认 5，夹到 1-20）、**每小时最多唤醒次数**（默认 6，夹到 1-60）。
+- 行内编辑器同样能改这两项，保存走同一个 `POST /watch`。
+- README 的限流一行补上「面板可改」并标注默认值与范围。
+
+### 测试
+- 新增用例：面板设置 `maxWakesPerHour: 99` 会被夹成 60 并回传。合计 **82 例**。
+
 ## [0.8.16] - 2026-11-02 —— 第一次在真浏览器里看面板，抓到一个对比度问题
 
 宿主的 web 界面有鉴权（`dsh web authentication required`），ego 浏览器过不去，所以搭了个

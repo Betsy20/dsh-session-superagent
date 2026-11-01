@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.16'
+    const CLIENT_VERSION = '0.8.17'
     const BASE = '/session-superagent'
     const ENDPOINT = BASE + '/state'
     const POLL_MS = 5000
@@ -699,6 +699,8 @@ window.__ModuleLoader__.load({
             isolated: !!draft.isolated,
             workdir: draft.workdir || '',
             observe: !!draft.observe,
+            batchLimit: Number(draft.batchLimit) || undefined,
+            maxWakesPerHour: Number(draft.maxWakesPerHour) || undefined,
           }),
         })
         setEditing(null)
@@ -732,6 +734,8 @@ window.__ModuleLoader__.load({
             isolated: !!form.isolated,
             workdir: form.workdir || '',
             observe: !!form.observe,
+            batchLimit: Number(form.batchLimit) || undefined,
+            maxWakesPerHour: Number(form.maxWakesPerHour) || undefined,
           }),
         })
         setForm({ repo: '', intervalSec: form.intervalSec, goal: '', labels: '', onlyAssigned: false, activeHours: form.activeHours, isolated: form.isolated, workdir: form.workdir, observe: form.observe })
@@ -798,6 +802,8 @@ window.__ModuleLoader__.load({
                 isolated: !!watcher.isolated,
                 workdir: watcher.workdir || '',
                 observe: !!watcher.observe,
+                batchLimit: String(watcher.batchLimit ?? 5),
+                maxWakesPerHour: String(watcher.maxWakesPerHour ?? 6),
               })
             },
           }, editing === key ? '收起' : '编辑'),
@@ -818,6 +824,8 @@ window.__ModuleLoader__.load({
             field('活跃时段', h(Input, { value: draft.activeHours, placeholder: '09:00-23:00，留空 = 全天', onChange: (e) => setDraft({ ...draft, activeHours: e.target.value }) })),
             field('目标/规则', h(Input, { value: draft.goal || '', placeholder: '可选，会附在唤醒消息里', onChange: (e) => setDraft({ ...draft, goal: e.target.value }) })),
             h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.onlyAssigned, onChange: (v) => setDraft({ ...draft, onlyAssigned: v }), label: '只看已指派' }), '只处理已指派给人的条目'),
+            field('单次最多唤醒条数', h(Input, { value: draft.batchLimit || '', placeholder: '5（1-20）', onChange: (e) => setDraft({ ...draft, batchLimit: e.target.value }) })),
+            field('每小时最多唤醒次数', h(Input, { value: draft.maxWakesPerHour || '', placeholder: '6（1-60）', onChange: (e) => setDraft({ ...draft, maxWakesPerHour: e.target.value }) })),
             h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.observe, onChange: (v) => setDraft({ ...draft, observe: v }), label: '仅观察' }), '仅观察（只记录不唤醒）'),
             h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.isolated, onChange: (v) => setDraft({ ...draft, isolated: v }), label: '隔离执行' }), '隔离执行（每次唤醒开一次性 worktree）'),
             draft.isolated ? field('隔离工作目录', h(Input, { value: draft.workdir || '', placeholder: '绝对路径，留空 = 当前工作目录', onChange: (e) => setDraft({ ...draft, workdir: e.target.value }) })) : null,
@@ -888,6 +896,8 @@ window.__ModuleLoader__.load({
         h('div', { className: 'dt-form' },
           field('仓库', h(Input, { value: form.repo, placeholder: 'owner/name', onChange: (e) => setForm({ ...form, repo: e.target.value }) })),
           field('间隔（秒）', h(Input, { value: form.intervalSec, onChange: (e) => setForm({ ...form, intervalSec: e.target.value }) })),
+          field('单次最多唤醒条数', h(Input, { value: form.batchLimit || '', placeholder: '5（1-20）', onChange: (e) => setForm({ ...form, batchLimit: e.target.value }) })),
+          field('每小时最多唤醒次数', h(Input, { value: form.maxWakesPerHour || '', placeholder: '6（1-60）', onChange: (e) => setForm({ ...form, maxWakesPerHour: e.target.value }) })),
           field('只处理这些标签', h(Input, { value: form.labels, placeholder: '逗号分隔，留空 = 全部', onChange: (e) => setForm({ ...form, labels: e.target.value }) })),
           field('活跃时段', h(Input, { value: form.activeHours, placeholder: '09:00-23:00，留空 = 全天', onChange: (e) => setForm({ ...form, activeHours: e.target.value }) })),
           field('目标/规则', h(Input, { value: form.goal || '', placeholder: '可选，会附在唤醒消息里', onChange: (e) => setForm({ ...form, goal: e.target.value }) })),
