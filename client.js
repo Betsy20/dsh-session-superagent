@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.8'
+    const CLIENT_VERSION = '0.8.9'
     const BASE = '/session-superagent'
     const ENDPOINT = BASE + '/state'
     const POLL_MS = 5000
@@ -126,6 +126,7 @@ window.__ModuleLoader__.load({
     /** 页级 tab 条：点当前页会再发一次 onChange（回调里可重置到根部）。 */
     function SegTabs({ items, value, onChange, label }) {
       const walk = (event) => {
+        if (items.length === 0) return
         const values = items.map((item) => item.value)
         const index = values.indexOf(value)
         const target = { ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: values.length - 1 }[event.key]

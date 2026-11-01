@@ -509,3 +509,25 @@ test('面板恢复显示会话标题与每行 goal', () => {
   assert.ok(text.includes('会话：主理鱼重构'), '头部要显示会话标题：' + text.slice(0, 180))
   assert.ok(text.includes('目标: 把 widget 的 issue'), '每行要显示目标/规则：' + text.slice(0, 240))
 })
+
+test('删除按钮 armed 态仍然保留 dt-btn 基类（并变成危险色）', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snapshot = {
+    loading: false, error: null,
+    body: {
+      sessionGoal: null, sessionTitle: '会话',
+      credentials: { token: 'configured', sshKeyPath: 'none' },
+      watchers: [watcher('a/b', { id: 'a/b#s1' })],
+    },
+  }
+  // 第 13 个 hook 槽是 ConfirmBtn 的 armed
+  const armed = walk(render(desk, [...deskQueue(snapshot), true]))
+  const buttons = armed.filter((n) => n.type === 'button')
+  const labels = buttons.map((b) => (b.props.children || []).filter((c) => typeof c === 'string').join(''))
+  const index = labels.indexOf('确认删除')
+  assert.ok(index >= 0, 'armed 态文案应变成「确认删除」：' + labels.join('|'))
+  const className = String(buttons[index].props.className || '')
+  assert.ok(className.includes('dt-btn '), 'armed 态丢了 dt-btn 基类：' + className)
+  assert.ok(className.includes('dt-danger'), 'armed 态要标危险：' + className)
+})

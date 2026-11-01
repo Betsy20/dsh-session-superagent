@@ -1,7 +1,7 @@
 # dsh-session-superagent
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.8.8-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
+[![Version](https://img.shields.io/badge/version-0.8.9-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-plugin-orange.svg)](https://github.com/topics/dsh-plugin)
 
 > **一句话**：给一个 DSH 会话装上一条 **主理鱼**——
@@ -88,7 +88,7 @@ watch_start({ repo: "owner/name", intervalSec: 60 })
 ## 开发
 
 ```sh
-node --test          # 73 项单测
+node --test          # 77 项单测
 ```
 
 版本与发布流程见 [UPDATING.md](UPDATING.md)，交付门见 [CHECKLIST.md](CHECKLIST.md)，接手台账见 [MAINTENANCE.md](MAINTENANCE.md)。

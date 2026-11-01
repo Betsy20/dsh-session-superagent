@@ -2,6 +2,29 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.9] - 2026-11-01 —— 终审的两个阻塞项
+
+第三轮（发布门禁）审核指出 0.8.8 有两处必须修，都已修并补了能钉住它的测试：
+
+### 修复
+- **「goal 进唤醒消息」是假功能**：0.8.8 只在 `formatWatchText` 里算了 `goalLine`，
+  **没有拼进 return**（`grep -c goalLine` = 1）。实测带 goal 与不带 goal 的消息**字节相同**，
+  而测试里没有任何断言，所以 75 例全绿。现在真的拼进去了，并且把 goal 里的换行压平成一行
+  （避免多行文本切坏消息结构），新增 1 例断言「带 goal 的消息必须和不带的不同」。
+- **`sessionFileCache` 的 TTL 被 `|| !file` 废掉**：只要有一个 watcher 的会话日志不存在，
+  每次 `/state` 都全量重建索引（终审实测 200 会话从 0.6ms 退化到 130-150ms、800 会话 340-520ms，
+  同步 IO 跑在宿主主线程）。改成负缓存：miss 也走 TTL。
+- **孤儿目录永远删不掉**：`git worktree remove` 对「已经不是工作树」的目录返回 128，
+  原逻辑 `continue` 导致目录和分支都留下。现在失败时 `rmSync` 兜底，并且无论成败都尝试 `branch -D`。
+
+### 其他
+- `SegTabs` 空列表守卫（空数组会让 `onChange(undefined)` 把页面置空）。
+- 新增 armed 态用例：删除按钮点第二次时仍保留 `dt-btn` 基类并带 `dt-danger`。
+- README / MAINTENANCE / HANDOFF 的测试数与版本号同步到 77 / 0.8.9。
+
+### 测试
+- 合计 **77 例**。
+
 ## [0.8.8] - 2026-11-01 —— 收掉性能与「只写不读」的两个尾巴
 
 ### 修复

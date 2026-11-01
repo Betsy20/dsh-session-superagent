@@ -336,3 +336,11 @@ test('pushFiltered：环形缓冲只留最近 max 条', () => {
   assert.equal(log.length, 5)
   assert.deepEqual(log.map((x) => x.number), [3, 4, 5, 6, 7])
 })
+
+test('formatWatchText 把 watcher 的「目标/规则」带进消息，并压平换行', () => {
+  const one = [item(1, '2026-01-01T00:00:00Z')]
+  const without = formatWatchText('o/r', one)
+  const withGoal = formatWatchText('o/r', one, { goal: '把 widget 的 issue 都处理完' + String.fromCharCode(10) + '第二行' })
+  assert.notEqual(without, withGoal, '带 goal 的消息必须和不带的不同（0.8.8 曾忘了拼接）')
+  assert.ok(withGoal.includes('本条目主理目标：把 widget 的 issue 都处理完 第二行'), withGoal)
+})
