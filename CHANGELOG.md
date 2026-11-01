@@ -2,6 +2,20 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.8] - 2026-11-01 —— 收掉性能与「只写不读」的两个尾巴
+
+### 修复
+- **`/state` 的性能坑**：`sessionTitle()` 每条 watcher 都会 `readdirSync(sessions)` +
+  逐 group `existsSync`，面板 5 秒一轮就是几十次同步 IO。现在加了 60 秒 TTL 的
+  「sessionId → 会话日志路径」索引缓存，命中后只 stat 单个文件。
+- **`entry.goal` 只写不读**：「目标/规则」字段之前存进去却没人用（唤醒消息不带、面板不显示）。
+  现在真的进唤醒消息（`本条目主理目标：…`），触发页与行内编辑都能改，列表每行也显示 `目标: …`。
+  注意区分：`watcher.goal` 是**会话 goal**（`/goal` 那份），`watcher.note` 才是每条自己的目标/规则。
+- `useToast` 的定时器数组用后即删（长会话里之前只增不减）。
+
+### 测试
+- 合计 **75 例**（用例改为断言「目标/规则」取自 `note` 字段）。
+
 ## [0.8.7] - 2026-11-01 —— 审核遗留的三条
 
 第二轮审核「仍未处理」清单里的三项，收掉：

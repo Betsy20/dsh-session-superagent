@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.7'
+    const CLIENT_VERSION = '0.8.8'
     const BASE = '/session-superagent'
     const ENDPOINT = BASE + '/state'
     const POLL_MS = 5000
@@ -598,7 +598,11 @@ window.__ModuleLoader__.load({
       const notify = useCallback((text, tone = 'info') => {
         const id = Math.random().toString(36).slice(2)
         setItems((prev) => [...prev, { id, text, tone }])
-        const timer = setTimeout(() => setItems((prev) => prev.filter((item) => item.id !== id)), 4000)
+        const timer = setTimeout(() => {
+          // 用后即删：长会话里这个数组不能只增不减
+          timers.current = timers.current.filter((handle) => handle !== timer)
+          setItems((prev) => prev.filter((item) => item.id !== id))
+        }, 4000)
         timers.current.push(timer)
       }, [])
       // .dt-toast 自己就是 position:fixed（顶部居中），这里只做分组，不再加定位样式
@@ -684,6 +688,7 @@ window.__ModuleLoader__.load({
               onlyAssigned: !!draft.onlyAssigned,
             },
             activeHours: draft.activeHours || '',
+            goal: draft.goal || '',
             isolated: !!draft.isolated,
             workdir: draft.workdir || '',
             observe: !!draft.observe,
@@ -761,7 +766,7 @@ window.__ModuleLoader__.load({
                 '轮询 ' + ageText(watcher.lastPoll),
                 '唤醒 ' + wakeText(watcher.lastWake),
                 historyText(watcher),
-                watcher.goal && watcher.goal.objective ? 'goal: ' + String(watcher.goal.objective).slice(0, 40) : '',
+                watcher.note ? '目标: ' + String(watcher.note).slice(0, 40) : '',
                 watcher.lastDeferred,
                 watcher.lastError,
               ].filter(Boolean).join(' · '))),
@@ -782,6 +787,7 @@ window.__ModuleLoader__.load({
                 labels: ((watcher.filters && watcher.filters.labels) || []).join(','),
                 onlyAssigned: !!(watcher.filters && watcher.filters.onlyAssigned),
                 activeHours: watcher.activeHours || '',
+                goal: watcher.note || '',
                 isolated: !!watcher.isolated,
                 workdir: watcher.workdir || '',
                 observe: !!watcher.observe,
@@ -803,6 +809,7 @@ window.__ModuleLoader__.load({
             field('间隔（秒）', h(Input, { value: draft.intervalSec, onChange: (e) => setDraft({ ...draft, intervalSec: e.target.value }) })),
             field('只处理这些标签', h(Input, { value: draft.labels, placeholder: '逗号分隔，留空 = 全部', onChange: (e) => setDraft({ ...draft, labels: e.target.value }) })),
             field('活跃时段', h(Input, { value: draft.activeHours, placeholder: '09:00-23:00，留空 = 全天', onChange: (e) => setDraft({ ...draft, activeHours: e.target.value }) })),
+            field('目标/规则', h(Input, { value: draft.goal || '', placeholder: '可选，会附在唤醒消息里', onChange: (e) => setDraft({ ...draft, goal: e.target.value }) })),
             h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.onlyAssigned, onChange: (v) => setDraft({ ...draft, onlyAssigned: v }), label: '只看已指派' }), '只处理已指派给人的条目'),
             h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.observe, onChange: (v) => setDraft({ ...draft, observe: v }), label: '仅观察' }), '仅观察（只记录不唤醒）'),
             h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.isolated, onChange: (v) => setDraft({ ...draft, isolated: v }), label: '隔离执行' }), '隔离执行（每次唤醒开一次性 worktree）'),
@@ -876,6 +883,7 @@ window.__ModuleLoader__.load({
           field('间隔（秒）', h(Input, { value: form.intervalSec, onChange: (e) => setForm({ ...form, intervalSec: e.target.value }) })),
           field('只处理这些标签', h(Input, { value: form.labels, placeholder: '逗号分隔，留空 = 全部', onChange: (e) => setForm({ ...form, labels: e.target.value }) })),
           field('活跃时段', h(Input, { value: form.activeHours, placeholder: '09:00-23:00，留空 = 全天', onChange: (e) => setForm({ ...form, activeHours: e.target.value }) })),
+          field('目标/规则', h(Input, { value: form.goal || '', placeholder: '可选，会附在唤醒消息里', onChange: (e) => setForm({ ...form, goal: e.target.value }) })),
           h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: form.onlyAssigned, onChange: (v) => setForm({ ...form, onlyAssigned: v }), label: '只看已指派' }), '只处理已指派给人的条目'),
           h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!form.observe, onChange: (v) => setForm({ ...form, observe: v }), label: '仅观察' }), '仅观察（只记录本会唤醒哪几条，不真唤醒）'),
           h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: form.isolated, onChange: (v) => setForm({ ...form, isolated: v }), label: '隔离执行' }), '隔离执行（每次唤醒开一次性 worktree）'),

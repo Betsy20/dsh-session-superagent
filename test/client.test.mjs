@@ -501,11 +501,11 @@ test('面板恢复显示会话标题与每行 goal', () => {
       sessionTitle: '主理鱼重构',
       sessionGoal: null,
       credentials: { token: 'configured', sshKeyPath: 'none' },
-      watchers: [watcher('a/b', { id: 'a/b#s1', goal: { objective: '把 widget 的 issue 都处理完', phase: null, revision: 2 } })],
+      watchers: [watcher('a/b', { id: 'a/b#s1', note: '把 widget 的 issue 都处理完' })],
     },
   }
   const nodes = walk(render(desk, deskQueue(snapshot)))
   const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
   assert.ok(text.includes('会话：主理鱼重构'), '头部要显示会话标题：' + text.slice(0, 180))
-  assert.ok(text.includes('goal: 把 widget 的 issue'), '每行要显示 goal：' + text.slice(0, 240))
+  assert.ok(text.includes('目标: 把 widget 的 issue'), '每行要显示目标/规则：' + text.slice(0, 240))
 })
