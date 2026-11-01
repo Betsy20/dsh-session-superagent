@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.4.1'
+    const CLIENT_VERSION = '0.4.2'
     const BASE = '/session-superagent'
     const ENDPOINT = BASE + '/state'
     const POLL_MS = 5000
@@ -300,6 +300,7 @@ window.__ModuleLoader__.load({
             ? h('div', { style: { paddingLeft: 13, color: '#f85149', overflowWrap: 'anywhere' } }, String(w.lastError).slice(0, 160))
             : null,
           h('div', { style: { paddingLeft: 13, marginTop: 5, display: 'flex', gap: 8 } },
+            h('button', { style: S.tiny, onClick: () => act(w, 'poll') }, '立刻'),
             h('button', { style: S.tiny, onClick: () => act(w, w.enabled ? 'pause' : 'resume') },
               w.enabled ? '暂停' : '恢复'),
             h('button', { style: { ...S.tiny, color: '#f85149' }, onClick: () => act(w, 'delete') }, '删除')))
@@ -349,7 +350,7 @@ window.__ModuleLoader__.load({
     function DutyDesk(props) {
       const sessionId = props && props.sessionId
       const [snapshot, setSnapshot] = useState({ loading: true, body: null, error: null })
-      const [form, setForm] = useState({ repo: '', intervalSec: '60', goal: '' })
+      const [form, setForm] = useState({ repo: '', intervalSec: '60', goal: '', labels: '', onlyAssigned: false })
       const [token, setToken] = useState('')
       const [sshKeyPath, setSshKeyPath] = useState('')
       const [notice, setNotice] = useState(null)
@@ -419,9 +420,13 @@ window.__ModuleLoader__.load({
               intervalSec: Number(form.intervalSec) || 60,
               goal: form.goal,
               sessionId,
+              filters: {
+                labels: String(form.labels || '').split(',').map((v) => v.trim()).filter(Boolean),
+                onlyAssigned: !!form.onlyAssigned,
+              },
             }),
           })
-          setForm({ repo: '', intervalSec: form.intervalSec, goal: '' })
+          setForm({ repo: '', intervalSec: form.intervalSec, goal: '', labels: '', onlyAssigned: false })
           setNotice({ ok: true, text: '已添加，30 秒内开始轮询' })
           load()
         } catch (error) {
@@ -519,6 +524,14 @@ window.__ModuleLoader__.load({
           h(Field, { label: '仓库', value: form.repo, onChange: (v) => setForm({ ...form, repo: v }), placeholder: 'owner/name' }),
           h(Field, { label: '间隔(秒)', value: form.intervalSec, onChange: (v) => setForm({ ...form, intervalSec: v }), placeholder: '60' }),
           h(Field, { label: '目标/规则', value: form.goal, onChange: (v) => setForm({ ...form, goal: v }), placeholder: '可选，会附在唤醒消息里' }),
+          h(Field, { label: '只处理这些标签', value: form.labels || '', onChange: (v) => setForm({ ...form, labels: v }), placeholder: '逗号分隔，留空 = 全都要' }),
+          h('label', { style: { ...S.sub, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' } },
+            h('input', {
+              type: 'checkbox',
+              checked: !!form.onlyAssigned,
+              onChange: (e) => setForm({ ...form, onlyAssigned: e.target.checked }),
+            }),
+            '只处理已指派给人的条目'),
           h('button', {
             style: S.button,
             onClick: addWatcher,
@@ -545,6 +558,7 @@ window.__ModuleLoader__.load({
           h('span', { style: S.mono }, typeof w.lastWake === 'string' && w.lastWake.startsWith('failed') ? '失败' : when(w.lastWake)),
           h('span', { style: w.enabled ? S.badgeOn : S.badgeOff }, w.enabled ? '运行中' : '已暂停'),
           h('span', { style: { display: 'flex', gap: 6 } },
+            h('button', { style: S.tiny, onClick: () => act(w, 'poll') }, '立刻'),
             h('button', { style: S.tiny, onClick: () => act(w, w.enabled ? 'pause' : 'resume') },
               w.enabled ? '暂停' : '恢复'),
             h('button', { style: { ...S.tiny, color: '#cf222e' }, onClick: () => act(w, 'delete') }, '删除')))),

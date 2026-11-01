@@ -3,7 +3,8 @@ import assert from 'node:assert/strict'
 
 import {
   advanceSeen, applyWatcherAction, batchFresh, decideWake, formatWatchText, newestUpdatedAt,
-  nextDelayMs, normalizeFilters, partitionItems, passesFilters, pruneWakeTimes, recordReported, splitFresh,
+  hasAckLabel, nextDelayMs, normalizeFilters, partitionItems, passesFilters, pruneSeen, pruneWakeTimes,
+  recordReported, splitFresh,
 } from '../lib/watch.js'
 
 const item = (number, updatedAt) => ({ number, updated_at: updatedAt, state: 'open', title: `t${number}`, html_url: `https://x/${number}`, user: { login: 'me' } })
@@ -200,4 +201,31 @@ test('pruneWakeTimes 只保留最近一小时的唤醒', () => {
   ]
   assert.deepEqual(pruneWakeTimes(times, now), [times[1], times[2]])
   assert.deepEqual(pruneWakeTimes(undefined, now), [])
+})
+
+test('hasAckLabel：大小写无关，认标签', () => {
+  const done = { labels: [{ name: 'bug' }, { name: '主理鱼:已处理' }] }
+  const nope = { labels: [{ name: 'bug' }] }
+  assert.equal(hasAckLabel(done), true)
+  assert.equal(hasAckLabel(done, '主理鱼:已处理'), true)
+  assert.equal(hasAckLabel(nope), false)
+  assert.equal(hasAckLabel({}), false)
+  assert.equal(hasAckLabel({ labels: ['主理鱼:已处理'] }), true, '字符串标签也要认')
+})
+
+test('pruneSeen：超龄与超量的记录都被丢掉，留下的按新到旧', () => {
+  const now = Date.parse('2026-11-01T12:00:00Z')
+  const seen = {
+    1: '2026-08-01T00:00:00Z',   // 90 多天前，超龄
+    2: '2026-10-31T12:00:00Z',   // 1 天前
+    3: '2026-10-20T12:00:00Z',   // 12 天前
+    4: '不是时间',
+  }
+  const kept = pruneSeen(seen, { now })
+  assert.deepEqual(Object.keys(kept).sort(), ['2', '3'])
+  assert.equal(kept['2'], '2026-10-31T12:00:00.000Z')
+
+  const capped = pruneSeen(seen, { now, maxEntries: 1 })
+  assert.deepEqual(Object.keys(capped), ['2'], '超量时只留最新的')
+  assert.deepEqual(pruneSeen(undefined, { now }), {})
 })
