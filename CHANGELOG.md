@@ -2,6 +2,28 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.13] - 2026-11-02 —— 真机跑「只观察」闭环，抓出两个真 bug
+
+拿真仓库（MYCF711/dsh-GOkifu-compact，3 个真 issue）跑 observe 模式验证，抓到：
+
+### 修复
+- **`filteredLog` 从没落过盘**：`filteredLog` 不在 `POLL_RESULT_FIELDS` 白名单里，
+  内存里写得好好的，`persistEntry` 一过滤就没了 → 面板「最近被过滤」永远是空的。
+  现在进白名单，并补了守门用例。
+- **空轮询不清理 `lastDeferred`**：把过滤器改严之后一条都不该唤醒，但面板仍显示上一轮的
+  「仅观察：本轮本会唤醒 4 条（#4 #2 #3 #1）」——那是过期信息。现在 `fresh.length === 0` 时清空。
+
+### 真机证据（修复前）
+```
+observe: true
+lastDeferred: 仅观察：本轮本会唤醒 4 条（#4 #2 #3 #1）
+history: [{"numbers":[4,2,3,1],"ok":false,"reason":"observe"}]
+filteredLog: []        ← 改成 labels:["ai-fix"] 后仍为空（3 个 issue 都没这个标签）
+```
+
+### 测试
+- 合计 **79 例**。
+
 ## [0.8.12] - 2026-11-02 —— 体验打磨四条
 
 ### 改了什么

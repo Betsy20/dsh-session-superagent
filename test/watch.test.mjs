@@ -344,3 +344,10 @@ test('formatWatchText 把 watcher 的「目标/规则」带进消息，并压平
   assert.notEqual(without, withGoal, '带 goal 的消息必须和不带的不同（0.8.8 曾忘了拼接）')
   assert.ok(withGoal.includes('本条目主理目标：把 widget 的 issue 都处理完 第二行'), withGoal)
 })
+
+test('mergePollResult 必须保留 filteredLog（面板「最近被过滤」靠它落盘）', () => {
+  const stored = { id: 'a/b#s1', enabled: true, filters: { labels: [] } }
+  const polled = { id: 'a/b#s1', filteredLog: [{ at: 'now', number: 7, title: 't', reason: '机器人' }] }
+  const merged = mergePollResult(stored, polled)
+  assert.deepEqual(merged.filteredLog, polled.filteredLog, 'filteredLog 漏出白名单就会永远读不到')
+})
