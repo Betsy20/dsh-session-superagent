@@ -107,7 +107,7 @@ node --test          # 88 项单测
 | 症状 | 原因 | 处理 |
 |---|---|---|
 | 面板空白、`watch_*` 工具消失、`/session-superagent/*` 全 404 | 新增的 `lib/*.js` 没同步进 profile（`file:` 安装只对**已有**文件建硬链接），宿主 import 失败 → 整个插件不挂载 | `pnpm run sync:profile`，然后重载插件 |
-| 改了代码但线上行为没变 | 同一类问题：文件被原子写替换后**硬链接断了**，profile 里还是旧 inode | `pnpm run sync:profile:check` 看漂移，`sync:profile:repair` 修 |
+| 改了代码但线上行为没变 | 硬链接断了 —— **原子写、`git checkout/restore`、某些编辑器的保存**都会换 inode，profile 里还是旧文件 | `pnpm run sync:profile:check` 看漂移，`sync:profile:repair` 修 |
 | 轮询报 `cannot get required service "agents" in inactive context` | 0.8.21 之前的 bug：定时器里直接读 `ctx.agents` | 升级到 ≥0.8.21 |
 | 绑定的会话已删除，watcher 还在打 GitHub | 0.8.14 之前的 bug：该类失败没进退避 | 升级到 ≥0.8.14（0.8.22 起未预期异常也会退避） |
 | `npm i dsh-session-superagent@<新版本>` 报 `ETARGET` | 刚发布，npm 客户端元数据缓存还没刷新 | 等 1-2 分钟，或 `npm i <tarball URL>` / `--prefer-online` |

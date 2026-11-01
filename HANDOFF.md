@@ -65,7 +65,11 @@ profile 同步   = 相对 import 全部可解析
    （工具和路由全消失，客户端 bundle 却照常加载）。新增文件后必须 `pnpm run sync:profile`。
    这是硬链接安装的隐性坑，比"改内容要重启"严重得多。
 
-9. **本地模拟 `apply()` 会写真实状态文件**：`server` 字段被模拟脚本的报错覆盖过
+9. **`git checkout -- <file>` / `git restore` 会换 inode**，于是 profile 里的硬链接断掉、
+   宿主继续跑旧代码（2026-11-02 就踩到：回滚 `lib/index.js` 后 `--check` 立刻报断链）。
+   凡是回滚或重写文件，之后补一次 `pnpm run sync:profile:repair`。
+
+10. **本地模拟 `apply()` 会写真实状态文件**：`server` 字段被模拟脚本的报错覆盖过
    （`webserver: duplicate exact route ...`）。写这类脚本必须先设 `DSH_SUPERAGENT_STATE` 指向临时目录，
    `scripts/smoke-observe.mjs` 就是这么做的。
 
