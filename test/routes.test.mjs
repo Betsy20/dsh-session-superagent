@@ -211,3 +211,15 @@ test('编辑保存不会清空 goal、不会抹掉没暴露的 filters、isolate
 test('cleanup', () => {
   rmSync(STATE_DIR, { recursive: true, force: true })
 })
+
+test('路由面收敛：只保留 6 条（/config 与 /client-hello 已下线）', () => {
+  const expected = [
+    '/session-superagent/state',
+    '/session-superagent/client-note',
+    '/session-superagent/client-error',
+    '/session-superagent/watch',
+    '/session-superagent/credentials',
+    '/session-superagent/goal',
+  ].sort()
+  assert.deepEqual([...routes.keys()].sort(), expected)
+})

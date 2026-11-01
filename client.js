@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.13'
+    const CLIENT_VERSION = '0.8.14'
     const BASE = '/session-superagent'
     const ENDPOINT = BASE + '/state'
     const POLL_MS = 5000
@@ -974,7 +974,6 @@ window.__ModuleLoader__.load({
       apply(ctx) {
         try { noteOnce('client-version', CLIENT_VERSION) } catch {}
         try { note('apply', 'start') } catch {}
-        try { fetch(BASE + '/client-hello').catch(() => {}) } catch {}
 
         // ① the 主理鱼 tab in the centre-column view ring
         ctx.effect(() => {

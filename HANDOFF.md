@@ -1,11 +1,11 @@
-# HANDOFF —— 会话交接（2026-11-02 02:45，v0.8.11）
+# HANDOFF —— 会话交接（2026-11-02 03:20，v0.8.14）
 
 > 写给**接手的下一个 agent / 下一个会话**。读完它 + `docs/competitive-analysis.md` + `docs/deepseek-papers.md`，就能接着干，不用翻聊天记录。
 
 ## 一、项目现状
 
 - 仓库：https://github.com/MYCF711/dsh-session-superagent
-- 版本：**v0.8.11**
+- 版本：**v0.8.14**
 - 本地：`D:\主工作区\projects\dsh-session-superagent`（profile 里以 `file:` 安装，**硬链接**：改源码即改 profile 内文件）
 - 真机：Windows 11 + DSH 0.2.1-rc.5，`node --test` **77/77**（重启后真机复验通过）
 
