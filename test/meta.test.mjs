@@ -1,7 +1,9 @@
 // 版本/契约守门：踩过的坑都在注释里。
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 
 const read = (rel) => readFileSync(new URL(rel, import.meta.url), 'utf8')
 const pkg = JSON.parse(read('../package.json'))
@@ -100,4 +102,35 @@ test('client.js 用到的 dt-* 类名都必须在移植来的 CSS 里存在', ()
   }
   const missing = [...used].filter((name) => !known.has(name))
   assert.deepEqual(missing, [], '这些 class 用了但 CSS 里没有：' + missing.join(', '))
+})
+
+// 2026-11-01 事故：新增 lib/body.js 没同步进 profile，宿主 import 失败导致插件整体不挂载。
+// 这条守门在仓库层面挡住「相对 import 指向不存在的文件」这一类。
+test('lib/ 里每个相对 import 都能解析到真实文件', () => {
+  const libDir = fileURLToPath(new URL('../lib/', import.meta.url))
+  const missing = []
+  for (const name of readdirSync(libDir)) {
+    if (!name.endsWith('.js')) continue
+    const code = readFileSync(join(libDir, name), 'utf8')
+    // 同时覆盖 `import { x } from './y.js'` 与副作用写法 `import './y.js'`
+    const specs = []
+    for (const line of code.split(String.fromCharCode(10))) {
+      const trimmed = line.trim()
+      if (!trimmed.startsWith('import ')) continue
+      const at = trimmed.lastIndexOf("from '")
+      if (at >= 0) {
+        specs.push(trimmed.slice(at + 6).split("'")[0])
+      } else {
+        // 副作用写法：import './y.js' —— 注意切片后第一个字符还是引号，剥掉再取
+        const rest = trimmed.slice('import '.length)
+        if (!rest.startsWith("'")) continue
+        const side = rest.slice(1).split("'")[0]
+        if (side.startsWith('.')) specs.push(side)
+      }
+    }
+    for (const spec of specs) {
+      if (spec && spec.startsWith('.') && !existsSync(join(libDir, spec))) missing.push(name + ' -> ' + spec)
+    }
+  }
+  assert.deepEqual(missing, [], '相对 import 指向不存在的文件：' + missing.join(', '))
 })

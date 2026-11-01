@@ -13,8 +13,15 @@
 - **删掉 `/session-superagent/config`**：它和 `/state` 重复，是未鉴权的 GET，而且上一轮
   `ReferenceError: gh is not defined` 就出在它身上。现在路由从 8 条减到 7 条，测试改为断言它已下线。
 
+### 发布与验证
+- 已发 `dsh-session-superagent@0.8.12`（registry 确认 `latest=0.8.12`）。
+- **从 registry 真装一遍验证**（不是只看 `npm pack`）：
+  `npm i dsh-session-superagent@0.8.12` → `import(...)/lib/index.js` → `apply()` 成功、
+  路由 **7** 条（`/config` 确实没了）、`node --check client.js` 通过。
+- 新增守门：`lib/` 里每个相对 import 必须能解析到真实文件（发布前挡住 `body.js` 那类事故）。
+
 ### 测试
-- 合计 **77 例**（`/config` 用例改为「路由表里不应再有它」）。
+- 合计 **78 例**（`/config` 用例改为「路由表里不应再有它」+ 相对 import 守门）。
 
 ## [0.8.11] - 2026-11-02 —— 真机验证隔离执行 + watch_doctor
 
