@@ -228,7 +228,7 @@ test('状态栏面板每行都带暂停/删除，能直接关掉一个主理鱼'
   assert.ok(labels.includes('删除'), '每行都要能删除：' + labels.join('|'))
 })
 
-test('主理鱼表格有「操作」列，且暂停/恢复按状态切换', () => {
+test('主理鱼面板：总览有统计与每行操作（移植官方 GUI 后）', () => {
   const { registrations, render } = loadClient()
   const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
   const snapshot = {
@@ -237,16 +237,44 @@ test('主理鱼表格有「操作」列，且暂停/恢复按状态切换', () =
       sessionGoal: null, sessionTitle: '会话',
       credentials: { token: 'none', sshKeyPath: 'none' },
       watchers: [
-        watcher('a/b', { id: 'a/b#s1', intervalSec: 30, enabled: true }),
-        watcher('c/d', { id: 'c/d#s2', intervalSec: 60, enabled: false }),
+        watcher('a/b', { id: 'a/b#s1', enabled: true }),
+        watcher('c/d', { id: 'c/d#s2', enabled: false }),
       ],
     },
   }
-  const nodes = walk(render(desk, [snapshot, { repo: '', intervalSec: '60', goal: '' }, '', '', null, '', false]))
-  const texts = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
-  for (const needle of ['操作', '暂停', '恢复', '删除', '运行中', '已暂停']) {
-    assert.ok(texts.includes(needle), '主理鱼缺少「' + needle + '」')
+  const form = { repo: '', intervalSec: '60', goal: '', labels: '', onlyAssigned: false, activeHours: '', isolated: false, workdir: '' }
+  const nodes = walk(render(desk, [snapshot, 'overview', null, form, '', '', false]))
+  const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
+  for (const needle of ['主理鱼', '总览', '触发', '设置', '条主理鱼', '主理中', '已暂停', '全部暂停']) {
+    assert.ok(text.includes(needle), '面板缺少「' + needle + '」：' + text.slice(0, 200))
   }
+  const labels = nodes.filter((n) => n.type === 'button')
+    .map((b) => (b.props.children || []).filter((c) => typeof c === 'string').join(''))
+  for (const want of ['立刻', '暂停', '删除']) {
+    assert.ok(labels.includes(want), '缺按钮「' + want + '」：' + labels.join('|'))
+  }
+})
+
+test('主理鱼面板：退避中与隔离状态以标签形式出现', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snapshot = {
+    loading: false, error: null,
+    body: {
+      sessionGoal: null, sessionTitle: '会话',
+      credentials: { token: 'none', sshKeyPath: 'none' },
+      watchers: [watcher('a/b', {
+        id: 'a/b#s1', enabled: true, consecutiveFailures: 2,
+        nextAt: new Date(Date.now() + 45000).toISOString(),
+        isolated: true, workdir: 'E:/temp/iso', lastWorktree: 'E:/temp/iso/.dsh-zhuli/a-b-1',
+      })],
+    },
+  }
+  const form = { repo: '', intervalSec: '60', goal: '', labels: '', onlyAssigned: false, activeHours: '', isolated: false, workdir: '' }
+  const nodes = walk(render(desk, [snapshot, 'overview', null, form, '', '', false]))
+  const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
+  assert.ok(/退避 \d+s/.test(text), '要显示退避：' + text.slice(0, 240))
+  assert.ok(text.includes('隔离 · '), '要显示隔离：' + text.slice(0, 240))
 })
 
 test('面板显示过滤器与失败退避', () => {
@@ -262,22 +290,6 @@ test('面板显示过滤器与失败退避', () => {
   assert.ok(text.includes('标签: ai-fix'), '要显示标签白名单：' + text.slice(0, 200))
   assert.ok(text.includes('排除: wontfix'), '要显示排除标签')
   assert.ok(/退避 \d+s/.test(text), '要显示退避剩余秒数：' + text.slice(0, 200))
-})
-
-test('值守台状态列在退避窗口内显示「退避中」', () => {
-  const { registrations, render } = loadClient()
-  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
-  const snapshot = {
-    loading: false, error: null,
-    body: {
-      sessionGoal: null, sessionTitle: '会话',
-      credentials: { token: 'none', sshKeyPath: 'none' },
-      watchers: [watcher('a/b', { id: 'a/b#s1', enabled: true, nextAt: new Date(Date.now() + 30000).toISOString(), consecutiveFailures: 2 })],
-    },
-  }
-  const nodes = walk(render(desk, [snapshot, { repo: '', intervalSec: '60', goal: '', labels: '', onlyAssigned: false }, '', '', null, '', false]))
-  const texts = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
-  assert.ok(texts.includes('退避中'), '退避中要显示出来：' + texts.slice(0, 200))
 })
 
 test('面板显示隔离执行状态与活跃时段', () => {

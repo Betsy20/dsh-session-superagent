@@ -2,6 +2,33 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.0] - 2026-11-01 —— 移植官方 superagent 的 GUI
+
+把官方 `dsh-superagent`（D:\主工作区\projects\dsh-superagent-prototype）的**设计系统与信息架构**
+搬进「主理鱼」标签页，数据接我们自己的 `/state`、`/watch`。
+
+### 移植了什么
+- **整套样式表**：从官方编译产物里抽出 40,557 字符 / 383 行 / 376 条选择器（`dt-*` 设计系统，
+  全部基于 `--dsw-alias-*` token），原样注入，视觉与官方一致。
+  用 `node scripts/port-official-ui.mjs` 可重复生成，不是手抄。
+- **UI 原语**：Icon（含官方 30 个 SVG 图标）、Btn、Tag、Pill、SegTabs、Input、Toggle、
+  StateDot、Dot、Section、Hint、KeyValues、Modal、ConfirmBtn。
+- **三页信息架构**（对应官方 overview / trigger / settings）：
+  - 总览：统计条（条数 / 主理中 / 已暂停 / 异常）+ 每条主理鱼的状态点、标签（时段 / 隔离 / 过滤 / 退避）、
+    操作（立刻 / 暂停恢复 / 删除二次确认）
+  - 触发：新增表单（仓库 / 间隔 / 标签 / 时段 / 只看指派 / 隔离 / 工作目录）
+  - 设置：凭证（token 只显示「已配置」）+ 会话 goal
+- 删除旧面板 265 行 + 未使用的 `Field` 辅助（净减 ~110 行代码，功能更多）。
+
+### 没移植的（附理由）
+- `source` / `eval` / `execution` / `deployment` / `prompts` 五个页：官方是「飞书 + 执行器 + 评估 + 提示词」
+  那一套多 agent 编排，我们没有对应后端，硬搬会变成假按钮。
+- `sidebar.panellist` / `plugins.row.config` 两个槽位：我们的插件只 inject `ui-conversation`，
+  这两个槽位不在可见面上。
+
+### 测试
+- 面板用例重写为官方布局断言（统计条、三个页签、行内三个按钮、退避/隔离标签）。合计 **63 例**。
+
 ## [0.7.5] - 2026-11-01 —— 严格审核后的修复
 
 审核专员（独立上下文、只读、9 个复现脚本）对 v0.7.4 给出 **8 个必须修 + 14 个建议**，
