@@ -73,15 +73,24 @@ window.__ModuleLoader__.load({
       const [token, setToken] = useState('')
       const [sshKeyPath, setSshKeyPath] = useState('')
       const [notice, setNotice] = useState(null)
+      const [goalDraft, setGoalDraft] = useState('')
+      const [goalTouched, setGoalTouched] = useState(false)
 
       const load = useCallback(async () => {
         try {
-          const body = await call('/state')
+          const body = await call('/state' + (sessionId ? '?sessionId=' + encodeURIComponent(sessionId) : ''))
           setSnapshot({ loading: false, body, error: null })
+          // Live sync: whatever the user typed in /goal or the agent set through
+          // create_goal/update_goal lands here and refreshes the editor — unless
+          // the operator is mid-edit.
+          setGoalTouched((touched) => {
+            if (!touched) setGoalDraft(body.sessionGoal && body.sessionGoal.objective ? body.sessionGoal.objective : '')
+            return touched
+          })
         } catch (error) {
           setSnapshot({ loading: false, body: null, error: String((error && error.message) || error) })
         }
-      }, [])
+      }, [sessionId])
 
       useEffect(() => {
         load()
@@ -130,6 +139,20 @@ window.__ModuleLoader__.load({
         }
       }
 
+      const saveGoal = async (objective) => {
+        setNotice(null)
+        try {
+          await call('/goal', { method: 'POST', body: JSON.stringify({ sessionId, objective }) })
+          setGoalTouched(false)
+          setNotice({ ok: true, text: objective ? '已写入会话 goal（与 /goal 同一处状态）' : '已清除会话 goal' })
+          load()
+        } catch (error) {
+          setNotice({ ok: false, text: String((error && error.message) || error) })
+        }
+      }
+
+      const sessionGoal = snapshot.body && snapshot.body.sessionGoal
+
       return h('div', { style: S.wrap },
         h('h3', { style: S.title }, '值守台'),
         h('p', { style: S.sub },
@@ -138,6 +161,32 @@ window.__ModuleLoader__.load({
               : (active + ' 个值守运行中 · 共 ' + watchers.length + ' 条 · 每 ' + (POLL_MS / 1000) + 's 刷新')),
 
         notice && h('div', { style: notice.ok ? S.ok : S.err }, notice.text),
+
+        h('div', { style: S.card },
+          h('p', { style: S.cardTitle }, '会话 goal'),
+          h('div', { style: { ...S.mono, marginBottom: 8, opacity: 0.75 } },
+            sessionGoal
+              ? ('当前：' + (sessionGoal.phase || '?') + ' · revision ' + (sessionGoal.revision ?? '-'))
+              : '当前无 goal'),
+          h('textarea', {
+            style: { ...S.input, minHeight: 64, width: '100%', boxSizing: 'border-box', marginBottom: 8 },
+            value: goalDraft,
+            placeholder: '本会话要达成的目标（写入后等同于 /goal …）',
+            onChange: (e) => { setGoalTouched(true); setGoalDraft(e.target.value) },
+          }),
+          h('button', {
+            style: S.button,
+            disabled: !sessionId,
+            onClick: () => saveGoal(goalDraft.trim()),
+          }, '保存为会话 goal'),
+          h('span', { style: { width: 8 } }),
+          h('button', {
+            style: S.button,
+            disabled: !sessionId || !sessionGoal,
+            onClick: () => { setGoalDraft(''); saveGoal('') },
+          }, '清除'),
+          h('div', { style: { ...S.sub, marginTop: 6 } },
+            '与 /goal 命令、create_goal 工具共用同一份状态；任一方修改，这里 5 秒内同步。')),
 
         h('div', { style: S.card },
           h('p', { style: S.cardTitle }, '凭证'),
