@@ -13,6 +13,8 @@ window.__ModuleLoader__.load({
     const h = React.createElement
     const { useCallback, useEffect, useRef, useState } = React
 
+    // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
+    const CLIENT_VERSION = '0.3.7'
     const BASE = '/session-superagent'
     const ENDPOINT = BASE + '/state'
     const POLL_MS = 5000
@@ -565,6 +567,7 @@ window.__ModuleLoader__.load({
     return {
       inject: ['slots'],
       apply(ctx) {
+        try { noteOnce('client-version', CLIENT_VERSION) } catch {}
         try { note('apply', 'start') } catch {}
         try { fetch(BASE + '/client-hello').catch(() => {}) } catch {}
 
