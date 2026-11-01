@@ -2,6 +2,27 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.24] - 2026-11-02 —— 安装说明是错的（`npm i` 不会让 DSH 加载插件）
+
+### 修复
+README 原来写「方式一：npm，`npm i dsh-session-superagent`」，但 **DSH 插件必须装进 profile**
+才会被加载（包里的 `dsh.bundle.patch` 由 profile 的安装流程读取）；`npm i` 只是下载到本地
+`node_modules`，什么都不会发生。另一条「`dsh plugin add < GitHub URL>`」本机也没有这个子命令。
+
+对照同机的其它插件（`dsh-unlag` 用 `dsh plugin install dsh-unlag`、
+`dsh-better-sidebar` 用 `dsh plugin --profile web add …@latest`）改成：
+
+```bash
+dsh plugin install dsh-session-superagent
+dsh plugin --profile desktop add dsh-session-superagent@latest
+dsh plugin install /path/to/dsh-session-superagent      # 本地开发
+```
+
+并写清「`npm i` 不会生效」与「装进 profile 后是硬链接、新增文件要 `sync:profile`」。
+
+### 测试
+- 合计 **87 例**。
+
 ## [0.8.23] - 2026-11-02 —— README 补「故障排查」，并把链接到的文档发进包
 
 ### 文档

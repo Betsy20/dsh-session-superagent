@@ -1,7 +1,7 @@
 # dsh-session-superagent
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.8.23-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
+[![Version](https://img.shields.io/badge/version-0.8.24-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
 [![npm](https://img.shields.io/npm/v/dsh-session-superagent.svg)](https://www.npmjs.com/package/dsh-session-superagent)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-plugin-orange.svg)](https://github.com/topics/dsh-plugin)
 
@@ -51,15 +51,24 @@ GitHub 有新动态 → watcher 轮询 → Agent.followup(消息) → 会话跑�
 
 ## 安装
 
-```bash
-# 方式一：npm（已发布）
-npm i dsh-session-superagent
+**装进 profile**（DSH 插件不是 `npm i` 就生效，要装到 profile 里）：
 
-# 方式二：从 GitHub 源码装（会跟踪 main）
-dsh plugin add https://github.com/MYCF711/dsh-session-superagent
+```bash
+# 默认 profile
+dsh plugin install dsh-session-superagent
+
+# 指定 profile / 锁定版本
+dsh plugin --profile desktop add dsh-session-superagent@latest
+
+# 本地开发：直接装这个目录（会以 file: 硬链接方式挂进 profile）
+dsh plugin install /path/to/dsh-session-superagent
 ```
 
-装进 profile 时是 `file:` 硬链接，改代码即改线上；**但新增文件不会被自动带过去**，
+> `npm i dsh-session-superagent` 只会把它下载到本地 node_modules，**不会**让 DSH 加载它 ——
+> 包里的 `dsh.bundle.patch` 要由 profile 的安装流程来读。
+> 也可以在应用内的插件市场里搜索安装。
+
+装进 profile 后是 `file:` 硬链接：改源码即改线上；**但新增文件不会被自动带过去**，
 加完文件要跑 `pnpm run sync:profile`（否则下次重启插件会整体不挂载，这坑踩过一次）。
 
 ## 一次真实运行长什么样
