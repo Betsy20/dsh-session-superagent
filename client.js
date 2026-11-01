@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.2'
+    const CLIENT_VERSION = '0.8.3'
     const BASE = '/session-superagent'
     const ENDPOINT = BASE + '/state'
     const POLL_MS = 5000
@@ -617,6 +617,8 @@ window.__ModuleLoader__.load({
       const [toastView, notify] = useToast()
       const [editing, setEditing] = useState(null)
       const [draft, setDraft] = useState({})
+      const [search, setSearch] = useState('')
+      const [glossary, setGlossary] = useState(false)
 
       const load = useCallback(async () => {
         try {
@@ -806,6 +808,13 @@ window.__ModuleLoader__.load({
         problems.push({ key: 'cred', text: '未配置 token，正在复用已登录的 gh CLI（可用 panel 填 token 换成独立凭据）' })
       }
 
+      const needle = search.trim().toLowerCase()
+      const matches = (watcher) => !needle
+        || watcher.repo.toLowerCase().includes(needle)
+        || (watcher.title || '').toLowerCase().includes(needle)
+        || (watcher.filteredLog || []).some((entry) => String(entry.number).includes(needle) || String(entry.title || '').toLowerCase().includes(needle))
+      const visible = watchers.filter(matches)
+
       const overview = [
         watchers.some((w) => (w.filteredLog || []).length > 0)
           ? h(Section, { key: 'filtered', title: '最近被过滤', count: watchers.reduce((n, w) => n + (w.filteredLog || []).length, 0) },
@@ -822,10 +831,12 @@ window.__ModuleLoader__.load({
           h('div', { className: 'dt-stat' }, h('span', { className: 'dt-stat-value' }, String(running)), h('span', null, '主理中')),
           h('div', { className: 'dt-stat' }, h('span', { className: 'dt-stat-value' }, String(paused)), h('span', null, '已暂停')),
           h('div', { className: 'dt-stat' }, h('span', { className: 'dt-stat-value' }, String(broken)), h('span', null, '异常'))),
-        h(Section, { key: 'list', title: '主理鱼', count: watchers.length },
+        h(Section, { key: 'list', title: needle ? '搜索结果' : '主理鱼', count: visible.length },
           watchers.length === 0
             ? h(Hint, null, '还没有主理鱼。切到「触发」页填一个 owner/name 添加。')
-            : h('div', { className: 'dt-rows' }, watchers.map(row))),
+            : visible.length === 0
+              ? h(Hint, null, '没有匹配「' + search + '」的主理鱼。')
+              : h('div', { className: 'dt-rows' }, visible.map(row))),
       ]
 
       const trigger = h(Section, { title: '新增主理鱼' },
@@ -843,6 +854,12 @@ window.__ModuleLoader__.load({
               sessionId ? '添加到当前会话' : '需要会话上下文'))))
 
       const settings = [
+        h(Section, { key: 'source', title: '来源' },
+          h(KeyValues, { rows: [
+            ['仓库', watchers.length === 0 ? '未绑定' : watchers.map((w) => w.repo).join(', ')],
+            ['gh CLI', !body.gh ? '检测中…' : body.gh.ok ? '可用 · ' + (body.gh.version || '') : '不可用 · ' + (body.gh.error || '')],
+            ['凭证', credentials.token === 'none' ? '回退到 gh CLI 登录态' : '使用面板配置的 token'],
+          ] })),
         h(Section, { key: 'creds', title: '凭证' },
           h(KeyValues, { rows: [['GitHub token', credentials.token === 'none' ? '未配置（回退到已登录的 gh CLI）' : '已配置'], ['SSH 私钥', credentials.sshKeyPath === 'none' ? '未配置（当前版本不使用）' : '已配置']] }),
           field('Token', h(Input, { value: token, placeholder: 'ghp_… / github_pat_…（留空不改）', onChange: (e) => setToken(e.target.value) })),
@@ -867,6 +884,8 @@ window.__ModuleLoader__.load({
             h('h1', { className: 'dt-page-title' }, '主理鱼'),
             h('span', { className: 'dt-page-sub' }, sessionId ? '盯办 + 主动办：仓库有动静就叫醒本会话' : '需要会话上下文')),
           h('div', { className: 'dt-toolbar' },
+            h(Input, { value: search, placeholder: '搜索仓库 / 编号 / 标题', onChange: (e) => setSearch(e.target.value), 'aria-label': '搜索' }),
+            h(Btn, { size: 'sm', variant: 'ghost', icon: h(Icon, { name: 'question' }), onClick: () => setGlossary(true) }, '术语'),
             h(Btn, { size: 'sm', icon: h(Icon, { name: 'refresh' }), onClick: () => load() }, '刷新'),
             watchers.length > 0 ? h(Btn, { size: 'sm', onClick: () => actBulk('pause') }, '全部暂停') : null,
             watchers.length > 0 ? h(Btn, { size: 'sm', onClick: () => actBulk('resume') }, '全部恢复') : null)),
@@ -880,7 +899,20 @@ window.__ModuleLoader__.load({
         snap.loading && !snap.body ? h(Hint, null, '正在读取…') : null,
         tab === 'overview' ? overview : null,
         tab === 'trigger' ? trigger : null,
-        tab === 'settings' ? settings : null)
+        tab === 'settings' ? settings : null,
+        h(Modal, { open: glossary, title: '主理鱼术语表', onClose: () => setGlossary(false) },
+          h(KeyValues, { rows: [
+            ['主理鱼', '一条「盯办」绑定：某个仓库 → 某个会话'],
+            ['盯', '轮询 issue/PR、按水位去重、冷却期吸收自己的操作'],
+            ['办', '唤醒会话后按仓库 AGENTS.md 主动处理，完成后 watch_ack 打标签'],
+            ['唤醒', '只在会话空闲（idle）时注入一条【主理鱼】消息'],
+            ['过滤', '标签白名单/黑名单、只看已指派、跳过机器人/草稿/已关闭'],
+            ['时段', 'activeHours，比如 09:00-23:00，时段外只攒不唤醒'],
+            ['隔离', 'isolated：每次唤醒开一次性 git worktree，改副本不碰主工作区'],
+            ['ack', '处理完给条目打「主理鱼:已处理」标签，轮询直接跳过'],
+            ['goal', '会话目标（ctx.goals），和 /goal 命令同一份状态'],
+            ['凭证', 'token 存在服务端 secrets.json，面板只显示是否已配置'],
+          ] })))
     }
 
 

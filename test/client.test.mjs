@@ -101,7 +101,8 @@ function walk(node, out = []) {
 
 /** 主理鱼面板的 useState 队列：snap / tab / notice / form / token / goalDraft / goalTouched / toast / editing / draft */
 const deskForm = { repo: '', intervalSec: '60', goal: '', labels: '', onlyAssigned: false, activeHours: '', isolated: false, workdir: '' }
-const deskQueue = (snapshot, editing = null, draft = {}, tab = 'overview') => [snapshot, tab, null, deskForm, '', '', false, [], editing, draft]
+const deskQueue = (snapshot, editing = null, draft = {}, tab = 'overview', search = '', glossary = false) =>
+  [snapshot, tab, null, deskForm, '', '', false, [], editing, draft, search, glossary]
 
 const watcher = (repo, extra = {}) => ({
   repo,
@@ -412,4 +413,33 @@ test('主理鱼面板：仅观察标签 + 最近被过滤清单', () => {
   assert.ok(text.includes('最近被过滤'), '要有过滤清单')
   assert.ok(text.includes('机器人'), '要显示过滤原因')
   assert.ok(text.includes('#7'), '要显示被过滤的编号')
+})
+
+test('主理鱼面板：搜索能过滤，术语表能打开，设置页有来源卡片', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snapshot = {
+    loading: false, error: null,
+    body: {
+      sessionGoal: null, sessionTitle: '会话',
+      credentials: { token: 'none', sshKeyPath: 'none' },
+      gh: { ok: true, version: 'gh version 2.40.0' },
+      watchers: [watcher('a/b', { id: 'a/b#s1' }), watcher('c/d', { id: 'c/d#s2' })],
+    },
+  }
+  const filtered = walk(render(desk, deskQueue(snapshot, null, {}, 'overview', 'a/b')))
+  const filteredText = filtered.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
+  assert.ok(filteredText.includes('a/b'), '命中项要留着')
+  assert.ok(!filteredText.includes('c/d'), '不命中的要被过滤掉：' + filteredText.slice(0, 160))
+  assert.ok(filteredText.includes('搜索结果'), '搜索时标题变成搜索结果')
+
+  const settings = walk(render(desk, deskQueue(snapshot, null, {}, 'settings')))
+  const settingsText = settings.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
+  assert.ok(settingsText.includes('来源'), '设置页要有来源卡片')
+  assert.ok(settingsText.includes('gh version'), '要显示 gh CLI 版本：' + settingsText.slice(0, 200))
+
+  const glossary = walk(render(desk, deskQueue(snapshot, null, {}, 'overview', '', true)))
+  const glossaryText = glossary.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
+  assert.ok(glossaryText.includes('主理鱼术语表'), '术语表要能打开')
+  assert.ok(glossaryText.includes('盯') && glossaryText.includes('办'), '术语表要有「盯」「办」两条')
 })
