@@ -21,6 +21,12 @@
 - **`sync-profile --repair`**：断链（inode 不同）目前只警告。已在 HANDOFF 写明「新增文件后必须跑」，
   留作后续（改起来简单，但此刻没有证据表明它造成过事故）。
 
+### 发布
+- 已发 `dsh-session-superagent@0.8.14`（registry `latest = 0.8.14`）。
+- **从 tarball 真装验证**：`npm i https://registry.npmjs.org/dsh-session-superagent/-/dsh-session-superagent-0.8.14.tgz`
+  → `apply()` 成功、**路由 6 条**（`/client-hello` 确实没了）、`client.js` 语法通过、`lib/` 四个文件齐全。
+  注：刚发布时 `npm i pkg@x.y.z` 可能因客户端元数据缓存报 ETARGET，用 tarball URL 或 `--prefer-online` 可绕过。
+
 ### 其他
 - `scripts/smoke-observe.mjs` 加 `gh auth status` 预检：没登录时明确 SKIP 并退出 0，
   不再把「凭证/网络问题」混报成逻辑失败（第四轮审核的建议）。
