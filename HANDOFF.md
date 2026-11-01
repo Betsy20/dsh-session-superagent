@@ -1,13 +1,13 @@
-# HANDOFF —— 会话交接（2026-11-02 00:05，v0.8.9）
+# HANDOFF —— 会话交接（2026-11-02 01:25，v0.8.10）
 
 > 写给**接手的下一个 agent / 下一个会话**。读完它 + `docs/competitive-analysis.md` + `docs/deepseek-papers.md`，就能接着干，不用翻聊天记录。
 
 ## 一、项目现状
 
 - 仓库：https://github.com/MYCF711/dsh-session-superagent
-- 版本：**v0.8.9**
+- 版本：**v0.8.10**
 - 本地：`D:\主工作区\projects\dsh-session-superagent`（profile 里以 `file:` 安装，**硬链接**：改源码即改 profile 内文件）
-- 真机：Windows 11 + DSH 0.2.1-rc.5，`node --test` **77/77**
+- 真机：Windows 11 + DSH 0.2.1-rc.5，`node --test` **77/77**（重启后真机复验通过）
 
 | 能力 | 实现位置 | 验证方式 |
 |---|---|---|
@@ -21,6 +21,18 @@
 | 幂等标记 | `watch_ack` 工具 + `hasAckLabel` | 打 `主理鱼:已处理` 标签后轮询跳过 |
 | 会话 goal（真 goal） | `ctx.goals` | 面板读写，5s 轮询 |
 | 凭证 | `~/.dsh/state/session-superagent/secrets.json` 0600 | 只回显掩码 |
+
+**重启后真机复验（2026-11-02 01:25，v0.8.10）**：
+
+```
+server        = {at: 17:21:44Z, routes: 8}     ← 插件正常挂载
+client-version= 0.8.10
+/state /config= 200 / 200
+gh 探针       = {"ok":true,"version":"gh version 2.101.0"}
+watch_status  = 工具可用（重启前因插件未挂载曾消失）
+建→查→删      = observe:true + note 正常往返
+profile 同步   = 相对 import 全部可解析
+```
 
 ## 二、必须知道的技术事实
 
