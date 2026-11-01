@@ -360,22 +360,47 @@ window.__ModuleLoader__.load({
     return {
       inject: ['slots'],
       apply(ctx) {
-        // Report once so the host half can tell "not served" from "registration failed".
-        try { fetch('/session-superagent/client-hello', { method: 'GET' }).catch(() => {}) } catch {}
+        try { note('apply', 'start') } catch {}
+        try { fetch(BASE + '/client-hello').catch(() => {}) } catch {}
+
+        // ① the 值守台 tab in the centre-column view ring
         ctx.effect(() => {
           try {
-            return ctx.slots.inject('conversation.view', () => ctx.slots.register({
-              name: 'conversation.view',
-              id: 'session-superagent-desk',
-              order: 30,
-              label: '值守台',
-            }, DutyDesk))
+            return ctx.slots.inject('conversation.view', () => {
+              const dispose = ctx.slots.register({
+                name: 'conversation.view',
+                id: 'session-superagent-desk',
+                order: 30,
+                label: '值守台',
+              }, DutyDesk)
+              note('desk-registered', 'ok')
+              return dispose
+            })
           } catch (error) {
-            const message = String((error && error.message) || error).slice(0, 300)
-            try { fetch('/session-superagent/client-error?msg=' + encodeURIComponent(message)).catch(() => {}) } catch {}
-            throw error
+            note('desk-fail', String((error && error.message) || error))
+            return undefined
           }
         })
+
+        // ② the orbit badge in the session header
+        ctx.effect(() => {
+          try {
+            return ctx.slots.inject('conversation.session.header.actions', () => {
+              const dispose = ctx.slots.register({
+                name: 'conversation.session.header.actions',
+                id: 'session-superagent-badge',
+                order: 5,
+              }, OrbitBadge)
+              note('badge-registered', 'ok')
+              return dispose
+            })
+          } catch (error) {
+            note('badge-fail', String((error && error.message) || error))
+            return undefined
+          }
+        })
+
+        note('apply', 'done')
       },
     }
   },
