@@ -52,7 +52,11 @@ profile 同步   = 相对 import 全部可解析
    （工具和路由全消失，客户端 bundle 却照常加载）。新增文件后必须 `pnpm run sync:profile`。
    这是硬链接安装的隐性坑，比"改内容要重启"严重得多。
 
-9. **`file:` 安装是硬链接**：`edit` 工具原子替换会**断链**；用 python in-place 写不会。断链后 `cp` 回 profile 并 `ln -f` 重建。
+9. **本地模拟 `apply()` 会写真实状态文件**：`server` 字段被模拟脚本的报错覆盖过
+   （`webserver: duplicate exact route ...`）。写这类脚本必须先设 `DSH_SUPERAGENT_STATE` 指向临时目录，
+   `scripts/smoke-observe.mjs` 就是这么做的。
+
+10. **`file:` 安装是硬链接**：`edit` 工具原子替换会**断链**；用 python in-place 写不会。断链后 `cp` 回 profile 并 `ln -f` 重建。
 
 ## 三、踩过的坑（按代价排序）
 
@@ -78,6 +82,7 @@ profile 同步   = 相对 import 全部可解析
 | 01:41 | `watch_doctor` 五项检查 | gh 登录 / 仓库可访问 / ack 标签 / 隔离目录是 git 仓库 / 上次轮询与错误 |
 | 01:41 | 隔离执行 E2E | `git worktree list` 出现 `.dsh-zhuli/<id>` + `zhuli/<id>`；`lastWorktree`、`history` 正确 |
 | 02:41 | 幽灵会话守卫（0.8.11） | 会话不存在时 `lastError="会话已不在…"`、**不建** worktree（修复前会白建一个） |
+| 03:5x | observe + 过滤落盘（进程内冒烟） | `pnpm run smoke:observe` 五项全 OK：不唤醒 / filteredLog 落盘 / 原因可读 / `/state` 读得到 / 空轮询清 deferred |
 | 03:0x | **ack 幂等闭环（真 GitHub）** | `watch_ack` 给 `MYCF711/dsh-GOkifu-compact#2` 打上 `主理鱼:已处理`（中文+冒号 GitHub 接受），再 ack 一次不报错；随后已把标签与定义都撤掉 |
 | 02:50 | npm 发布可安装性 | `npm i dsh-session-superagent@0.8.12` → `apply()` 成功、路由 7 条、client 语法通过 |
 | 02:41 | 真实业务闭环前的数据面 | `/state.gh` = `gh version 2.101.0`；建→查→删 watcher 全部往返正常 |

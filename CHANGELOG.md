@@ -30,6 +30,18 @@ filteredLog: []        ← 改成 labels:["ai-fix"] 后仍为空（3 个 issue �
 ### 测试
 - 合计 **79 例**。
 
+### 进程内冒烟（补证：这两个修复到底生效没有）
+`pnpm run smoke:observe`（`scripts/smoke-observe.mjs`）—— 独立进程、独立状态目录、
+捕获 `setInterval` 手动驱动，会真的读 GitHub 只读 API：
+
+```
+OK   观模式仍未唤醒            （followups = 0）
+OK   filteredLog 已落盘        （4 条）
+OK   过滤原因可读              （"不在标签白名单: ai-fix"）
+OK   /state 能读到过滤记录
+OK   空轮询清掉了过期的 lastDeferred
+```
+
 ## [0.8.12] - 2026-11-02 —— 体验打磨四条
 
 ### 改了什么

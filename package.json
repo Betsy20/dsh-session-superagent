@@ -30,7 +30,8 @@
     "test": "node --test",
     "check": "node --test",
     "preview:orbit": "node scripts/preview-orbit.mjs",
-    "sync:profile": "node scripts/sync-profile.mjs"
+    "sync:profile": "node scripts/sync-profile.mjs",
+    "smoke:observe": "node scripts/smoke-observe.mjs"
   },
   "keywords": [
     "dsh",
