@@ -7,7 +7,7 @@
 - 仓库：https://github.com/MYCF711/dsh-session-superagent
 - 版本：**v0.8.15**
 - 本地：`D:\主工作区\projects\dsh-session-superagent`（profile 里以 `file:` 安装，**硬链接**：改源码即改 profile 内文件）
-- 真机：Windows 11 + DSH 0.2.1-rc.5，`node --test` **77/77**（重启后真机复验通过）
+- 真机：Windows 11 + DSH 0.2.1-rc.5，`node --test` **85/85**（重启后真机复验通过）
 
 | 能力 | 实现位置 | 验证方式 |
 |---|---|---|
@@ -135,7 +135,7 @@ computed style 核对：模态 `fixed/inset:0`、宽 380 居中；Toast `fixed/t
 
 ```bash
 cd /d/主工作区/projects/dsh-session-superagent
-node --test                        # 77 例
+node --test                        # 85 例
 node --check client.js lib/index.js lib/watch.js
 node scripts/sync-profile.mjs     # 新增文件后必须跑：同步 + 相对 import 自检
 ls -li client.js "/d/DeepSeek Harness/home/profiles/desktop/node_modules/dsh-session-superagent/client.js"  # inode 必须相同

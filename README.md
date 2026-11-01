@@ -88,7 +88,7 @@ dsh plugin add https://github.com/MYCF711/dsh-session-superagent
 ## 开发
 
 ```sh
-node --test          # 77 项单测
+node --test          # 85 项单测
 ```
 
 版本与发布流程见 [UPDATING.md](UPDATING.md)，交付门见 [CHECKLIST.md](CHECKLIST.md)，接手台账见 [MAINTENANCE.md](MAINTENANCE.md)。

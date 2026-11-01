@@ -264,3 +264,32 @@ test('watch_start 拒绝相对路径的 workdir', async () => {
   const result = await tool.execute({ repo: 'o/tool2', workdir: 'relative/path' })
   assert.match(String(result), /must be an absolute path/)
 })
+
+test('/state 字段契约：client.js 引用的每个字段都必须真的回传', async () => {
+  // 之前是人工核对的（审核员做过一次），这里固化成守门：
+  // client 用 body.X 取顶层、用 watcher.X 取每条，任何一个字段漏了，
+  // 面板上就会安静地显示 undefined。
+  const clientSrc = readFileSync(new URL('../client.js', import.meta.url), 'utf8')
+  const topLevel = new Set([...clientSrc.matchAll(/body\.([a-zA-Z]+)/g)].map((m) => m[1]))
+  const perWatcher = new Set([...clientSrc.matchAll(/watcher\.([a-zA-Z]+)/g)].map((m) => m[1]))
+
+  const created = (await call('POST', '/session-superagent/watch', {
+    repo: 'o/contract', sessionId: 's7', intervalSec: 60, observe: true,
+    isolated: true, workdir: process.cwd(), activeHours: '09:00-23:00', goal: 'x',
+    filters: { labels: ['a'], ignoreLabels: ['b'], onlyAssigned: true, assignee: 'a' },
+    batchLimit: 3, maxWakesPerHour: 2,
+  })).json()
+  const state = (await call('GET', '/session-superagent/state')).json()
+  const watcher = state.watchers.find((w) => w.id === created.id)
+
+  // call() 里有个通用 `body.error`（任何路由的错误响应），它不属于 /state 契约
+  const allowedTop = new Set(['error'])
+  const missingTop = [...topLevel].filter((key) => !allowedTop.has(key) && !(key in state))
+  assert.deepEqual(missingTop, [], '顶层缺字段：' + missingTop.join(', '))
+  assert.ok(state.gh !== undefined, 'gh 必须回传')
+
+  const missingPer = [...perWatcher].filter((key) => !(key in watcher))
+  assert.deepEqual(missingPer, [], '每条缺字段：' + missingPer.join(', '))
+
+  await call('POST', '/session-superagent/watch', { action: 'delete', id: created.id })
+})
