@@ -40,6 +40,25 @@ OK   filteredLog 已落盘        （4 条）
 OK   过滤原因可读              （"不在标签白名单: ai-fix"）
 OK   /state 能读到过滤记录
 OK   空轮询清掉了过期的 lastDeferred
+
+== 场景 B：真唤醒 + 隔离 worktree ==
+OK   唤醒了一次                        （followups = 1）
+OK   消息带【主理鱼】抬头
+OK   消息带条目编号                     （#2 #4 #3 #1，真 GitHub 数据）
+OK   消息带本条目主理目标               （「把 widget 的 issue 都处理完」）
+OK   消息带隔离路径
+OK   worktree 真的建了                  （.dsh-zhuli/MYCF711-dsh-GOkifu-compact-smoke-se-…）
+OK   .dsh-zhuli 下正好一个副本
+```
+
+消息实样（真数据）：
+
+```
+【主理鱼】MYCF711/dsh-GOkifu-compact 有 4 条新动态：
+#2 [open] docs/bench：给「351 tokens」和「失败保留 8/8」补一条可复跑的复现命令 — @MYCF711 (issue) …
+#4 [closed] 【联调】v0.1.0 唤醒链路验证 — @MYCF711 (issue) …
+【隔离工作区】…\.dsh-zhuli\MYCF711-dsh-GOkifu-compact-smoke-se-…
+本条目主理目标：把 widget 的 issue 都处理完
 ```
 
 ## [0.8.12] - 2026-11-02 —— 体验打磨四条
