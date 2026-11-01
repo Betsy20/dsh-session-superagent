@@ -2,6 +2,27 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.28] - 2026-11-02 —— 旧实例还在吃 HTTP 请求（面板建的 watcher 一开就废）
+
+### 真机复验发现
+宿主在 19:49 挂载成功（`routes: 6, failed: []`），但**通过 HTTP（面板）建的 watcher 仍然报**：
+
+```
+lastError: cannot get required service "agents" in inactive context
+consecutiveFailures: 0 / nextAt: None
+```
+
+对照实验：用**工具**（`watch_start`）建的 watcher 同一时刻轮询正常、无错误。
+差别在于请求被谁处理 —— 路由最初由 19:32 那个实例注册，重载后若没走 dispose，
+它继续吃 HTTP 请求，而它的 `ctx` 早已 dispose；于是那些 watcher 的定时器跑在死上下文里。
+
+### 修复
+模块级 `activeRoutes`：每次 `apply()` 注册路由前，**先摘掉上一次注册的**（接管而不是并存）。
+配合 0.8.25 的单条容错与 0.8.26 的 teardown，重载后的三条路径都覆盖了。
+
+### 测试
+- 新增用例：同一模块 `apply` 两次时，第二次会先 unregister 第一批（6 条）再注册新的 6 条。合计 **90 例**。
+
 ## [0.8.27] - 2026-11-02 —— 文案核对 + 把 0.8.21–0.8.27 一次发到 npm
 
 ### 文案

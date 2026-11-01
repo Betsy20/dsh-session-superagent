@@ -48,6 +48,24 @@ test('某条路由注册失败（重复路由）时，其余路由仍然可用',
   rmSync(STATE_DIR, { recursive: true, force: true })
 })
 
+test('同一个模块被 apply 两次时，会先摘掉上一次的路由（接管，而不是并存）', () => {
+  const unregistered = []
+  const made = []
+  const ctx = {
+    tools: { register() {} },
+    webServer: { register(options) { made.push(options.path); return () => unregistered.push(options.path) } },
+    agents: { get: () => null, currentInitiator: () => null },
+    get: () => null,
+    on() {},
+    effect: (fn) => fn(),
+  }
+  apply(ctx)
+  assert.equal(made.length, 6)
+  apply(ctx)                      // 模拟宿主重载：同一个模块再来一次
+  assert.equal(unregistered.length, 6, '第二次 apply 应该先把第一批摘掉')
+  assert.equal(made.length, 12, '然后重新注册一份')
+})
+
 test('卸载时会真的把路由 unregister（否则重载后就是重复路由）', () => {
   const unregistered = []
   const cleanups = []
