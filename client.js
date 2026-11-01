@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.5.0'
+    const CLIENT_VERSION = '0.5.1'
     const BASE = '/session-superagent'
     const ENDPOINT = BASE + '/state'
     const POLL_MS = 5000
@@ -152,6 +152,24 @@ window.__ModuleLoader__.load({
       const raw = String(id || '')
       const core = raw.indexOf('session-') === 0 ? raw.slice(8) : raw
       return core.slice(0, 8) || '—'
+    }
+
+    /** 把 filters 压成一行人话，空配置返回空串。 */
+    const filterText = (f) => {
+      if (!f) return ''
+      const parts = []
+      if (f.labels && f.labels.length) parts.push('标签: ' + f.labels.join(','))
+      if (f.ignoreLabels && f.ignoreLabels.length) parts.push('排除: ' + f.ignoreLabels.join(','))
+      if (f.onlyAssigned) parts.push(f.assignee ? '只看指派给 @' + f.assignee : '只看已指派')
+      return parts.join(' · ')
+    }
+
+    /** 失败退避中显示剩余秒数，否则空串。 */
+    const backoffText = (w) => {
+      if (!w || !w.nextAt) return ''
+      const left = Date.parse(w.nextAt) - Date.now()
+      if (!isFinite(left) || left <= 0) return ''
+      return '退避 ' + Math.ceil(left / 1000) + 's'
     }
 
     const ageText = (iso) => {
@@ -292,6 +310,10 @@ window.__ModuleLoader__.load({
             (w.title || '未命名会话') + ' · ' + sessionTag(w.sessionId)),
           h('div', { style: { paddingLeft: 13, opacity: 0.55 } },
             '每 ' + w.intervalSec + 's · 轮询 ' + ageText(w.lastPoll) + ' · 唤醒 ' + wakeText(w.lastWake)),
+          (filterText(w.filters) || backoffText(w) || w.lastDeferred)
+            ? h('div', { style: { paddingLeft: 13, opacity: 0.5, overflowWrap: 'anywhere' } },
+              [filterText(w.filters), backoffText(w), w.lastDeferred].filter(Boolean).join(' · '))
+            : null,
           w.goal && w.goal.objective
             ? h('div', { style: { paddingLeft: 13, opacity: 0.55, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } },
               'goal · ' + String(w.goal.objective).slice(0, 60))
@@ -556,7 +578,8 @@ window.__ModuleLoader__.load({
           h('span', null, w.intervalSec + 's'),
           h('span', { style: S.mono }, when(w.lastPoll)),
           h('span', { style: S.mono }, typeof w.lastWake === 'string' && w.lastWake.startsWith('failed') ? '失败' : when(w.lastWake)),
-          h('span', { style: w.enabled ? S.badgeOn : S.badgeOff }, w.enabled ? '运行中' : '已暂停'),
+          h('span', { style: w.enabled ? S.badgeOn : S.badgeOff },
+            w.enabled ? (backoffText(w) ? '退避中' : '运行中') : '已暂停'),
           h('span', { style: { display: 'flex', gap: 6 } },
             h('button', { style: S.tiny, onClick: () => act(w, 'poll') }, '立刻'),
             h('button', { style: S.tiny, onClick: () => act(w, w.enabled ? 'pause' : 'resume') },

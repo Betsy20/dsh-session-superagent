@@ -248,3 +248,34 @@ test('主理鱼表格有「操作」列，且暂停/恢复按状态切换', () =
     assert.ok(texts.includes(needle), '主理鱼缺少「' + needle + '」')
   }
 })
+
+test('面板显示过滤器与失败退避', () => {
+  const { registrations, render } = loadClient()
+  const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
+  const list = [watcher('a/b', {
+    filters: { labels: ['ai-fix'], ignoreLabels: ['wontfix'], onlyAssigned: false },
+    nextAt: new Date(Date.now() + 45000).toISOString(),
+    consecutiveFailures: 1,
+  })]
+  const nodes = walk(render(orbit, [list, true, { x: 720, y: 860 }]))
+  const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
+  assert.ok(text.includes('标签: ai-fix'), '要显示标签白名单：' + text.slice(0, 200))
+  assert.ok(text.includes('排除: wontfix'), '要显示排除标签')
+  assert.ok(/退避 \d+s/.test(text), '要显示退避剩余秒数：' + text.slice(0, 200))
+})
+
+test('值守台状态列在退避窗口内显示「退避中」', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snapshot = {
+    loading: false, error: null,
+    body: {
+      sessionGoal: null, sessionTitle: '会话',
+      credentials: { token: 'none', sshKeyPath: 'none' },
+      watchers: [watcher('a/b', { id: 'a/b#s1', enabled: true, nextAt: new Date(Date.now() + 30000).toISOString(), consecutiveFailures: 2 })],
+    },
+  }
+  const nodes = walk(render(desk, [snapshot, { repo: '', intervalSec: '60', goal: '', labels: '', onlyAssigned: false }, '', '', null, '', false]))
+  const texts = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
+  assert.ok(texts.includes('退避中'), '退避中要显示出来：' + texts.slice(0, 200))
+})
