@@ -18,6 +18,21 @@
 
 这样热重载之后面板会自动用上新代码，不用再重启进程。
 
+### 真机验证（不需要重启）
+热重载触发后立刻自证：
+
+```
+state.server = {at: 21:41:12Z, routes: 6, failed: [], base: '/session-superagent/r2'}
+GET  /session-superagent/r2/state -> 200，routeBase = /session-superagent/r2
+POST /session-superagent/r2/watch（绑定不存在的会话）
+     -> lastError = 会话已不在：请删除或重建这条主理鱼
+     -> consecutiveFailures = 1，nextAt = 22:11:46Z（30 分钟退避）
+watch_doctor -> "OK 面板接口挂载：6 条，无失败"
+```
+
+也就是说 0.8.21（agentsService）、0.8.22（异常退避）、0.8.29（挂载自检）、0.8.32（前缀接管）
+**全部在真机生效，且没有重启进程**。
+
 ### 测试
 - 路由层用例改成断言「撞车后整组 6 条换到 `/r2` 重放、`state.server.failed` 清零、前缀被记下」。
 - 合计 **93 例**。
