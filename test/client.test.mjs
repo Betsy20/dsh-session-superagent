@@ -279,3 +279,37 @@ test('值守台状态列在退避窗口内显示「退避中」', () => {
   const texts = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
   assert.ok(texts.includes('退避中'), '退避中要显示出来：' + texts.slice(0, 200))
 })
+
+test('面板显示隔离执行状态与活跃时段', () => {
+  const { registrations, render } = loadClient()
+  const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
+  const list = [watcher('a/b', {
+    isolated: true,
+    lastWorktree: 'E:/temp/iso/.dsh-zhuli/a-b-123',
+    workdir: 'E:/temp/iso',
+    activeHours: '09:00-23:00',
+  })]
+  const nodes = walk(render(orbit, [list, true, { x: 720, y: 860 }]))
+  const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
+  assert.ok(text.includes('隔离 · '), '要显示隔离状态：' + text.slice(0, 200))
+  assert.ok(text.includes('dsh-zhuli/a-b-123'), '要显示上次的 worktree 尾段')
+  assert.ok(text.includes('时段 09:00-23:00'), '要显示活跃时段')
+})
+
+test('值守台有全部暂停/全部恢复按钮', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snapshot = {
+    loading: false, error: null,
+    body: {
+      sessionGoal: null, sessionTitle: '会话',
+      credentials: { token: 'none', sshKeyPath: 'none' },
+      watchers: [watcher('a/b', { id: 'a/b#s1', enabled: true })],
+    },
+  }
+  const nodes = walk(render(desk, [snapshot, { repo: '', intervalSec: '60', goal: '', labels: '', onlyAssigned: false }, '', '', null, '', false]))
+  const labels = nodes.filter((n) => n.type === 'button')
+    .map((b) => (b.props.children || []).filter((c) => typeof c === 'string').join(''))
+  assert.ok(labels.includes('全部暂停'), labels.join('|'))
+  assert.ok(labels.includes('全部恢复'), labels.join('|'))
+})

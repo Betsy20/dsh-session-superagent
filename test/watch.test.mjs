@@ -7,7 +7,7 @@ import * as watchModule from '../lib/watch.js'
 import {
   advanceSeen, applyWatcherAction, batchFresh, decideWake, formatWatchText, newestUpdatedAt,
   hasAckLabel, nextDelayMs, normalizeFilters, partitionItems, passesFilters, pruneSeen, pruneWakeTimes,
-  recordReported, splitFresh, staleWorktrees, worktreePlan,
+  inActiveHours, recordReported, splitFresh, staleWorktrees, worktreePlan,
 } from '../lib/watch.js'
 
 const item = (number, updatedAt) => ({ number, updated_at: updatedAt, state: 'open', title: `t${number}`, html_url: `https://x/${number}`, user: { login: 'me' } })
@@ -290,4 +290,16 @@ test('lib/index.js 从 watch.js 导入的每个名字都必须真的导出', () 
   assert.ok(names.length > 5, '只解析到 ' + names.length + ' 个名字，解析逻辑可能错了')
   const missing = names.filter((n) => !(n in watchModule))
   assert.deepEqual(missing, [], '这些名字没从 watch.js 导出：' + missing.join(', '))
+})
+
+test('inActiveHours：普通时段 / 跨夜 / 空值', () => {
+  const at = (h, m = 0) => new Date(2026, 10, 1, h, m)
+  assert.equal(inActiveHours('09:00-23:00', at(12)), true)
+  assert.equal(inActiveHours('09:00-23:00', at(3)), false)
+  assert.equal(inActiveHours('09:00-23:00', at(23, 0)), false, '右开区间，23:00 已经不算')
+  assert.equal(inActiveHours('22:00-06:00', at(2)), true, '跨夜要成立')
+  assert.equal(inActiveHours('22:00-06:00', at(12)), false)
+  assert.equal(inActiveHours('', at(3)), true, '空 = 一直活跃')
+  assert.equal(inActiveHours('乱写', at(3)), true, '格式不对就退化成一直活跃')
+  assert.equal(inActiveHours('09:00-09:00', at(3)), true, '起止相同也按一直活跃处理')
 })

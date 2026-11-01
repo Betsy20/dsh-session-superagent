@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.6.2'
+    const CLIENT_VERSION = '0.7.0'
     const BASE = '/session-superagent'
     const ENDPOINT = BASE + '/state'
     const POLL_MS = 5000
@@ -164,6 +164,17 @@ window.__ModuleLoader__.load({
       return parts.join(' · ')
     }
 
+    /** 只留路径最后两段，面板里放得下。 */
+    const pathTail = (value) => String(value || '')
+      .split(String.fromCharCode(92)).join('/')
+      .split('/').filter(Boolean).slice(-2).join('/')
+
+    /** 隔离执行状态：开着隔离就显示上次用的 worktree。 */
+    const isolationText = (w) => {
+      if (!w || !w.isolated) return ''
+      return '隔离 · ' + (pathTail(w.lastWorktree) || pathTail(w.workdir) || '未建')
+    }
+
     /** 失败退避中显示剩余秒数，否则空串。 */
     const backoffText = (w) => {
       if (!w || !w.nextAt) return ''
@@ -310,9 +321,15 @@ window.__ModuleLoader__.load({
             (w.title || '未命名会话') + ' · ' + sessionTag(w.sessionId)),
           h('div', { style: { paddingLeft: 13, opacity: 0.55 } },
             '每 ' + w.intervalSec + 's · 轮询 ' + ageText(w.lastPoll) + ' · 唤醒 ' + wakeText(w.lastWake)),
-          (filterText(w.filters) || backoffText(w) || w.lastDeferred)
+          (filterText(w.filters) || isolationText(w) || backoffText(w) || w.activeHours || w.lastDeferred)
             ? h('div', { style: { paddingLeft: 13, opacity: 0.5, overflowWrap: 'anywhere' } },
-              [filterText(w.filters), backoffText(w), w.lastDeferred].filter(Boolean).join(' · '))
+              [
+                filterText(w.filters),
+                w.activeHours ? '时段 ' + w.activeHours : '',
+                isolationText(w),
+                backoffText(w),
+                w.lastDeferred,
+              ].filter(Boolean).join(' · '))
             : null,
           w.goal && w.goal.objective
             ? h('div', { style: { paddingLeft: 13, opacity: 0.55, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } },
@@ -430,6 +447,22 @@ window.__ModuleLoader__.load({
         } catch (error) {
           setNotice({ ok: false, text: String((error && error.message) || error) })
         }
+      }
+
+      /** 一次暂停/恢复所有 watcher（逐个发请求，失败不中断）。 */
+      const actBulk = async (action) => {
+        setNotice(null)
+        let ok = 0
+        for (const item of watchers) {
+          if (action === 'pause' && !item.enabled) continue
+          if (action === 'resume' && item.enabled) continue
+          try {
+            await call('/watch', { method: 'POST', body: JSON.stringify({ action, id: watcherId(item) }) })
+            ok += 1
+          } catch {}
+        }
+        setNotice({ ok: true, text: (action === 'pause' ? '已暂停 ' : '已恢复 ') + ok + ' 条' })
+        load()
       }
 
       const addWatcher = async () => {
@@ -560,6 +593,10 @@ window.__ModuleLoader__.load({
             disabled: !sessionId || !form.repo.trim(),
           }, sessionId ? '添加到当前会话' : '需要会话上下文'),
           h('div', { style: { ...S.sub, marginTop: 6 } }, '唤醒目标 = 当前打开面板的这个会话。')),
+
+        watchers.length > 0 && h('div', { style: { display: 'flex', gap: 8, margin: '4px 0 8px' } },
+          h('button', { style: S.tiny, onClick: () => actBulk('pause') }, '全部暂停'),
+          h('button', { style: S.tiny, onClick: () => actBulk('resume') }, '全部恢复')),
 
         watchers.length > 0 && h('div', { style: { ...S.row, ...S.head } },
           h('span', null, '仓库'), h('span', null, '会话'), h('span', null, '间隔'),
