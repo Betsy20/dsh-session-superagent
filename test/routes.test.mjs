@@ -628,6 +628,8 @@ test('watch_ack 失败要区分"会自动恢复"和"需要你处理"', async () 
     ['HTTP 401: Bad credentials', false],
     ['HTTP 404: Not Found', false],
     ['gh: command not found', false],
+    ['HTTP 301: Moved Permanently', false],
+    ['Repository has been moved', false],
   ]) {
     const kind = classifyGhError(text).kind
     const retryable = ['network', 'ratelimit', 'gateway'].includes(kind)

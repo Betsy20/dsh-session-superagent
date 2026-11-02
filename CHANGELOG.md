@@ -2,6 +2,22 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.94] - 2026-11-02 —— 仓库改名/转移要单独识别（否则只是"一直没动静"）
+
+### 为什么
+仓库被改名或转移后，GitHub 回 **301 / "Repository has been moved"**。
+原来的错误分类里它落进 `other`，客户看到的是一句笼统的失败，
+印象却是"这条守一直没动静"——**不知道该去改 owner/name**。
+
+### 改法
+1. `classifyGhError` 新增 `moved` 分支（匹配 301 / moved permanently / has been moved），
+   排在 `notfound` 之前，提示：`（仓库改名或转移了：用新地址重新添加，或把守改成新的 owner/name）`；
+2. `moved` 不在"可自动恢复"名单里（网络/限流/网关才算）；
+3. `watch_doctor` 的可访问性检查改用分类提示，不再直接贴 120 字原始 stderr。
+
+### 测试
+- 扩展 1 例：分类表加 `HTTP 301` 与 `Repository has been moved` 两行，都判为不可自动恢复。合计 **206 例**。
+
 ## [0.9.93] - 2026-11-02 —— 同一仓库被多个会话守着时，面板说说清"还有谁"
 
 ### 为什么
