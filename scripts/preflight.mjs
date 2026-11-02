@@ -109,7 +109,21 @@ const tryRun = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: ROOT, encod
   record('npm pack 内容', res.status === 0 && leaked.length === 0, `${files} 个文件` + (leaked.length ? '（含：' + leaked.join(', ') + '）' : ''))
 }
 
-// ⑦ 冒烟（需要 gh；不可用则 SKIP，不算失败）
+// ⑦ UI 体检（不需要宿主：量的是源码里的可访问性与 token 使用）
+{
+  const res = tryRun('node', ['scripts/ui-audit.mjs', '--json'])
+  let score = 0
+  let failed = []
+  try {
+    const data = JSON.parse(String(res.stdout || '{}'))
+    score = data.score || 0
+    failed = (data.results || []).filter((r) => !r.ok).map((r) => r.name)
+  } catch { failed = ['ui-audit 输出无法解析'] }
+  record('UI 体检', res.status === 0 && score === 100,
+    `${score} 分` + (failed.length ? '（未过：' + failed.join('；') + '）' : ''))
+}
+
+// ⑧ 冒烟（需要 gh；不可用则 SKIP，不算失败）
 if (FAST) {
   console.log('SKIP 冒烟 smoke:observe              --fast 跳过')
 } else {

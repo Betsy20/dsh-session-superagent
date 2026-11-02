@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.40'
+    const CLIENT_VERSION = '0.8.41'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -260,7 +260,7 @@ window.__ModuleLoader__.load({
       if (!open) return null
       // class 必须与移植来的官方 CSS 对齐：dt-modal-root / dt-modal-mask / dt-modal-header
       return h('div', { className: 'dt-modal-root' },
-        h('div', { className: 'dt-modal-mask', onClick: onClose }),
+        h('div', { className: 'dt-modal-mask', role: 'presentation', onClick: onClose }),
         h('div', {
           className: 'dt-modal', role: 'dialog', 'aria-modal': 'true',
           'aria-label': typeof title === 'string' ? title : undefined,
@@ -865,7 +865,7 @@ window.__ModuleLoader__.load({
             backoffText(watcher) ? h(Tag, { tone: 'warning' }, backoffText(watcher)) : null)),
         h('div', { className: 'dt-row-actions' },
           h(Btn, {
-            size: 'sm', variant: 'ghost', icon: h(Icon, { name: 'settings' }),
+            size: 'sm', variant: 'ghost', icon: h(Icon, { name: 'settings' }), label: '编辑',
             onClick: () => {
               setEditing(editing === key ? null : key)
               setDraft({
@@ -886,6 +886,7 @@ window.__ModuleLoader__.load({
           h(Btn, {
             size: 'sm', variant: 'ghost',
             icon: h(Icon, { name: watcher.enabled ? 'pause' : 'play' }),
+            label: watcher.enabled ? '暂停' : '恢复',
             onClick: () => act(watcher, watcher.enabled ? 'pause' : 'resume'),
           }, watcher.enabled ? '暂停' : '恢复'),
           h(ConfirmBtn, {
