@@ -2,6 +2,28 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.45] - 2026-11-02 —— README 写着 136 项单测，实际 181（现在会自动报错）
+
+### 学到的（知识库第 92 条）
+散文里的数字最容易过期：结构性内容有人维护，顺带提的数字没人看。
+
+### 发现
+README「开发」小节写着 `node --test  # 136 项单测` —— 实际 **181 项**，
+跨了四十多个版本没人发现（谁加用例都不会想起改 README 注释）。
+
+### 改法
+`preflight` 跑完 `node --test` 后顺手比对 README 里的数字：
+```
+FAIL README 单测数    README 写 136，实际 181（改 README）
+```
+改成 181 后 → `PASS README 单测数　README 写 181，实际 181`。
+
+顺带把这个数字同时当作"用例数只增不减"的哨兵：数字变小也会立刻暴露。
+
+### 顺带补的对外契约
+README 新增「工具输出」小节：三个只读工具的 `format: 'json'` 形态与 `schemaVersion: 1`；
+`docs/规则对照表.md` 加一行（协议类约定也进对照表）。
+
 ## [0.9.44] - 2026-11-02 —— 三个只读工具口径统一：都支持 `format=json` + `schemaVersion`
 
 ### 做了什么

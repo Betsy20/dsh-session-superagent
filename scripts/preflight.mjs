@@ -32,6 +32,10 @@ const tryRun = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: ROOT, encod
   const pass = (out.match(/# pass (\d+)/) || out.match(/ℹ pass (\d+)/) || [])[1]
   const fail = (out.match(/# fail (\d+)/) || out.match(/ℹ fail (\d+)/) || [])[1]
   record('单测 node --test', res.status === 0 && fail === '0', `${pass}/${tests} 通过，失败 ${fail}`)
+  // README 里写着“N 项单测”：这个数最容易悄悄过期（本轮从 136 掉到 181 才发现）
+  const claimed = (readFileSync(join(ROOT, 'README.md'), 'utf8').match(/(\d+) 项单测/) || [])[1]
+  record('README 单测数', Boolean(claimed) && claimed === String(tests),
+    claimed ? (claimed === String(tests) ? 'README 写 ' + claimed + '，实际 ' + tests : 'README 写 ' + claimed + '，实际 ' + tests + '（改 README）') : 'README 没写单测数')
 }
 
 // ② 语法
