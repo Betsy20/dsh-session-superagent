@@ -175,6 +175,13 @@ computed style 核对：模态 `fixed/inset:0`、宽 380 居中；Toast `fixed/t
 ② 是之前从未在真机上走到过的分支：忙的时候**不推进水位、不建隔离区、不注入**，
 把活儿留给下一轮。这条跑通，说明「只在 idle 才唤醒」的约束是真的生效，而不只是代码里写着。
 
+### 线上与现实环境的一致性（2026-11-02 实测）
+- 真机 `/state` 的 `serverVersion` = **0.8.38**，仓库已到 **0.8.85** —— 服务端改动要**重启宿主**才生效。
+- 也就是说：ETag/304、诊断、限流自适应、GraphQL 批量、关联 PR、积压提示…… **都还没在真机跑过**。
+- 按本机铁律，重启只能由用户执行。**下次重启后**应立即核对：
+  `curl -s http://127.0.0.1:<port>/session-superagent/state | jq .serverVersion` 应为 0.8.85+，
+  并确认响应头带 `etag`。
+
 ### 外部事项（需要别人动作，别每小时重复提）
 - **awesome 收录**：PR <https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/11266>
   状态 `OPEN / MERGEABLE`、`check=SUCCESS`、0 review / 0 comment —— **在等维护者合并**，我们这边无需动作。

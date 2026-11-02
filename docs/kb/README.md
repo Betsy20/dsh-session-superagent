@@ -38,3 +38,4 @@
 | 判定与可解释性 | [CI 红绿零成本拿到，值得展示](ci-status-on-linked-pr.md) | ✅ 0.8.83 |
 | 性能 | [接口也要做减法：/state 少传 3 个字段](api-surface-diet.md) | ✅ 0.8.84 |
 | 性能 | [把自己接口也接上 ETag/304](etag-on-our-own-api.md) | ✅ 0.8.85 |
+| 性能 | [要不要改 SSE？量完，不值得](no-sse-decision.md) | ✅ 决定（不改代码） |
