@@ -68,3 +68,4 @@
 | 交互 | [守多个仓库时先给"哪个仓库有问题"](repo-level-summary.md) | ✅ 0.9.13 |
 | 交互 | [汇总行要么能点，要么就是装饰](summary-as-navigation.md) | ✅ 0.9.14 |
 | 交互 | [快捷筛选要带数量、能一键退回](filter-shortcut.md) | ✅ 0.9.15 |
+| 交互 | [可用性抽检：三条失败路径的第一句话](ux-copy-audit.md) | ✅ 0.9.16 |

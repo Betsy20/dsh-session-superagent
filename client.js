@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.15'
+    const CLIENT_VERSION = '0.9.16'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1112,6 +1112,10 @@ window.__ModuleLoader__.load({
       for (const watcher of watchers) {
         // 仓库结构问题（关闭 Issues / 是 fork）比轮询失败更早该说：它注定收不到条目
         const structure = repoStructureNote(watcher.repoAccess)
+        if (structure) problems.push({ key: 's-' + watcher.repo, text: structure })
+        // 只读：以前只在行内显示一个徽章，客户在「需要关注」里看不到，也不知道回写会 403
+        const readOnly = accessNoteForPanel(watcher.repoAccess)
+        if (readOnly) problems.push({ key: 'ro-' + watcher.repo, text: readOnly })
         // 叫醒了但没回音：守在工作、消息也进去了，但会话没动手（规则缺失或被忽略）
         if (Number(watcher.silentWakes) >= 2) {
           problems.push({
@@ -1482,6 +1486,15 @@ window.__ModuleLoader__.load({
         const hours = Math.floor(minutes / 60)
         const rest = minutes % 60
         return rest > 0 ? hours + ' 小时 ' + rest + ' 分' : hours + ' 小时'
+      }
+
+      /** 只读仓库的提示（与服务端 gh-format.js:accessNote 同语义；面板要独立一份）。 */
+      function accessNoteForPanel(access) {
+        if (!access || typeof access !== 'object') return ''
+        if (access.push === true) return ''
+        if (access.push !== false) return ''
+        return '你对 ' + String(access.repo || '这个仓库') + ' 只有读权限：能看、能被叫醒，但没法回写评论或打标签 —— ' +
+          '要么换有写权限的 token，要么把结论写在本地/PR 描述里。'
       }
 
       /** 仓库能力徽章（与服务端 watch.js:repoBadges 同语义）。 */

@@ -803,3 +803,19 @@ test('「只看有问题的」：一键筛掉健康的守，并且能一键回�
   assert.ok(!onlyBad.includes('ok/healthy'), '健康的不该出现：' + onlyBad.slice(0, 240))
   assert.ok(onlyBad.includes('全部'), '要能一键回到全部')
 })
+
+test('只读仓库要在「需要关注」里出现（不能只靠行内一个小徽章）', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = {
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: 'x', credentials: {}, watchers: [
+      watcher('me/readonly', { id: 'me/readonly#s1', repoAccess: { repo: 'me/readonly', push: false, hasIssues: true } }),
+      watcher('me/writable', { id: 'me/writable#s2', sessionId: 's2', repoAccess: { repo: 'me/writable', push: true, hasIssues: true } }),
+    ] },
+  }
+  const text = walk(render(desk, deskQueue(snap))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(text.includes('只有读权限'), '要有人话说明：' + text.slice(0, 240))
+  assert.ok(text.includes('换有写权限的 token'), '要给出下一步')
+  assert.ok(!text.includes('你对 me/writable 只有读权限'), '有写权限的仓库不该出现这条')
+})
