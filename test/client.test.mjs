@@ -591,7 +591,7 @@ test('设置页用官方左栏导航（dt-settings + dt-settings-nav）', () => 
   const grid = nodes.filter((n) => String(n.props && n.props.className || '').includes('dt-settings'))
   assert.ok(grid.length >= 1, '设置页要用 dt-settings 网格')
   const links = nodes.filter((n) => String(n.props && n.props.className || '').includes('dt-settings-link'))
-  assert.equal(links.length, 4, '左栏应有 4 个分区')
+  assert.equal(links.length, 5, '左栏应有 5 个分区（来源/凭证/版本与更新/诊断/goal）')
   const current = links.filter((n) => n.props['aria-current'] === 'page')
   assert.equal(current.length, 1, '当前分区要有 aria-current=page')
 })

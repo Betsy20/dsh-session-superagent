@@ -42,15 +42,26 @@ add('自造样式里写死的颜色', hardcoded, 0, 'SVG 轨道环的语义色�
 const iconOnlyUnnamed = (() => {
   let bad = 0
   const names = []
-  for (const m of clientSource.matchAll(/h\(Btn, \{/g)) {
-    const seg = clientSource.slice(m.index, m.index + 420)
-    const hasName = new RegExp('aria-label|(^|[^a-zA-Z])label:').test(seg)
-    const close = seg.indexOf('},')
-    const visibleText = close > 0 && /'/.test(seg.slice(close + 2))
-    if (!hasName && !visibleText) {
-      bad += 1
-      names.push(clientSource.slice(0, m.index).split(String.fromCharCode(10)).length)
+  // 用花括号配对找到 props 对象的真正结尾：固定窗口会把长 onClick 的按钮误判成"没名字"
+  const propsEnd = (src, from) => {
+    let depth = 0
+    for (let i = src.indexOf('{', from); i < src.length; i += 1) {
+      if (src[i] === '{') depth += 1
+      else if (src[i] === '}') { depth -= 1; if (depth === 0) return i }
     }
+    return -1
+  }
+  const NAME_RE = new RegExp('aria-label|(^|[^a-zA-Z])label:')
+  for (const m of clientSource.matchAll(/h\(Btn, \{/g)) {
+    const close = propsEnd(clientSource, m.index)
+    if (close < 0) continue
+    const seg = clientSource.slice(m.index, close + 1)
+    const tail = clientSource.slice(close + 2, close + 120)  // 跳过 props 结尾的 '}' 和逗号
+    // 可见文字可能是三元表达式（w.enabled ? '暂停' : '恢复'），所以看「第一个右括号前的引号」
+    const head = tail.split(')')[0]
+    if (NAME_RE.test(seg) || head.includes("'") || head.includes('"')) continue
+    bad += 1
+    names.push(clientSource.slice(0, m.index).split(String.fromCharCode(10)).length)
   }
   return { bad, names }
 })()

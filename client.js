@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.46'
+    const CLIENT_VERSION = '0.8.47'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -392,6 +392,7 @@ window.__ModuleLoader__.load({
         size,
         className: armed ? 'dt-danger' : undefined,
         icon,
+        'aria-label': armed ? confirmLabel : label,
         onClick: () => {
           if (!armed) { setArmed(true); return }
           setArmed(false)
@@ -1140,6 +1141,22 @@ window.__ModuleLoader__.load({
           h('div', { className: 'dt-actions' },
             h(Btn, { size: 'sm', variant: 'ghost', onClick: () => checkUpdate(true), disabled: checking }, checking ? '检查中…' : '重新检查')),
           h(Hint, null, '升级要改 profile，装完需要重载一次宿主才会用上新版本 —— 所以这里只给命令，不替你执行。')),
+        h(Section, { key: 'diagnose', title: '诊断' },
+          h(Hint, null, '反馈问题时把这段贴给对方：里面有版本、挂载状态和每条值守的最近错误（凭证已脱敏）。'),
+          h('div', { className: 'dt-actions' },
+            h(Btn, {
+              size: 'sm', variant: 'outline',
+              onClick: async () => {
+                try {
+                  const payload = await call('/diagnose')
+                  const text = String((payload && payload.text) || '')
+                  try { await navigator.clipboard.writeText(text) } catch {}
+                  notify('诊断信息已复制（' + text.split(String.fromCharCode(10)).length + ' 行）', 'info')
+                } catch (error) {
+                  notify('生成诊断失败：' + String((error && error.message) || error), 'error')
+                }
+              },
+            }, '复制诊断信息'))),
         h(Section, { key: 'goal', title: '会话 goal' },
           h('textarea', {
             className: 'dt-textarea', rows: 3, value: goalDraft,
@@ -1156,6 +1173,7 @@ window.__ModuleLoader__.load({
         { key: 'source', title: '来源' },
         { key: 'creds', title: '凭证' },
         { key: 'update', title: '版本与更新' },
+        { key: 'diagnose', title: '诊断' },
         { key: 'goal', title: '会话 goal' },
       ]
       const settingsBody = settingsSections.find((node) => node && node.props && node.props.key === settingsSection)
