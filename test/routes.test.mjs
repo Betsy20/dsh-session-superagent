@@ -1069,7 +1069,7 @@ test('github 工具失败时带「下一步」与 kind（不再只贴原始 stde
   const { formatGhCall, classifyGhError } = await import('../lib/gh-format.js')
 
   const notFound = formatGhCall({ code: 1, text: 'gh: HTTP 404 Not Found', classify: classifyGhError })
-  assert.ok(notFound.includes('检查 owner/name'), '404 要说下一步：' + notFound)
+  assert.ok(notFound.includes('owner/name'), '404 要说下一步：' + notFound)
   assert.ok(notFound.includes('[kind: notfound]'), '要给出机器可读的 kind')
 
   const auth = formatGhCall({ code: 1, text: 'gh: HTTP 401 Bad credentials', classify: classifyGhError })

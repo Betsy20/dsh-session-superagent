@@ -2,6 +2,34 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.116] - 2026-11-03 —— 404 不等于"不存在"；顺便修掉一个"凌晨才红"的用例
+
+### 学到什么（出处）
+GitHub《Troubleshooting the REST API》：
+> If you make a request to access a private resource and your request isn't properly authenticated,
+> you will receive a `404 Not Found` response. GitHub uses `404` instead of `403` **to avoid confirming
+> the existence of private repositories.**
+
+出处：<https://docs.github.com/en/rest/using-the-rest-api/troubleshooting-the-rest-api#404-not-found-for-an-existing-resource>
+
+也就是说：**404 既可能是"不存在"，也可能是"没权限"**，而且这两种情况的修复动作完全不同。
+
+### 改了什么
+1. `notfound` 的提示改写为：`（不存在或没权限 —— 私有仓库无权限也回 404：查 owner/name 与 token）`（47 字符，未超门禁 60）；
+2. `repo_here` 工具失败时也走 `formatGhCall()`（与 `github` 工具一致，0.9.115 漏了它）。
+
+### 顺带抓到一个"凌晨才红"的用例
+`顶部四个计数必须加得上总数` 里把时段写死成 `03:00-04:00`：
+- 白天跑 → 该守在窗口外，计数里出现「时段外」，用例绿；
+- **凌晨 3 点跑 → 该守就在窗口内**，`时段外` 这一项消失，`value('时段外')` 得到 `NaN`，用例红。
+
+改成 `outsideWindow()`：从当前小时 +6 开始、长度 1 小时，任何时刻都在窗口外。
+
+### 证据
+```
+node --test → 223/223（此前凌晨跑会 221/223）
+```
+
 ## [0.9.115] - 2026-11-03 —— `github` 工具失败时也带「下一步」和机器可读的 kind
 
 ### 为什么

@@ -1020,6 +1020,13 @@ test('错误旁边要有「下一步」按钮（登录失效 → 去填 token；
   assert.ok(!other.includes('去填 token') && !other.includes('改仓库地址') && !other.includes('立刻重试'), '未归类的错误不给乱指路的按钮')
 })
 
+// 造一个「此刻一定在窗口外」的时段：从当前小时 +6 开始，长度 1 小时（跨夜也能算）
+function outsideWindow() {
+  const start = (new Date().getHours() + 6) % 24
+  const pad = (n) => String(n).padStart(2, '0')
+  return pad(start) + ':00-' + pad((start + 1) % 24) + ':00'
+}
+
 test('顶部四个计数必须加得上总数（互斥，不重复数）', () => {
   const { registrations, render } = loadClient()
   const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
@@ -1029,7 +1036,8 @@ test('顶部四个计数必须加得上总数（互斥，不重复数）', () =>
     watcher('a/active', { id: 'a/active#s1', lastWake: at(10) }),
     watcher('a/paused', { id: 'a/paused#s1', enabled: false, lastWake: at(10) }),
     watcher('a/error', { id: 'a/error#s1', lastError: 'GitHub API 请求: EOF（网络抖动）', lastWake: at(10) }),
-    watcher('a/dormant', { id: 'a/dormant#s1', activeHours: '03:00-04:00', lastWake: at(10) }),
+    // 时段要「此刻一定不在窗口内」——写死 03:00-04:00 会在凌晨跑测试时变成 inside（真踩过）
+    watcher('a/dormant', { id: 'a/dormant#s1', activeHours: outsideWindow(), lastWake: at(10) }),
     watcher('a/both', { id: 'a/both#s1', enabled: false, lastError: 'GitHub API 请求: EOF（网络抖动）', lastWake: at(10) }),
   ]
   const snap = { loading: false, error: null,
