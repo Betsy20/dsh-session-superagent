@@ -25,3 +25,4 @@
 | 通知设计 | [叫醒前先说有没有人在处理](last-commenter.md) | ✅ 0.8.70 |
 | 通知设计 | [「我发的」≠「有人在处理」](viewer-self-comment.md) | ✅ 0.8.71 |
 | 性能 | [一次 GraphQL 查 N 条，别 N 次 REST](graphql-batch.md) | ✅ 0.8.72 |
+| 性能 | [主轮询要不要换 GraphQL：测了，不换](list-path-decision.md) | ✅ 决定 + 基准脚本（0.8.73） |
