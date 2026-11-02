@@ -45,6 +45,7 @@ const WHY = {
   'UI 体检': ['写死颜色 / 裸 div 可点 / 弹层键盘不可用', 'KB `information-density.md`'],
   '冒烟 smoke:observe': ['真机 observe 模式跑不起来', 'README 验收节'],
   '验收清单': ['门禁项没有解释（新增检查忘了写“防止什么”）', 'KB `explainable-gates.md`'],
+  '面板文案快照': ['面板上那几十条提示被悄悄改坏', 'KB `copy-snapshot.md`'],
 }
 
 const missing = names.filter((name) => !WHY[name])

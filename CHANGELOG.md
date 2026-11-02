@@ -2,6 +2,49 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.56] - 2026-11-02 —— README 被自己清空过一次（已恢复；原因记进知识库）
+
+### 事件
+把 README 版本号从 0.9.54 更新到 0.9.55 时写成了一行链式调用：
+
+```python
+io.open('README.md','w').write(io.open('README.md').read().replace(...))
+```
+
+外层 `open(...,'w')` **先**执行并截断文件，内层读到空串 —— **208 行变 0 行**。
+
+### 怎么发现的
+门禁同时红三条，其中 `badge undefined` 最先露馅（连版本徽章那行都没了，不只是数字没更新）：
+```
+FAIL README 徽章版本 = package.json 版本
+FAIL README 单测数    README 没写单测数
+FAIL 版本一致（4 处）  … badge undefined …
+```
+
+### 恢复
+`git show HEAD:README.md > README.md` —— 上一版刚提交过，零损失。
+**这就是"每轮都 commit"的实际价值：任何时刻都有回退点。**
+
+### 本轮同时交付
+面板文案快照（`docs/面板文案.md`，129 行）+ 面板渲染桩抽成共享模块
+`test/fixtures/panel-harness.mjs`（测试与快照脚本共用，避免两份实现漂移）。
+
+## [0.9.55] - 2026-11-02 —— 面板文案也有快照了（129 行）
+
+### 学到的（知识库第 74 条延伸）
+唤醒消息早有文案快照，但**面板上那几十条提示**一直是"改了也没人看见"。
+
+### 做了什么
+1. 把面板渲染桩抽成 `test/fixtures/panel-harness.mjs`（测试与快照脚本共用，避免两份实现漂移）；
+2. `scripts/render-panel-copy.mjs`：用同一套桩渲染四个 tab，抽出可见文字 → `docs/面板文案.md`（129 行）；
+3. `--write` / `--check`；`--check` 进 preflight 第 25 项。
+
+### 覆盖内容
+`总览 40 条 / 判定 / 触发 / 设置` 四页的全部可见文字（含空态、暂停原因、权限提示、诊断按钮）。
+
+### 顺带
+`docs/验收清单.md` 新增一行解释（面板文案快照防什么），所以它自己也是被校验的。
+
 ## [0.9.54] - 2026-11-02 —— 演练脚本补上失败路径与"不唤醒"
 
 ### 学到的（知识库第 73 条继续追加）

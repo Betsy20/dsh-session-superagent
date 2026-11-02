@@ -162,6 +162,13 @@ const tryRun = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: ROOT, encod
   record('文案快照', res.status === 0, res.status === 0 ? (out[0] || '').replace(/^PASS /, '') : '文案变了：跑 node scripts/first-run.mjs --write 再看 diff')
 }
 
+// ⑥.461 面板文案快照（消息文案早有快照，面板上那几十条提示一直没有）
+{
+  const res = tryRun('node', ['scripts/render-panel-copy.mjs', '--check'], { timeout: 90000 })
+  const out = String(res.stdout || '').trim().split(String.fromCharCode(10))
+  record('面板文案快照', res.status === 0, (res.status === 0 ? out[0] : (out[0] || '无输出')).replace(/^(PASS|提示) /, ''))
+}
+
 // ⑥.46 验收清单与 preflight 一致（每项检查都要能解释"防什么"，否则门禁不可信）
 {
   const res = tryRun('node', ['scripts/render-acceptance.mjs', '--check'], { timeout: 60000 })
