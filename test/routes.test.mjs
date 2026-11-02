@@ -407,3 +407,30 @@ test('watch_start 能设面板里的三项（会话上限 / 隔离保留天数 /
   assert.equal(entry.isolateKeepDays, 7)
   assert.equal(entry.maxIsolated, 3)
 })
+
+test('watch_status 带诊断：暂停原因、未回音、会话用量（agent 自诊不用看面板）', async () => {
+  const tools = []
+  const dir = (await import('node:fs')).mkdtempSync((await import('node:path')).join((await import('node:os')).tmpdir(), 'zhuli-st-'))
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: () => () => {} },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-status' }) },
+    get: () => null, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?status=' + Date.now())
+  mod.apply(ctx)
+  await tools.find((t) => t.name === 'watch_start').execute({ repo: 'o/st', sessionMaxWakes: 12 })
+  // 直接改状态：模拟"被上限挡住 + 连续没回音"
+  const state = mod.__test.readState()
+  const key = Object.keys(state.watchers)[0]
+  state.watchers[key].deferReason = 'cap-session'
+  state.watchers[key].silentWakes = 3
+  mod.__test.writeState(state)
+
+  const text = String(await tools.find((t) => t.name === 'watch_status').execute({}))
+  assert.ok(text.includes('defer=cap-session'), '要带暂停原因码：' + text)
+  assert.ok(text.includes('silent=3'), '要带未回音次数')
+  assert.match(text, /session:\s*\d+\/12 wakes last hour/, '要有会话用量行')
+})
