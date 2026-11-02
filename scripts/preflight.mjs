@@ -242,6 +242,14 @@ if (!FAST) {
   record('双主题预览可渲染', res.status === 0, line.replace(/^(PASS|FAIL) 双主题预览可渲染\s*/, ''))
 }
 
+// ⑥.65 工具描述里的承诺要在对账表里有一行
+{
+  const res = tryRun('node', ['scripts/audit-promises.mjs'], { timeout: 60000 })
+  const out = String(res.stdout || '')
+  const miss = out.split(String.fromCharCode(10)).filter((line) => line.startsWith('FAIL 对账表缺'))
+  record('工具承诺对照', res.status === 0, miss.length > 0 ? miss[0].replace(/^FAIL /, '') : '5 条承诺都有对应行')
+}
+
 // ⑥.6 术语表双向对照（面板用了的必须解释；术语表里的不能是死词）
 {
   const res = tryRun('node', ['scripts/audit-glossary.mjs'], { timeout: 90000 })

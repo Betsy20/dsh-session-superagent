@@ -27,6 +27,7 @@ for (const match of preflight.matchAll(/record\('([^']+)'/g)) {
 // 每项：防什么 + 证据（真实事故 / KB 条目）
 const WHY = {
   '门禁自检': ['僵尸检查（永远是绿的，其实不检查任何东西）', 'KB `gate-mutation-check.md`'],
+  '工具承诺对照': ['工具描述里的承诺（幂等/只读/默认值）没进对账表', 'KB `tool-panel-parity.md`'],
   '术语表对照': ['面板在用但术语表没解释的词（客户会卡住）', 'KB `jargon-audit.md`'],
   '错误建议': ['错误建议过长或没有可执行动作（0.9.62 曾出现兜底建议为空）', 'KB `error-must-have-next-step.md`'],
   '临时目录收口': ['测试漏建临时目录（本机曾攒到 1654 个、一次跑漏 8 个）', 'KB `temp-dir-leak.md`'],
