@@ -109,6 +109,21 @@ const tryRun = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: ROOT, encod
   record('npm pack 内容', res.status === 0 && leaked.length === 0, `${files} 个文件` + (leaked.length ? '（含：' + leaked.join(', ') + '）' : ''))
 }
 
+// ⑥.4 离线挂载冒烟（真机服务端一改就是几十个版本一起跳，挂不上去等于整块功能消失）
+{
+  const res = tryRun('node', ['scripts/smoke-mount.mjs', '--json'], { timeout: 60000 })
+  let detail = '无法解析输出'
+  let ok = false
+  try {
+    const data = JSON.parse(String(res.stdout || '{}'))
+    ok = res.status === 0 && data.ok === true
+    detail = ok
+      ? `${data.version} / 工具 ${data.tools.length} / 路由 ${data.routes.length}`
+      : (data.failure || ('缺路由：' + (data.missing || []).join(',')))
+  } catch { ok = false }
+  record('离线挂载冒烟', ok, detail)
+}
+
 // ⑥.5 双主题预览能渲染（离线验收界面用的那条命令，坏掉就等于没有验收手段）
 {
   const out = join(tmpdir(), 'zhuli-preview-check-' + Date.now() + '.html')

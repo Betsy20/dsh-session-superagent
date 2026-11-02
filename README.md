@@ -3,7 +3,7 @@
 <img src="assets/icon-180.png" width="88" height="88" alt="">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.8.86-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
+[![Version](https://img.shields.io/badge/version-0.8.87-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
 [![npm](https://img.shields.io/npm/v/dsh-session-superagent.svg)](https://www.npmjs.com/package/dsh-session-superagent)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-plugin-orange.svg)](https://github.com/topics/dsh-plugin)
 
@@ -138,7 +138,7 @@ dsh plugin --profile <profile> add dsh-session-superagent@latest
 ```bash
 node --test                 # 103 例单测
 node scripts/ui-audit.mjs   # 11 项 UI 指标（写死颜色 / 自造 token / 官方结构采用 …）
-node scripts/preflight.mjs  # 8 项门禁（含上面两条，外加 profile 一致性、路由面、包内容）
+node scripts/preflight.mjs  # 9 项门禁（含上面两条，外加 profile 一致性、路由面、包内容）
 node scripts/render-preview.mjs preview.html   # 双主题静态预览，直接浏览器打开
 ```
 

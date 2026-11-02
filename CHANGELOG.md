@@ -2,6 +2,24 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.87] - 2026-11-02 —— 离线挂载冒烟：下次重启前先证明"挂得上去"
+
+### 为什么这轮做这个（知识库第 36 条）
+线上 `/state` 的 `serverVersion` 还是 **0.8.38**，仓库已 0.8.87 —— 下次重启会一口气跳 49 个版本。
+一次性跨越这么多改动，最该担心的不是某条逻辑，而是**能不能挂上去**：
+新增文件没同步进 profile、路由撞车、import 写错，任何一种都会让整块功能消失，
+而真机上只表现为「面板空白 / 工具不见了」。
+
+### 改了什么
+`scripts/smoke-mount.mjs`：造假 ctx → 真 `import` + `apply(ctx)` → 断言 8 条路由一条不少、工具 > 0、无异常。
+```
+挂载冒烟 OK：0.8.87，工具 7 个（watch_ack,watch_doctor,github,repo_here,watch_start,watch_status,watch_stop），路由 8 条
+```
+已接入 `preflight`（第 9 项检查），每次推送前都会守一次。
+
+### 测试
+- `preflight --fast` 现在 9 项检查，全绿；单测仍 134 例。
+
 ## [0.8.86] - 2026-11-02 —— SSE 可行性量完了：不改（并发现线上落后 47 个版本）
 
 ### 学到的（知识库第 35 条）
