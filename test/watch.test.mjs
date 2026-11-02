@@ -23,6 +23,7 @@ import {
   repoBadges,
   stalenessNote,
   sessionWakesLastHour,
+  splitBatch,
   silentStreak,
   shouldRunCleanup,
   summarizeByRepo,
@@ -1009,4 +1010,19 @@ test('被上限挡住的数量按字段统计，不靠匹配文案', () => {
   assert.equal(countCapped([{ id: 'x', lastDeferred: '每小时最多唤醒 6 次' }]), 0)
   assert.equal(countCapped({ a: { deferReason: 'cap-session' } }), 1, '支持对象入参')
   assert.equal(countCapped(null), 0)
+})
+
+test('拆分批量：剩余里绝不能出现已被选中的条目（真实消息里出现过重复）', () => {
+  // 三条里按优先级会挑中 #42 和 #77（#77 在原始顺序里排最后）
+  const fresh = [
+    { number: 42, updated_at: '2026-11-02T09:58:00Z', labels: [] },
+    { number: 43, updated_at: '2026-11-02T09:20:00Z', labels: [] },
+    { number: 77, updated_at: '2026-11-02T08:30:00Z', labels: [], pull_request: {} },
+  ]
+  const { listed, rest } = splitBatch(fresh, 2)
+  const listedNumbers = listed.map((i) => i.number)
+  const restNumbers = rest.map((i) => i.number)
+  assert.equal(listed.length + rest.length, fresh.length, '两边加起来必须是全部')
+  for (const n of restNumbers) assert.ok(!listedNumbers.includes(n), '#' + n + ' 同时出现在两边：' + JSON.stringify({ listedNumbers, restNumbers }))
+  assert.deepEqual([...listedNumbers, ...restNumbers].sort(), [42, 43, 77])
 })
