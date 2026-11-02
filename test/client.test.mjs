@@ -904,3 +904,27 @@ test('首次使用（空态）不能露出内部字段名，并且要给出三�
   }
   assert.ok(!text.includes('需要会话上下文'), '「需要会话上下文」是内部说法，客户看不懂')
 })
+
+test('空态三步里提到的控件，必须在「触发」页真实存在（改名会让引导失效）', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const empty = {
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: 'x', credentials: {}, sessionUsage: null, watchers: [] },
+  }
+  const text = (tree) => walk(tree).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  const overview = text(render(desk, deskQueue(empty)))
+  const trigger = text(render(desk, deskQueue(empty, null, {}, 'trigger'), { sessionId: 's1' }))
+
+  // 从引导里抽出所有「…」引号内的控件名/标签名
+  const quoted = [...overview.matchAll(/「([^」]{2,12})」/g)].map((m) => m[1])
+  assert.ok(quoted.length >= 3, '引导里应该有若干可引用的控件名：' + quoted.join('/'))
+  for (const name of quoted) {
+    // 只查「触发」页：引导文本自己就含这个词，用整页文本会把自引用当通过（第一版就是这么假通过的）
+    assert.ok(trigger.includes(name), '引导提到的「' + name + '」在「触发」页找不到（可能改名了）')
+  }
+  // 三个步骤里的关键词也要能对上真实字段
+  for (const word of ['仓库', '间隔']) {
+    assert.ok(trigger.includes(word), '「触发」页缺字段：' + word)
+  }
+})

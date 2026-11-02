@@ -71,10 +71,11 @@ export function loadClient() {
     throw new Error('unexpected require: ' + name)
   }).apply(ctx)
 
-  const render = (registration, queue) => {
+  // props 可以传：面板有些文案取决于宿主给的 sessionId（"添加到当前会话" vs "先打开一个会话"）
+  const render = (registration, queue, props = {}) => {
     hooks.queue = queue
     hooks.index = 0
-    return registration.Component({})
+    return registration.Component(props)
   }
   return { id: mod.id, registrations, render }
 }
