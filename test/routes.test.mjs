@@ -234,7 +234,9 @@ test('路由面收敛：只保留 8 条（/config 与 /client-hello 已下线，
   assert.deepEqual([...routes.keys()].sort(), expected)
 })
 
-test('/update 只读地报告版本（离线/在线都必须给出 current）', async () => {
+// 这条会真的去 npm registry 查最新版本，机器慢/网络抖时会撑到超时（跑过 5010ms 才失败）。
+// 给它单独的宽松超时：要验的是「离线也必须给出 current」，不是网络速度。
+test('/update 只读地报告版本（离线/在线都必须给出 current）', { timeout: 60000 }, async () => {
   const res = await call('GET', '/session-superagent/update')
   assert.equal(res.statusCode, 200)
   const body = JSON.parse(res.body)
