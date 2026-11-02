@@ -45,3 +45,4 @@
 | 文档 | [四十个版本的 CHANGELOG ≠ 客户能读的东西](release-notes-for-humans.md) | ✅ 0.8.90 |
 | 文档 | [文档分四种，别用一种应付](docs-four-kinds.md) | ✅ 0.8.91 |
 | 可靠性 | [版本差 54 个版本，界面上看不出来](verify-live-gap.md) | ✅ 0.8.92 |
+| 可靠性 | [从内部发现版本漂移](version-drift-inside.md) | ✅ 0.8.93 |

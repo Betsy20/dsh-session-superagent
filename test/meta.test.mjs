@@ -172,3 +172,14 @@ test('编辑态初始化必须列全可编辑字段（漏一个就会在保存�
     assert.ok(block.includes(field + ':'), '编辑态初始化缺字段 ' + field + ' —— 打开再直接保存会把这项写回默认值')
   }
 })
+
+test('doctor 的版本一致性检查：磁盘版本必须等于加载版本（否则就是"改了没重启"）', () => {
+  const src = read('../lib/index.js')
+  assert.ok(src.includes('installedVersion'), '缺 installedVersion 实现')
+  assert.ok(src.includes('代码已更新但未生效'), '缺"改了没重启"的提示文案')
+  // 当前仓库状态下两者应当一致（不一致说明有人改了版本号却没同步）
+  const disk = JSON.parse(read('../package.json')).version
+  const m = src.match(/export const SERVER_VERSION = '([^']+)'/)
+  assert.ok(m, '找不到 SERVER_VERSION')
+  assert.equal(m[1], disk, 'package.json 与 SERVER_VERSION 必须一致')
+})
