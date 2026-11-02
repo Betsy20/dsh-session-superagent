@@ -81,6 +81,17 @@ const text = formatWatchText(REPO, listed, {
 say(text)
 
 say('')
+say('===== 3b. 有跳过时的同一条消息 =====')
+// 这条分支以前从没被演练过：一直传空 skippedReasons，于是"累计冒充本轮"的 bug 藏了很久
+const skippedText = formatWatchText(REPO, listed, {
+  changedTotal: 7,
+  batchLimit: listed.length,
+  skippedReasons: { '已关闭': 2, '机器人': 1, '已 ack': 1 },
+})
+const skipLine = skippedText.split(String.fromCharCode(10)).find((line) => line.includes('为什么是这几条'))
+say(skipLine || '（没有为什么行——这是个 bug）')
+
+say('')
 say('===== 4. 面板会看到什么 =====')
 watcher.deferReason = null
 const groups = summarizeByRepo([{ ...watcher, enabled: true, lastWake: iso(5), silentWakes: 0 }])
