@@ -17,6 +17,7 @@ import {
   mergeWakeTexts,
   msUntilActiveWindow,
   nextWaketimeAt,
+  durationText,
   pushEvent,
   repoBadges,
   stalenessNote,
@@ -932,4 +933,23 @@ test('连续同一条事件合并成带次数的一条（否则每轮一样的�
   let many = []
   for (let i = 0; i < 50; i += 1) many = pushEvent(many, { kind: 'k' + (i % 3), text: 't' + i })
   assert.equal(many.length, 20)
+})
+
+test('合并事件要能回答"持续了多久"（at 是最新、since 是首次）', () => {
+  const t0 = '2026-11-02T10:00:00.000Z'
+  const t1 = '2026-11-02T10:42:00.000Z'
+  let events = pushEvent([], { kind: 'cap-watcher', text: 'x', at: t0 })
+  assert.equal(events[0].since, t0, '首次发生时间要记下来')
+  events = pushEvent(events, { kind: 'cap-watcher', text: 'x', at: t1 })
+  assert.equal(events.length, 1)
+  assert.equal(events[0].since, t0, 'since 不能被覆盖成最新时间')
+  assert.equal(events[0].at, t1, 'at 要更新为最新')
+  assert.equal(events[0].count, 2)
+
+  assert.equal(durationText(t0, t1), '42 分钟')
+  assert.equal(durationText(t0, '2026-11-02T12:05:00.000Z'), '2 小时 5 分')
+  assert.equal(durationText(t0, '2026-11-02T12:00:00.000Z'), '2 小时')
+  assert.equal(durationText(t0, t0), '不到 1 分钟')
+  assert.equal(durationText(null, t1), '', '缺输入给空')
+  assert.equal(durationText(t1, t0), '', '反向时间给空')
 })

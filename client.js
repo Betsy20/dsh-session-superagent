@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.9'
+    const CLIENT_VERSION = '0.9.10'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1238,6 +1238,9 @@ window.__ModuleLoader__.load({
               h('div', { className: 'dt-row-title' },
                 h(Tag, { tone: event.kind === 'wake' ? 'success' : event.kind === 'wake-failed' ? 'danger' : 'outline' },
                   event.kind + (Number(event.count) > 1 ? ' ×' + event.count : '')),
+                (Number(event.count) > 1 && event.since)
+                  ? h('span', { className: 'dt-row-meta' }, '持续 ' + durationText(event.since, event.at))
+                  : null,
                 h('span', { className: 'dt-row-meta' }, ageText(event.at))),
               h('div', { className: 'dt-hint' }, watcher.repo + ' · ' + event.text)))))))
 
@@ -1396,6 +1399,19 @@ window.__ModuleLoader__.load({
         if (/HTTP 404/.test(raw)) return '接口不存在（404）：多半还在跑旧版本代码，重启宿主。'
         if (/timeout|timed out|ETIMEDOUT/i.test(raw)) return '请求超时：宿主可能正忙（比如同时在建隔离 worktree），稍后自动重试。'
         return raw
+      }
+
+      /** 持续时长（与服务端 watch.js:durationText 同语义）。 */
+      function durationText(sinceIso, untilIso) {
+        const from = Date.parse(String(sinceIso || ''))
+        const to = Date.parse(String(untilIso || ''))
+        if (!Number.isFinite(from) || !Number.isFinite(to) || to < from) return ''
+        const minutes = Math.floor((to - from) / 60000)
+        if (minutes < 1) return '不到 1 分钟'
+        if (minutes < 60) return minutes + ' 分钟'
+        const hours = Math.floor(minutes / 60)
+        const rest = minutes % 60
+        return rest > 0 ? hours + ' 小时 ' + rest + ' 分' : hours + ' 小时'
       }
 
       /** 仓库能力徽章（与服务端 watch.js:repoBadges 同语义）。 */
