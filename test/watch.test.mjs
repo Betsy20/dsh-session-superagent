@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import { decodeBody } from '../lib/body.js'
 import * as watchModule from '../lib/watch.js'
 import {
+  classifyGhError,
   advanceSeen, applyWatcherAction, batchFresh, decideWake, formatWatchText, newestUpdatedAt,
   hasAckLabel, nextDelayMs, normalizeFilters, partitionItems, passesFilters, pruneSeen, pruneWakeTimes,
   inActiveHours, mergePollResult, filterReason, pushFiltered, recordReported, splitFresh,
@@ -351,4 +352,24 @@ test('mergePollResult 必须保留 filteredLog（面板「最近被过滤」靠�
   const polled = { id: 'a/b#s1', filteredLog: [{ at: 'now', number: 7, title: 't', reason: '机器人' }] }
   const merged = mergePollResult(stored, polled)
   assert.deepEqual(merged.filteredLog, polled.filteredLog, 'filteredLog 漏出白名单就会永远读不到')
+})
+
+test('classifyGhError：把 gh 的原始报错变成人话（真机踩过 EOF）', () => {
+  const cases = [
+    ['Get "https://api.github.com/repos/a/b/issues?per_page=20": EOF', 'network', '网络抖动'],
+    ['HTTP 401: Bad credentials', 'auth', 'gh auth login'],
+    ['HTTP 404: Not Found', 'notfound', 'owner/name'],
+    ['gh: command not found', 'nogh', 'PATH'],
+    ['HTTP 403: API rate limit exceeded', 'ratelimit', '限流'],
+    ['something odd', 'other', ''],
+  ]
+  for (const [input, kind, hintPart] of cases) {
+    const got = classifyGhError(input)
+    assert.equal(got.kind, kind, input)
+    if (hintPart) assert.ok(got.hint.includes(hintPart), `${input} -> ${got.hint}`)
+  }
+  // 长 URL 必须被压缩，否则面板会被一整条 API 地址占满
+  const short = classifyGhError('Get "https://api.github.com/repos/a/b/issues?state=all&per_page=20": EOF').short
+  assert.ok(!short.includes('api.github.com'), short)
+  assert.ok(short.length <= 60, short)
 })

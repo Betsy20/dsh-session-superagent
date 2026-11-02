@@ -2,6 +2,36 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.36] - 2026-11-02 —— 面板上那串 `EOF` 原始报错，应该变成人话
+
+真机截图里出现过这样一条：
+
+```
+Get "https://api.github.com/repos/…/issues?state=all&sort=updated&direction=desc&per_page=20": EOF
+```
+
+它既长又吓人，其实是**网络抖动**（我同一分钟手工跑 `gh api` 返回 14 条，完全正常）。
+之前只有 401/404/找不到 gh 三种情况有提示，`EOF` 这类网络错误就原样怼给用户看。
+
+### 改法
+新增纯函数 `classifyGhError(detail)`，把失败分成 `auth / notfound / ratelimit / nogh / network / other`
+六类，各配一句「该怎么做」；同时把长 URL 压成 `GitHub API 请求`，避免一整条 API 地址占满面板。
+
+```
+EOF                     → 网络抖动：这一轮没连上 GitHub，已按退避自动重试，不需要手动处理
+HTTP 401                → gh 登录失效：跑 gh auth login，或在面板填 token
+HTTP 403 rate limit     → 被 GitHub 限流：等几分钟，或换成带 token 的凭证
+HTTP 404                → 仓库不存在或没权限：检查 owner/name
+gh: command not found   → 找不到 gh 命令：确认已安装且在 PATH
+```
+
+### 顺带修掉的一个隐蔽 bug
+写这个正则时 `` 被写成了**退格符（0x08）**，导致 `EOF` 那条永远匹配不上 ——
+是「分类函数跑起来却发现 kind=other」才暴露的。已清掉文件里 4 个控制字符，并加用例钉住六种输入。
+
+### 测试
+- 新增用例：六类输入 + 长 URL 压缩。合计 **95 例**。
+
 ## [0.8.35] - 2026-11-02 —— 面板在跟哪一代，能查了
 
 排查热重载问题时一直卡在一个观测盲点：面板每 5 秒轮询 `/state`，但**轮询不落任何痕迹**，
