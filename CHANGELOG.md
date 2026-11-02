@@ -2,6 +2,29 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.82] - 2026-11-02 —— 跳过必须可见：skip 要带原因，用例体内不许静默 return
+
+### 为什么
+`{ skip: process.platform !== 'win32' }` 在非 Windows 机器上只输出一个 `skip`，
+**不说明为什么** —— 看日志的人无法判断"是环境不满足，还是有人偷懒"。
+更隐蔽的是用例体内的 `if (…) return`：**显示通过，其实一行断言都没跑**。
+
+### 做法
+`scripts/audit-test-skips.mjs`：
+1. `skip` 的值必须是三元里带字符串的写法 `? '原因' : false`；
+2. 扫描用例体内的裸 `return`（当前 0 处）。
+
+### 首跑就抓到自己一次
+第一版判据写成"值里含引号就算有原因"，而 `process.platform !== 'win32'` 里也有引号 →
+**假 PASS**。改成必须匹配 `? '…'` 才生效，立刻抓到 `secrets-acl.test.mjs:12`。
+
+### 现状
+```
+PASS 跳过可见性  skip 都有原因，无用例体内 return
+node --test → 195/195，skipped 0
+```
+已接进 `preflight`（第 28 项）。
+
 ## [0.9.81] - 2026-11-02 —— scripts/ 的临时文件也纳入收口（并且这次判据是真的生效）
 
 ### 做了什么

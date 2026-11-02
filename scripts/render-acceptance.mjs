@@ -27,6 +27,7 @@ for (const match of preflight.matchAll(/record\('([^']+)'/g)) {
 // 每项：防什么 + 证据（真实事故 / KB 条目）
 const WHY = {
   '门禁自检': ['僵尸检查（永远是绿的，其实不检查任何东西）', 'KB `gate-mutation-check.md`'],
+  '跳过可见性': ['测试静默跳过（显示通过，其实一行断言没跑）', 'KB `fake-pass.md`'],
   '工具承诺对照': ['工具描述里的承诺（幂等/只读/默认值）没进对账表', 'KB `tool-panel-parity.md`'],
   '术语表对照': ['面板在用但术语表没解释的词（客户会卡住）', 'KB `jargon-audit.md`'],
   '错误建议': ['错误建议过长或没有可执行动作（0.9.62 曾出现兜底建议为空）', 'KB `error-must-have-next-step.md`'],

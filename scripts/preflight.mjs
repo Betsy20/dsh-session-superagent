@@ -38,6 +38,16 @@ const tryRun = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: ROOT, encod
     claimed ? (claimed === String(tests) ? 'README 写 ' + claimed + '，实际 ' + tests : 'README 写 ' + claimed + '，实际 ' + tests + '（改 README）') : 'README 没写单测数')
 }
 
+// ①.45 跳过必须可见（skip 要带原因；用例体内不许静默 return）
+{
+  const res = tryRun('node', ['scripts/audit-test-skips.mjs'], { timeout: 60000 })
+  const out = String(res.stdout || '')
+  const bad = out.split(String.fromCharCode(10)).filter((line) => line.startsWith('FAIL '))
+  const warn = out.split(String.fromCharCode(10)).filter((line) => line.startsWith('WARN '))
+  record('跳过可见性', res.status === 0 && bad.length === 0,
+    bad.length > 0 ? bad[0].replace(/^FAIL /, '') : (warn.length > 0 ? warn[0].replace(/^WARN /, '') : 'skip 都有原因，无用例体内 return'))
+}
+
 // ①.5 临时目录收口（独立脚本，注入验证也能单独跑）
 {
   const res = tryRun('node', ['scripts/audit-tmp-dirs.mjs'], { timeout: 60000 })

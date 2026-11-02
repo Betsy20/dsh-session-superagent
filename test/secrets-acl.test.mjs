@@ -9,7 +9,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-test('凭证文件在 Windows 上会被收紧到「只有当前用户」', { skip: process.platform !== 'win32' }, async () => {
+test('凭证文件在 Windows 上会被收紧到「只有当前用户」', { skip: process.platform !== 'win32' ? '只在 Windows 上验证 ACL 收紧' : false }, async () => {
   const { __test } = await import('../lib/index.js')
   const dir = tempDir('zhuli-acl-')
   const file = join(dir, 'secrets.json')
