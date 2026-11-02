@@ -223,6 +223,19 @@ const record = (name, detected, detail) => {
   }
 }
 
+// ⑯ UI 体检：把一处 token 改回写死颜色，ui-audit 必须红（0.9.69 修好指标后这条才成立）
+{
+  const path = join(root, 'client.js')
+  const original = readFileSync(path, 'utf8')
+  try {
+    writeFileSync(path, original.replace("badgeOn: { color: 'var(--dsw-alias-state-success-primary)' }", "badgeOn: { color: '#1a7f37' }"))
+    const res = run(['scripts/ui-audit.mjs'])
+    record('UI 体检（注入写死颜色）', res.code !== 0)
+  } finally {
+    writeFileSync(path, original)
+  }
+}
+
 // 覆盖率报告：明确列出"还没被注入验证过"的检查，别让人以为全验过了
 const covered = new Set(coverage.covered)
 const notCovered = allChecks.filter((name) => !covered.has(name))

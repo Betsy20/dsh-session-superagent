@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.68'
+    const CLIENT_VERSION = '0.9.69'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -98,9 +98,9 @@ window.__ModuleLoader__.load({
       row: { display: 'grid', gridTemplateColumns: '1.4fr 1fr 70px 1.2fr 1.2fr 70px 112px', gap: 10, padding: '7px 0', borderBottom: '1px solid rgba(128,128,128,.18)' },
       head: { fontWeight: 600, opacity: 0.7, borderBottom: '1px solid rgba(128,128,128,.35)' },
       mono: { fontFamily: 'ui-monospace, Consolas, monospace', fontSize: 12 },
-      badgeOn: { color: '#1a7f37' },
-      badgeOff: { color: '#9a6700' },
-      err: { color: '#cf222e', fontSize: 12 },
+      badgeOn: { color: 'var(--dsw-alias-state-success-primary)' },
+      badgeOff: { color: 'var(--dsw-alias-state-warn-primary)' },
+      err: { color: 'var(--dsw-alias-state-error-primary)', fontSize: 12 },
       empty: { opacity: 0.6, marginTop: 12 },
       foot: { marginTop: 14, opacity: 0.55, fontSize: 12 },
       card: { border: '1px solid rgba(128,128,128,.25)', borderRadius: 8, padding: '12px 14px', marginBottom: 14 },
@@ -110,7 +110,7 @@ window.__ModuleLoader__.load({
       input: { flex: 1, minWidth: 180, padding: '5px 8px', borderRadius: 6, border: '1px solid rgba(128,128,128,.4)', background: 'transparent', color: 'inherit', font: 'inherit' },
       button: { padding: '5px 12px', borderRadius: 6, border: '1px solid rgba(128,128,128,.5)', background: 'rgba(128,128,128,.12)', color: 'inherit', cursor: 'pointer' },
       tiny: { padding: '2px 8px', fontSize: 11, lineHeight: '16px', borderRadius: 5, border: '1px solid rgba(128,128,128,.45)', background: 'transparent', color: 'inherit', cursor: 'pointer' },
-      ok: { color: '#1a7f37', fontSize: 12 },
+      ok: { color: 'var(--dsw-alias-state-success-primary)', fontSize: 12 },
     }
 
     // ── 移植自官方 dsh-superagent 的设计系统（scripts/port-official-ui.mjs 生成）──

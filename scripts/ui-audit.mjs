@@ -99,8 +99,14 @@ add('官方结构采用数', adopted.length + '/' + OFFICIAL_STRUCTURES.length, 
   '已用：' + adopted.join(' ') + '；未用：' + OFFICIAL_STRUCTURES.filter((n) => !adopted.includes(n)).join(' '))
 
 // ⑩ 写死颜色（含 inline style 与 JS 常量）：只允许出现在搬来的 PORTED_CSS 里
-const withoutPorted = clientSource.replace(PORTED, '')
-const hexAnywhere = count(/#[0-9a-fA-F]{3,8}/g, withoutPorted)
+// 用源码区间剔除移植过来的 CSS：PORTED 是解码后的文本，与源码里的转义形式不一致，
+// 用字符串 replace 删不掉，会把 CSS 里的 #000 算成我们写的（之前就是这么误判的）。
+const portedStart = clientSource.indexOf('const PORTED_CSS = "')
+const portedEnd = portedStart >= 0 ? clientSource.indexOf('";', portedStart) + 2 : -1
+const withoutPorted = (portedStart >= 0 && portedEnd > portedStart)
+  ? clientSource.slice(0, portedStart) + clientSource.slice(portedEnd)
+  : clientSource
+const hexAnywhere = count(/#[0-9a-fA-F]{3,8}\b/g, withoutPorted)
 add('写死颜色（含 inline/JS 常量）', hexAnywhere, 0,
   '状态色、边框色都要用 --dsw-alias-*；写死的 hex 在另一套主题里必错')
 
