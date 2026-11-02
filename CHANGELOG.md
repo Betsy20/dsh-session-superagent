@@ -2,6 +2,33 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.115] - 2026-11-03 —— `github` 工具失败时也带「下一步」和机器可读的 kind
+
+### 为什么
+上一版只修了**轮询**路径（x-poll-interval / 永久错误长退避）。而 `github` 工具（任意 REST 调用）
+失败时仍然只贴原始 stderr 加一行 `[exit code: 1]`：
+
+```
+gh: HTTP 404 Not Found
+[exit code: 1]
+```
+
+调用它的 agent 得自己猜"是仓库名错了、还是没权限、还是登录失效"。GitHub 官方最佳实践明确要求
+「do not ignore repeated 4xx/5xx」—— 失败必须带着可执行动作回到调用方。
+
+### 改法
+抽出 `formatGhCall()`（`lib/gh-format.js`），`github` 工具与轮询共用同一套分类：
+
+| 情况 | 现在返回 |
+|---|---|
+| 404 | `…（仓库不存在或没权限：检查 owner/name）` + `[kind: notfound]` |
+| 401 | `…（gh 登录失效：跑 gh auth login…）` + `[kind: auth]` |
+| 304 | `…（没有变化 —— 条件请求命中 304，这不是错误）` + `[kind: notmodified]` |
+| 成功 | 只加 `[exit code: 0]`（不带 kind，保持轻量） |
+
+### 测试
+新增 1 例：四种情况的返回形状（含「成功时不带 kind」）。合计 **223 例**。
+
 ## [0.9.114] - 2026-11-03 —— 按 GitHub 官方最佳实践补两条：x-poll-interval、永久错误等更久
 
 ### 学到什么（出处）

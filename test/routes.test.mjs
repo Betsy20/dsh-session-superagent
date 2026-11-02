@@ -1064,3 +1064,25 @@ test('尊重 x-poll-interval：GitHub 要求更慢就照它等（解析 + 间隔
   assert.equal(floor, 90000, '下限应当是 90 秒')
   assert.ok(nextDelayMs(entry, floor) >= floor, '退避只在更大的方向上生效')
 })
+
+test('github 工具失败时带「下一步」与 kind（不再只贴原始 stderr）', async () => {
+  const { formatGhCall, classifyGhError } = await import('../lib/gh-format.js')
+
+  const notFound = formatGhCall({ code: 1, text: 'gh: HTTP 404 Not Found', classify: classifyGhError })
+  assert.ok(notFound.includes('检查 owner/name'), '404 要说下一步：' + notFound)
+  assert.ok(notFound.includes('[kind: notfound]'), '要给出机器可读的 kind')
+
+  const auth = formatGhCall({ code: 1, text: 'gh: HTTP 401 Bad credentials', classify: classifyGhError })
+  assert.ok(auth.includes('gh auth login'), '登录失效要指出怎么修')
+  assert.ok(auth.includes('[kind: auth]'))
+
+  // 304：不是错误，别让调用方以为失败了
+  const notModified = formatGhCall({ code: 1, text: 'gh: HTTP 304', classify: classifyGhError })
+  assert.ok(notModified.includes('不是错误'), '304 要说清不是错误')
+  assert.ok(notModified.includes('[kind: notmodified]'))
+
+  // 成功：不追加 kind，保持轻量
+  const ok = formatGhCall({ code: 0, text: '[{"number":1}]', classify: classifyGhError })
+  assert.ok(ok.includes('[exit code: 0]'))
+  assert.ok(!ok.includes('[kind:'), '成功时不该带 kind')
+})
