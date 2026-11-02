@@ -28,3 +28,21 @@ console.log('  总览中间态：' + grab("'还没有唤醒过：守会在仓库
 console.log('  跳过原因：' + grab('const skipped = options.skippedReasons'))
 console.log('')
 console.log('判据：每句都要能回答"我现在该做什么"，或明确"不用管"。')
+
+console.log('')
+console.log('== 另外三条 ==')
+
+console.log('')
+console.log('④ 面板接口挂了（/state 500）')
+console.log('  顶部横幅：' + grab('if (/HTTP 5'))
+console.log('')
+
+console.log('⑤ gh 未安装 / 未登录')
+console.log('  设置页：' + grab("['gh CLI', !body.gh"))
+console.log('  需要关注：' + grab("text: 'gh CLI 不可用，且没有配置 token"))
+console.log('')
+
+console.log('⑥ 仓库已归档 / 关闭 Issues')
+console.log('  需要关注：' + grab("return repo + ' 已归档："))
+console.log('           ' + grab("return repo + ' 关闭了 Issues —— 主理鱼只认"))
+console.log('  动作：暂无可点操作（文案提示换仓库）')

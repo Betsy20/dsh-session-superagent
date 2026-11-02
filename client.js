@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.16'
+    const CLIENT_VERSION = '0.9.17'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1132,6 +1132,9 @@ window.__ModuleLoader__.load({
         if (watcher.lastError) problems.push({ key: 'e-' + watcher.repo, text: watcher.repo + ' 轮询失败：' + watcher.lastError })
         else if (watcher.lastDeferred) problems.push({ key: 'd-' + watcher.repo, text: watcher.repo + ' 暂停唤醒：' + watcher.lastDeferred })
       }
+      if (body.gh && body.gh.ok === false && credentials.token === 'none') {
+        problems.push({ key: 'gh', text: 'gh CLI 不可用，且没有配置 token —— 现在所有轮询都会失败。先跑 gh auth login，或在「设置 → 来源」填一个 token。' })
+      }
       if (watchers.length > 0 && credentials.token === 'none') {
         problems.push({ key: 'cred', text: '未配置 token，正在复用已登录的 gh CLI（可用 panel 填 token 换成独立凭据）' })
       }
@@ -1308,7 +1311,11 @@ window.__ModuleLoader__.load({
         h(Section, { key: 'source', title: '来源' },
           h(KeyValues, { rows: [
             ['仓库', watchers.length === 0 ? '未绑定' : watchers.map((w) => w.repo).join(', ')],
-            ['gh CLI', !body.gh ? '检测中…' : body.gh.ok ? '可用 · ' + (body.gh.version || '') : '不可用 · ' + (body.gh.error || '')],
+            ['gh CLI', !body.gh
+              ? '检测中…'
+              : body.gh.ok
+                ? '可用 · ' + (body.gh.version || '')
+                : '不可用 —— 先跑 gh auth login（或装 gh CLI）；也可以直接在下面填 token · ' + String(body.gh.error || '').slice(0, 80)],
             ['凭证', credentials.token === 'none' ? '回退到 gh CLI 登录态' : '使用面板配置的 token'],
             ['权限范围', (() => {
               const info = body.tokenScopes
@@ -1514,6 +1521,9 @@ window.__ModuleLoader__.load({
       function repoStructureNote(access) {
         if (!access || typeof access !== 'object') return ''
         const repo = String(access.repo || '这个仓库')
+        // 顺序与服务端 gh-format.js:repoStructureNote 保持一致：归档/禁用优先
+        if (access.archived === true) return repo + ' 已归档：GitHub 上归档仓库是只读的，评论和打标签都会失败 —— 守它只能看、不能回写。'
+        if (access.disabled === true) return repo + ' 已被禁用：这个仓库当前不可用，主理鱼不会拿到任何条目。'
         if (access.hasIssues === false) return repo + ' 关闭了 Issues —— 主理鱼只认 issue / PR，这里不会有任何条目可接。'
         if (access.fork === true && access.parent && access.hasIssues !== true) {
           return repo + ' 是 ' + String(access.parent) + ' 的 fork。fork 默认不带 Issues，issue 大多落在上游 —— 确认你要守的是哪一个。'
