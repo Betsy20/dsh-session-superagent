@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import { decodeBody } from '../lib/body.js'
 import * as watchModule from '../lib/watch.js'
 import {
+  priorityScore,
   classifyGhError,
   parseGhInclude,
   accessNote,
@@ -616,4 +617,25 @@ test('关闭原因与"反复重开"：只有重开才在消息里警示', () => 
   assert.ok(reopened.includes('⚠'), '重开的要显眼')
   const closedFine = formatWatchText('o/r', [{ ...base, state: 'closed', state_reason: 'not_planned' }], {})
   assert.ok(!closedFine.includes('⚠'), '正常的关闭原因不喧哗')
+})
+
+test('一次只能处理 N 条时，先处理更该处理的（重开 > 有评论 > 有标签 > 其他）', () => {
+  assert.equal(priorityScore(null), 0)
+  assert.equal(priorityScore({}), 0)
+  assert.equal(priorityScore({ state_reason: 'reopened' }), 100)
+  assert.equal(priorityScore({ comments: 3 }), 10)
+  assert.equal(priorityScore({ labels: [{ name: 'ai-fix' }] }), 5)
+  assert.equal(priorityScore({ state_reason: 'reopened', comments: 2, labels: [{ name: 'x' }] }), 115)
+
+  const plain = { number: 1, title: 'a' }
+  const tagged = { number: 2, title: 'b', labels: [{ name: 'x' }] }
+  const commented = { number: 3, title: 'c', comments: 4 }
+  const reopened = { number: 4, title: 'd', state_reason: 'reopened' }
+  const picked = batchFresh([plain, tagged, commented, reopened], 2)
+  assert.deepEqual(picked.map((i) => i.number), [4, 3], '重开第一、有评论第二')
+
+  // 分数相同保持 GitHub 的 updated 顺序（稳定）
+  const a = { number: 11 }, b = { number: 12 }, c = { number: 13 }
+  assert.deepEqual(batchFresh([a, b, c], 3).map((i) => i.number), [11, 12, 13])
+  assert.deepEqual(batchFresh([a, b, c], 3).map((i) => i.number), [11, 12, 13], '多次调用顺序一致')
 })
