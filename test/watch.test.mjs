@@ -527,7 +527,8 @@ test('唤醒消息的完成标准是可观测的三条（Given-When-Then 思路�
   // 不给标准时退回原来的一句话
   const plain = formatWatchText('o/r', items, {})
   assert.ok(!plain.includes('【完成标准】'))
-  assert.ok(plain.includes('完成标准 = 有测试结果'))
+  // 没有显式 standard 时，末尾仍要有可观测的验收要求（现在拆成了编号三行）
+  assert.ok(plain.includes('没有测试结果不算完成'), '要保留“没有测试结果不算完成”这条底线')
 })
 
 test('只读仓库要在任务书里直说（否则会话会去试写然后吃 403）', () => {
