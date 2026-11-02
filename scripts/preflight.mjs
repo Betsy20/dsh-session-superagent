@@ -245,6 +245,14 @@ if (!FAST) {
     bad.length > 0 ? bad[0].trim() : (claims ? claims + ' 条 ✅ 都能找到发布 / ' + (paths || '?') + ' 个路径都存在' : '无输出'))
 }
 
+// ⑥.3 README 的说法要和代码常量对得上
+{
+  const res = tryRun('node', ['scripts/verify-readme-claims.mjs'], { timeout: 60000 })
+  const out = String(res.stdout || '')
+  const bad = out.split(String.fromCharCode(10)).filter((line) => line.startsWith('FAIL ') && line.includes('：'))
+  record('README 与代码一致', res.status === 0, bad.length > 0 ? bad[0].replace(/^FAIL /, '') : '8 组说法都对得上')
+}
+
 // ⑥.4 面板请求体积（/state @ 20 条守，现实上限 ≤ 50 KB）
 {
   const res = tryRun('node', ['scripts/measure-state.mjs', '20'], { timeout: 60000 })

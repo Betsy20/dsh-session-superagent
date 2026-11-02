@@ -2,6 +2,31 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.101] - 2026-11-02 —— README 的说法接进门禁（8 组对照）
+
+### 为什么
+README 是客户第一份契约，但**改常量时没人会想起它**。例如把冷却期从 3 分钟调成 5 分钟，
+README 里还写着「冷却期 **3 分钟**」——客户按文档算时间就会算错。
+
+### 做法
+`scripts/verify-readme-claims.mjs` 直接从代码里读常量，和 README 里的说法逐组对照：
+
+| 组 | 代码 | README |
+|---|---|---|
+| 轮询范围 | `30–3600` | 30–3600 秒 |
+| 冷却期 | `DEFAULT_COOLDOWN_MS = 180_000` | 冷却期 3 分钟 |
+| 会话上限 | `DEFAULT_SESSION_WAKES = 12` | 12 次/小时 |
+| 单守上限 | `maxWakesPerHour ?? 6` | 6 次/小时 |
+| 隔离默认 | `maxIsolated ?? 5` / `isolateKeepDays ?? 3` | 最多 5 个、超 3 天 |
+| 状态路径 | `watchers.json` | `~/.dsh/state/session-superagent/watchers.json` |
+| README 里的脚本 | 4 个 | 都真实存在 |
+| README 里的工具 | 8 个 | 都真的注册（离线 apply 验证） |
+
+### 验证它会红
+把 README 的「冷却期 **3 分钟**」改成 4 分钟 → `FAIL 冷却期 代码 3 分钟 / README 没写`；还原后 PASS。
+
+已接进 `preflight`（第 31 项）。
+
 ## [0.9.100] - 2026-11-02 —— 304 实测：60 秒 12 次拉取，只有 2 次真的传正文
 
 ### 为什么要量

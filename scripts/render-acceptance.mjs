@@ -51,6 +51,7 @@ const WHY = {
   '信息密度': ['首屏区块过多', 'KB `information-density.md`'],
   '文档标识符': ['工具名/路由改名后文档没跟上', 'KB `identifier-drift.md`'],
   '知识库有据': ['知识库的 ✅ 没有对应发布、路径不存在', 'KB `audit-kb-claims.md`'],
+  'README 与代码一致': ['README 写死的数字/工具名与代码漂移（客户第一份契约出错）', 'scripts/verify-readme-claims.mjs（0.9.101）'],
   '面板请求体积': ['/state 在 20 条守时过大（每 5 秒拉一次，流量直接翻倍）', 'scripts/measure-state.mjs（0.9.88 起）'],
   '长跑体积': ['状态文件随运行时间无限增长（数组没封顶）', 'KB measure-before-trimming.md + 0.9.95'],
   '双主题预览可渲染': ['面板在另一套主题下渲染失败', 'KB `information-density.md`'],
