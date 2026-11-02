@@ -1140,3 +1140,20 @@ test('结构化状态视图：文本与 JSON 出自同一份数据', () => {
   assert.equal(empty.watchers.length, 0)
   assert.equal(empty.session.used, 0)
 })
+
+test('跳过行要说总数（只说前三个原因会让人以为只有这些）', () => {
+  const items = [{ number: 1, title: 'x', state: 'open', html_url: 'https://x/1', user: { login: 'u' }, labels: [], assignees: [] }]
+  const text = formatWatchText('o/r', items, {
+    changedTotal: 9, batchLimit: 1,
+    skippedReasons: { '已关闭': 5, '机器人': 2, '草稿 PR': 1, '已 ack': 1 },
+  })
+  assert.ok(text.includes('本轮跳过 9 条'), '总数要是 5+2+1+1=9：' + text.split(String.fromCharCode(10)).find((l) => l.includes('跳过')))
+  assert.ok(text.includes('已关闭 × 5'), '前三个原因要列出')
+  assert.ok(text.includes('草稿 PR × 1'), '第三个原因在列表里')
+  assert.ok(!text.includes('已 ack × 1'), '第四个原因不再列（只列前三个）')
+  assert.ok(text.includes('等）'), '被截断时要标"等"')
+
+  // 没有跳过时不该出现这一行
+  const none = formatWatchText('o/r', items, { changedTotal: 1, batchLimit: 1, skippedReasons: {} })
+  assert.ok(!none.includes('本轮跳过'), '没有跳过就不要提')
+})
