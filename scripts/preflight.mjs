@@ -120,7 +120,7 @@ if (!FAST) {
       get: () => null, on() {}, effect: (fn) => fn(),
     })
   } catch (error) {
-    record('路由面', false, 'apply 抛错：' + (error && error.message))
+    record('路由面（9 条）', false, 'apply 抛错：' + (error && error.message))
   }
   const expected = ['client-error', 'client-note', 'credentials', 'diagnose', 'goal', 'state', 'update', 'watch']
     .map((n) => '/session-superagent/' + n)

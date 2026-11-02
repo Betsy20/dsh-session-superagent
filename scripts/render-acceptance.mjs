@@ -16,6 +16,7 @@ const preflight = readFileSync(join(root, 'scripts', 'preflight.mjs'), 'utf8')
 const coverage = JSON.parse(readFileSync(join(root, 'test', 'fixtures', 'gate-coverage.json'), 'utf8'))
 const covered = new Set(coverage.covered)
 const suspect = new Set(Object.keys(coverage.suspect || {}))
+const exempt = coverage.exempt || {}
 
 // 代码里真实的检查项（按出现顺序，去重）
 const names = []
@@ -82,11 +83,11 @@ function render() {
   lines.push('|---|---|---|---|---|')
   names.forEach((name, index) => {
     const [why, evidence] = WHY[name] || ['（缺解释）', '（缺证据）']
-    lines.push('| ' + (index + 1) + ' | `' + name + '` | ' + why + ' | ' + evidence + ' | ' + (suspect.has(name) ? '⚠️' : (covered.has(name) ? '✅' : '—')) + ' |')
+    lines.push('| ' + (index + 1) + ' | `' + name + '` | ' + why + ' | ' + evidence + ' | ' + (suspect.has(name) ? '⚠️' : (covered.has(name) ? '✅' : (exempt[name] ? '⛔' : '—'))) + ' |')
   })
   const coveredCount = names.filter((name) => covered.has(name)).length
   lines.push('')
-  lines.push('**注入验证**：`✅` = 有一个"故意造错看它会红"的注入样例（`scripts/verify-gates.mjs`）；`—` = 还没注入过（不等于没检查）；`⚠️` = 注入后指标没动，疑似失明。')
+  lines.push('**注入验证**：`✅` = 有一个"故意造错看它会红"的注入样例（`scripts/verify-gates.mjs`）；`—` = 还没注入过（不等于没检查）；`⚠️` = 注入后指标没动，疑似失明；`⛔` = 不适合注入（元检查 / 需真机 / 与其他检查重叠），原因见 `test/fixtures/gate-coverage.json` 的 `exempt`。')
   lines.push('当前覆盖 **' + coveredCount + '/' + names.length + '** 项。')
   lines.push('')
   lines.push('---')

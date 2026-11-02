@@ -236,12 +236,33 @@ const record = (name, detected, detail) => {
   }
 }
 
+// ⑱ 临时目录收口：临时塞一个自己建临时目录的测试文件，preflight 必须红
+{
+  const path = join(root, 'test', 'zz-injected-tmp.test.mjs')
+  try {
+    writeFileSync(path, [
+      "import test from 'node:test'",
+      "import { mkdtempSync } from 'node:fs'",
+      "import { tmpdir } from 'node:os'",
+      "import { join } from 'node:path'",
+      "test('x', () => { mkdtempSync(join(tmpdir(), 'zhuli-zz-')) })",
+    ].join(String.fromCharCode(10)) + String.fromCharCode(10))
+    const res = run(['scripts/preflight.mjs', '--fast'])
+    record('临时目录收口（注入违规测试）', res.code !== 0 && /临时目录收口/.test(res.out))
+  } finally {
+    if (existsSync(path)) unlinkSync(path)
+  }
+}
+
 // 覆盖率报告：明确列出"还没被注入验证过"的检查，别让人以为全验过了
 const covered = new Set(coverage.covered)
-const notCovered = allChecks.filter((name) => !covered.has(name))
+const exempt = coverage.exempt || {}
+const notCovered = allChecks.filter((name) => !covered.has(name) && !exempt[name])
 console.log('---')
 console.log('注入覆盖：' + (allChecks.length - notCovered.length) + '/' + allChecks.length + ' 项检查有注入验证')
-if (notCovered.length > 0) console.log('未验证（不一定是问题，但要知道）：' + notCovered.join('、'))
+const exemptNames = allChecks.filter((name) => exempt[name])
+console.log('豁免注入：' + exemptNames.length + ' 项（' + exemptNames.map((n) => n + '：' + exempt[n]).join('；') + '）')
+if (notCovered.length > 0) console.log('仍可注入未做：' + notCovered.join('、'))
 const suspect = Object.entries(coverage.suspect || {})
 if (suspect.length > 0) {
   console.log('疑似失明（注入后指标没动，需人工查）：')
