@@ -11,6 +11,8 @@
 | [awesome-submission](awesome-submission.md) | 要提交到 awesome-dsh-plugin：现成的 YAML、图标、核对结论 |
 | [competitive-analysis](competitive-analysis.md) | 想知道和 Sweep / CodeRabbit 这类工具的差别 |
 | [deepseek-papers](deepseek-papers.md) | 想知道设计取舍背后的研究依据 |
+| [optimization-plan](optimization-plan.md) | 要挑活时：11 项 UI/可靠性/客户体验指标 + 当前分数 + 下一批目标 |
+| [ui-inventory](ui-inventory.md) | 要改界面时：渲染面 → 页签 → 二级 → 三级 → 官方原语对照，逐条标差异 |
 | [review-2026-11-01](review-2026-11-01.md) | 历次严格审核的结论与遗留项（含每项的闭环状态） |
 
 仓库根部还有三份「维护用」的：`MAINTENANCE.md`（维护者视角的现状与门禁）、
@@ -18,7 +20,7 @@
 
 ## 时效性
 
-- `README` / `01-架构` / `design-system` / `HANDOFF` 随代码更新，**以代码为准**；
+- `README` / `01-架构` / `design-system` / `HANDOFF` / `optimization-plan` / `ui-inventory` 随代码更新，**以代码为准**；
 - `official-gui-ia` 是对官方 0.1.0 的考古快照，不会跟随官方变化；
 - `review-*` 是当时的事实记录，不追改（后续闭环写在表格里，不改原文结论）；
 - `awesome-submission` 里的门槛时间点会过期，提交前重新核对 `contributing.md`。

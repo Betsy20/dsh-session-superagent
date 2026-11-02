@@ -3,7 +3,7 @@
 <img src="assets/icon-180.png" width="88" height="88" alt="">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.8.48-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
+[![Version](https://img.shields.io/badge/version-0.8.49-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
 [![npm](https://img.shields.io/npm/v/dsh-session-superagent.svg)](https://www.npmjs.com/package/dsh-session-superagent)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-plugin-orange.svg)](https://github.com/topics/dsh-plugin)
 
@@ -143,6 +143,14 @@ dsh plugin --profile <profile> add dsh-session-superagent@latest
 | 绑定的会话已删除，watcher 还在打 GitHub | 0.8.14 之前的 bug：该类失败没进退避 | 升级到 ≥0.8.14（0.8.22 起未预期异常也会退避） |
 | `npm i dsh-session-superagent@<新版本>` 报 `ETARGET` | 刚发布，npm 客户端元数据缓存还没刷新 | 等 1-2 分钟，或 `npm i <tarball URL>` / `--prefer-online` |
 | 有动静但会话没被叫醒 | 会话忙 / 时段外 / 每小时上限 / 被子过滤器刷掉 | `watch_status` 会显示 `deferred=` / `paused`；面板「总览」的「最近被过滤」给原因 |
+
+| 面板显示原始 `Get "https://api.github.com/…": EOF` | 客户网络抖动（换网/代理），不是插件坏了 | 升级到 ≥0.8.36：会显示「网络抖动，已按退避自动重试」；本机能访问不代表客户能 |
+| 设了时段 `09:00-23:00`，窗口外还显示绿色「主理中」 | 0.8.40 之前的 bug：只判断 enabled，不看是否在窗口内 | 升级到 ≥0.8.40：窗口外显示灰色「时段外」（只攒条目不唤醒） |
+| 改了服务端代码、也重载了，面板却还是旧行为 | 宿主重载后**旧 handler 摘不掉**，HTTP 仍走旧代码 | ≥0.8.32 起会自动换到 `/session-superagent/rN` 重放；客户端 ≥0.8.34 会自动跟过去。仍异常时重启一次宿主 |
+| 面板建的 watcher 一跑就报 `inactive context`，工具建的却正常 | 同上：那条 HTTP 路径由**已释放的旧实例**处理 | ≥0.8.31 起会直接返回 503 并提示「请重载 DSH」，不再静默造死守 |
+| 加过的 watcher 突然不见了 | 0.8.37 之前的 bug：状态整份覆盖，旧快照会抹掉新条目 | 升级到 ≥0.8.37：合并写 + 删除墓碑，迟到写入不会复活/抹掉 |
+| 客户机器上「面板是空的 / 没有新功能」 | 客户装的是旧版（客户不会主动升级） | 面板顶部会有「有新版本 x.y.z」横幅，设置 → 版本与更新给出升级命令 |
+| 想知道客户现场到底什么状态 | 我们看不到他机器上的状态文件 | 让客户点 设置 → 诊断 → 复制诊断信息（已脱敏，含版本/挂载/每条守的最近错误） |
 
 `pnpm run preflight` 一条命令可自查：单测、语法、profile 一致性、版本一致、路由面、包内容、冒烟。
 
