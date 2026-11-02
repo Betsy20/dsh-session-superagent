@@ -857,3 +857,24 @@ test('同会话多条唤醒要合并成一条（实测三守相位只差 1 秒�
   assert.ok(merged.includes('第 1 处') && merged.includes('第 3 处'), '每处都要有分隔')
   assert.ok(merged.includes('A 仓库有 2 条') && merged.includes('C 仓库有 3 条'), '内容不能丢')
 })
+
+test('合并时同一段【完成标准】只保留一份（实测能砍掉近一半长度）', () => {
+  const item = (n, repo) => ({ number: n, title: repo + ' 的标题', state: 'open', html_url: 'https://x/' + n, user: { login: 'u' }, labels: [], assignees: [] })
+  const opts = {
+    criteria: ['改了什么：…', '怎么验证的：…', '回写到哪：…'],
+    goal: '让客户的问题当天有回应',
+  }
+  const a = formatWatchText('o/repoA', [item(1, 'repoA')], opts)
+  const b = formatWatchText('o/repoB', [item(2, 'repoB')], opts)
+  const merged = mergeWakeTexts([a, b])
+  const count = (needle) => (merged.match(new RegExp(needle, 'g')) || []).length
+  assert.equal(count('【完成标准】'), 1, '完成标准只该出现一次')
+  assert.equal(count('本条目主理目标'), 1, '目标行只该出现一次')
+  assert.ok(merged.includes('repoA') && merged.includes('repoB'), '两个仓库的内容都要在')
+  assert.ok(merged.length < a.length * 2, '合并后应明显短于简单拼接：' + merged.length + ' vs ' + a.length * 2)
+
+  // 完成标准不同则各自保留（不能误删）
+  const c = formatWatchText('o/repoC', [item(3, 'c')], { criteria: ['另一套标准'] })
+  const mixed = mergeWakeTexts([a, c])
+  assert.equal((mixed.match(new RegExp('【完成标准】', 'g')) || []).length, 2, '不同的完成标准要都留着')
+})
