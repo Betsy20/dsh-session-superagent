@@ -86,9 +86,25 @@ gh pr create --repo awesome-dsh-plugin/awesome-dsh-plugin   --title "Add dsh-ses
 
 ---
 
-## 提交状态（2026-11-02 11:05 +08）
+---
 
-- **PR：<https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/11266>**
-- 分支：`MYCF711/awesome-dsh-plugin:main`，只加一个文件 `data/plugins/MYCF711__dsh-session-superagent.yml`（518 字节）
-- CI：`scripts/check-submission.mjs` 的年龄门槛 `MIN_AGE_DAYS = 1` 当时未满（17.2h / 24h）。
-  官方检查器自己写明：这条会**自动重跑并在满 1 天后转绿**（不需要重开 PR 或再推一次），预计 **17:53 +08** 变绿。
+## 提交状态（2026-11-02 11:2x +08，共 3 条）
+
+**PR：<https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/11266>**（标题已改为三条一起）
+
+| 条目文件 | 仓库 | 分类 | 为什么 |
+|---|---|---|---|
+| `MYCF711__dsh-session-superagent.yml` | dsh-session-superagent | `session` | 会话级的「盯 + 办」 |
+| `MYCF711__dsh-GOkifu-compact.yml` | dsh-GOkifu-compact | `memory` | 棋谱式上下文压缩（DAG + 热清单） |
+| `MYCF711__dsh-sovereign.yml` | dsh-sovereign | `security` | 主权条款 + 工具结果清洗 + 不可逆操作前置裁决 |
+
+规范复核（`contributing.md`）：
+- **一个 PR 最多 3 条**（§"One PR, at most 3 entries"）→ 正好 3 条，没有超；
+- 一个插件一个文件（`data/plugins/<owner>__<repo>.yml`）；
+- 只有 `description.en` 必填；含 `: ` 必须加引号（三条都加了）；
+- 要求 `package.json` 声明 `dsh.bundle`（三条都有 `./cordis.patch.yml`）；
+- 分类不准不会被打回，维护者会直接改。
+
+CI：新加的两次提交触发了新的 run。年龄门槛 `MIN_AGE_DAYS = 1` 由**最新的那个仓库**决定
+（`dsh-session-superagent` 于 2026-11-01 创建，17h/24h），另两个仓库都是 10 月创建、已满足。
+按官方说明这条会自动重跑并在满 1 天后转绿 —— 预计 **17:53 +08**。
