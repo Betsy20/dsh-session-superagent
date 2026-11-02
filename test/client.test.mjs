@@ -951,4 +951,8 @@ test('面板与唤醒消息说的是同一套规则（AGENTS.md → 修/回/待�
   assert.ok(text.includes('AGENTS.md'), '面板要提到按仓库规则判断')
   assert.ok(text.includes('修 / 回 / 待定'), '面板要给出三种处理方式')
   assert.ok(text.includes('watch_ack'), '面板要说明最后要 ack')
+  assert.ok(text.includes('不会扩大范围'), '面板要说清只处理列出的那几条')
+  // 隔离执行的说明在「触发」页，单独渲染一次
+  const triggerText = walk(render(desk, deskQueue(snap, null, {}, 'trigger'))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' ')
+  assert.ok(triggerText.includes('自动回收'), '隔离执行要说明用完会回收：' + triggerText.slice(0, 200))
 })
