@@ -459,3 +459,41 @@ test('watch_status 支持 format=json（同一份数据的机器可读形式）'
   const text = String(await status.execute({}))
   assert.ok(text.includes('session:'), '默认输出要保持文本：' + text.slice(0, 80))
 })
+
+test('三个只读工具口径一致：都支持 format=json 且带 schemaVersion', async () => {
+  const tools = []
+  const dir = (await import('node:fs')).mkdtempSync((await import('node:path')).join((await import('node:os')).tmpdir(), 'zhuli-fmt-'))
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: () => () => {} },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-fmt' }) },
+    get: () => null, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?fmt=' + Date.now())
+  mod.apply(ctx)
+  for (const name of ['watch_status', 'watch_doctor', 'watch_trace']) {
+    const tool = tools.find((t) => t.name === name)
+    assert.ok(tool.parameters.properties.format, name + ' 缺 format 参数')
+  }
+
+  const status = JSON.parse(await tools.find((t) => t.name === 'watch_status').execute({ format: 'json' }))
+  assert.equal(status.schemaVersion, 1)
+  assert.ok(Array.isArray(status.watchers))
+
+  const doctor = JSON.parse(await tools.find((t) => t.name === 'watch_doctor').execute({ format: 'json' }))
+  assert.equal(doctor.schemaVersion, 1)
+  assert.ok(Array.isArray(doctor.checks) && doctor.checks.length > 0)
+  assert.ok(doctor.checks.every((c) => typeof c.status === 'string' && typeof c.text === 'string'))
+
+  // 没有任何守时，错误也要是 JSON（消费方不该在两种格式间猜）
+  const traceEmpty = JSON.parse(await tools.find((t) => t.name === 'watch_trace').execute({ number: 1, format: 'json' }))
+  assert.equal(traceEmpty.schemaVersion, 1)
+  assert.ok(typeof traceEmpty.error === 'string')
+
+  await tools.find((t) => t.name === 'watch_start').execute({ repo: 'o/fmt' })
+  const trace = JSON.parse(await tools.find((t) => t.name === 'watch_trace').execute({ number: 1, format: 'json' }))
+  assert.equal(trace.schemaVersion, 1)
+  assert.ok(Array.isArray(trace.results))
+})

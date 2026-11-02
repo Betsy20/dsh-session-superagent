@@ -33,6 +33,16 @@ agent 只能靠正则/子串解析 —— **文案一改，agent 的解析就静
 ## 是否已落地
 ✅ 0.9.43。测试 178 → 180。
 
+## 0.9.44 追加：三个只读工具口径统一
+- `watch_status` / `watch_doctor` / `watch_trace` **都**支持 `format=json`；
+- 三者都带 `schemaVersion: 1` —— 将来改字段，消费方能判断语义有没有变；
+- **错误也走 JSON**：`{ schemaVersion, error }`，消费方不用在两种格式之间猜；
+- `watch_doctor` 的 JSON 从**同一份文本行**解析（`OK/WARN/FAIL/INFO` 前缀），
+  不是另写一套判断 —— 单一来源，改一处两边都变。
+
+用例：三个工具的 `format` 参数都在 schema 里；`status`/`doctor` 可解析且带版本；
+`trace` 在"没有守"时也返回 JSON 错误；建守后 `results` 是数组。
+
 ## 还没做的
-- 其它工具（`watch_doctor`、`watch_trace`）还没加 `format`；
-- 没有定义 JSON schema 版本号（将来改字段，消费方无从判断）。
+- 没有把 `schemaVersion` 写进 README 的对外契约（消费方要自己发现）；
+- 面板不吃 JSON（它走 `/state`），两边字段仍靠用例对照。

@@ -2,6 +2,22 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.44] - 2026-11-02 —— 三个只读工具口径统一：都支持 `format=json` + `schemaVersion`
+
+### 做了什么
+- `watch_doctor` 与 `watch_trace` 补上 `format` 参数（与 0.9.43 的 `watch_status` 一致）；
+- 三者统一带 `schemaVersion: 1`；
+- **错误也走 JSON**（`{ schemaVersion, error }`）—— 消费方不用在两种格式间猜；
+- `watch_doctor` 的 JSON 从同一份文本行解析（`OK/WARN/FAIL/INFO`），单一来源。
+
+### 踩到的两个坑
+1. 用 `rfind` + 精确字符串匹配去插代码，连续两次 `anchor missing`（CRLF 与转义细节）——
+   最后改成**按索引插入**才稳定；每次生成后都 `node --check`。
+2. 空态没带 `schemaVersion`（`{session:null,watchers:[]}`），被新用例当场抓到。
+
+### 测试
+- 新增 1 例（三工具参数 + status/doctor 可解析 + trace 错误态 JSON + 建守后 results）。合计 **181 例**。
+
 ## [0.9.43] - 2026-11-02 —— `watch_status` 支持 `format=json`（同一份数据两种渲染）
 
 ### 学到的（知识库第 91 条）
