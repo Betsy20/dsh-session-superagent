@@ -2,6 +2,31 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.51] - 2026-11-02 —— 条件请求：没变化不计入速率限制
+
+### 学到了什么（新知识库 `docs/kb/` 的第一条）
+GitHub 官方最佳实践原文：*"Make authenticated conditional requests, so that unchanged data does not
+count against your primary rate limit."*
+出处：<https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api>
+
+主理鱼每 N 秒拉一次 issue 列表，**大多数轮次其实什么都没变** —— 全量拉属于纯浪费，还占额度。
+
+### 改了什么
+- 每条 watcher 记住 `etag`；下一轮带 `-H 'If-None-Match: <etag>'`；
+- 收到 **304** 当「本轮无变化」：不解析、不记失败、**不动退避**（退避是给失败的，304 是成功）；
+- `gh api --include` 会输出「状态行 + 头 + 空行 + 正文」，新增纯函数 `parseGhInclude` 解析，
+  用例覆盖 200 / 304 / 纯正文三种形态。
+
+### 效果
+没变化时：网络传输从「20 条 issue 的 JSON」降到「一个空响应」，且**不计入 rate limit**。
+
+### 附带
+- 新建 `docs/kb/`（入口索引 + 按主题分组），本轮第一条 `github-conditional-requests.md`；
+- 小时级定时任务改为「先学一条 → 再改一处 → 报三段」，作为保底。
+
+### 测试
+- 合计 **104 例**；UI 体检 11/11。
+
 ## [0.8.50] - 2026-11-02 —— 双主题预览进「一键命令 + 门禁」
 
 以前 `render-preview.mjs` 是个内部脚本，没人知道它存在；现在：

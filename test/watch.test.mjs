@@ -6,6 +6,7 @@ import { decodeBody } from '../lib/body.js'
 import * as watchModule from '../lib/watch.js'
 import {
   classifyGhError,
+  parseGhInclude,
   advanceSeen, applyWatcherAction, batchFresh, decideWake, formatWatchText, newestUpdatedAt,
   hasAckLabel, nextDelayMs, normalizeFilters, partitionItems, passesFilters, pruneSeen, pruneWakeTimes,
   inActiveHours, mergePollResult, filterReason, pushFiltered, recordReported, splitFresh,
@@ -372,4 +373,28 @@ test('classifyGhError：把 gh 的原始报错变成人话（真机踩过 EOF）
   const short = classifyGhError('Get "https://api.github.com/repos/a/b/issues?state=all&per_page=20": EOF').short
   assert.ok(!short.includes('api.github.com'), short)
   assert.ok(short.length <= 60, short)
+})
+
+test('parseGhInclude：解析 --include 的状态行 / ETag / 正文', () => {
+  const LF = String.fromCharCode(10)
+  const sample = [
+    'HTTP/2.0 200 OK',
+    'etag: W/"abc123"',
+    'content-type: application/json',
+    '',
+    '[{"number":1}]',
+  ].join(LF)
+  const parsed = parseGhInclude(sample)
+  assert.equal(parsed.status, 200)
+  assert.equal(parsed.etag, 'W/"abc123"')
+  assert.equal(parsed.body, '[{"number":1}]')
+
+  // 304：没有正文，但状态要能认出来（这条路径不计入速率限制）
+  const notModified = ['HTTP/2.0 304 Not Modified', 'etag: W/"abc123"', '', ''].join(LF)
+  assert.equal(parseGhInclude(notModified).status, 304)
+
+  // 纯正文（老版本 gh 或将来格式变化）：不炸，当 0 处理
+  const plain = parseGhInclude('[1,2,3]')
+  assert.equal(plain.status, 0)
+  assert.equal(plain.body, '[1,2,3]')
 })

@@ -7,7 +7,7 @@
 - 仓库：https://github.com/MYCF711/dsh-session-superagent
 - 版本：**v0.8.20**
 - 本地：`<本仓库 checkout 路径>`（profile 里以 `file:` 安装，**硬链接**：改源码即改 profile 内文件）
-- 真机：Windows 11 + DSH 0.2.1-rc.5，`node --test` **103/103**（重启后真机复验通过）
+- 真机：Windows 11 + DSH 0.2.1-rc.5，`node --test` **104/104**（重启后真机复验通过）
 
 | 能力 | 实现位置 | 验证方式 |
 |---|---|---|
