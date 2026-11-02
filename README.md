@@ -3,7 +3,7 @@
 <img src="assets/icon-180.png" width="88" height="88" alt="">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.8.89-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
+[![Version](https://img.shields.io/badge/version-0.8.90-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
 [![npm](https://img.shields.io/npm/v/dsh-session-superagent.svg)](https://www.npmjs.com/package/dsh-session-superagent)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-plugin-orange.svg)](https://github.com/topics/dsh-plugin)
 
@@ -34,6 +34,11 @@
 GitHub 有新动态 → watcher 轮询 → Agent.followup(消息) → 会话跑一轮
                                      ↑ 空闲时才注入（避免污染输入框）
 ```
+
+## 0.9 有什么新变化
+
+四十多个版本的改动里，**使用者能感知到的那部分**整理成了一页：[docs/whats-new-0.9.md](docs/whats-new-0.9.md)
+（更省额度、唤醒消息更像任务书、面板能看见"为什么没叫醒"、凭证权限在 Windows 上真正收紧）。
 
 ## 界面
 

@@ -2,6 +2,25 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.90] - 2026-11-02 —— 给使用者写一页"0.9 有什么新变化"
+
+### 学到的（知识库第 39 条）
+Keep a Changelog 的第一原则是 **"Changelogs are for humans, not machines."** ——
+但"人类"也分开发者与使用者；四十段 CHANGELOG 对客户仍然不可读。
+<https://keepachangelog.com/en/1.1.0/>
+
+### 改了什么
+新增 `docs/whats-new-0.9.md`，四条规则：
+1. 只写"你会感觉到"的变化；
+2. 每条都是"以前 → 现在"对照，不写内部名词；
+3. 每条能点进 `docs/kb/` 看调研与取舍；
+4. 结尾必写**这次升级要注意什么**（我们的是"要重启宿主才生效"）。
+
+README 顶部加了入口。
+
+### 说明
+本版只动文档，运行时行为未变。
+
 ## [0.8.89] - 2026-11-02 —— 「在等」也是一种空态，别让它沉默
 
 ### 学到的（知识库第 38 条）
