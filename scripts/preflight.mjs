@@ -260,12 +260,29 @@ if (!FAST) {
   record('模式差异文档', res.status === 0, line.replace(/^(PASS|FAIL) 模式差异文档\s*/, '').replace(/与清单一致/, '与清单一致'))
 }
 
+// ⑥.22 反向用例：最容易退化的五项，改坏了必须红
+{
+  const res = tryRun('node', ['scripts/regression-cases.mjs'], { timeout: 180000 })
+  const out = String(res.stdout || '')
+  const summary = (out.match(/PASS 反向用例 (\d+)\/(\d+) 项/) || [])
+  const bad = out.split(String.fromCharCode(10)).filter((line) => line.startsWith('FAIL ') && line.includes('改坏'))
+  record('反向用例', res.status === 0 && summary.length > 0,
+    summary.length > 0 ? summary[1] + '/' + summary[2] + ' 项都能抓住退化' : (bad[0] || '无输出').replace(/^FAIL /, ''))
+}
+
+// ⑥.23 回归清单文档（与用例清单同步）
+{
+  const res = tryRun('node', ['scripts/render-regression-doc.mjs', '--check'], { timeout: 60000 })
+  const line = (String(res.stdout || '').trim().split(String.fromCharCode(10)).pop() || '无输出')
+  record('回归清单文档', res.status === 0, line.replace(/^(PASS|FAIL) 回归清单与(用例)?(清单)?一致?/g, '与用例一致').trim() || '与用例一致')
+}
+
 // ⑥.25 整句文案不该重复（复制粘贴后改一处忘另一处）
 {
   const res = tryRun('node', ['scripts/audit-duplicate-copy.mjs'], { timeout: 60000 })
   const out = String(res.stdout || '')
   const first = out.trim().split(String.fromCharCode(10))[0] || '无输出'
-  record('整句文案不重复', /重复 0 处/.test(out), first)
+  record('整句文案不重复', res.status === 0 && /重复 0 处/.test(out), first)
 }
 
 // ⑥.3 README 的说法要和代码常量对得上

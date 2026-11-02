@@ -36,7 +36,9 @@ console.log('扫描 ' + FILES.length + ' 个文件，整句（≥' + MIN_LEN + '
 if (findings.length > 0) {
   for (const item of findings) console.log('  x' + item.n + '  ' + item.file + '  ' + item.text.slice(0, 50))
   console.log('---')
-  console.log('INFO 重复的整句建议抽成常量或改一处（不是硬失败：有些确实需要重复）')
+  console.log('FAIL 同一句文案出现两次 —— 抽成常量，或确认后改一处')
+  // 之前这里是 INFO 且 exit 0：结果"改坏也不会红"，回归用例当场抓到了这个假通过
+  process.exitCode = 1
 } else {
   console.log('PASS 没有重复的整句文案')
 }

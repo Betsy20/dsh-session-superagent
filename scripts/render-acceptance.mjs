@@ -51,6 +51,8 @@ const WHY = {
   '信息密度': ['首屏区块过多', 'KB `information-density.md`'],
   '文档标识符': ['工具名/路由改名后文档没跟上', 'KB `identifier-drift.md`'],
   '知识库有据': ['知识库的 ✅ 没有对应发布、路径不存在', 'KB `audit-kb-claims.md`'],
+  '反向用例': ['最容易退化的五项已经退化（改坏也不会红）', 'KB recurring-theme-means-missing-check.md + 0.9.109'],
+  '回归清单文档': ['回归清单与用例不同步（文档说有五项，实际不跑）', 'scripts/render-regression-doc.mjs（0.9.109）'],
   '模式差异文档': ['--fast 跳过了什么、风险是什么，没人说得清', 'scripts/render-preflight-modes.mjs（0.9.108）'],
   '整句文案不重复': ['同一句中文在源码里出现两次（改一处忘另一处）', 'CHANGELOG 232 条里「重复」相关 22 次'],
   'README 与代码一致': ['README 写死的数字/工具名与代码漂移（客户第一份契约出错）', 'scripts/verify-readme-claims.mjs（0.9.101）'],

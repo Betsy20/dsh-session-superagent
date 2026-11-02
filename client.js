@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.108'
+    const CLIENT_VERSION = '0.9.110'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -461,7 +461,8 @@ window.__ModuleLoader__.load({
 
     function orbitStateOf(w) {
       if (!w) return 'paused'
-      if (w.lastError) return 'error'
+      // 历史数据里可能残留「gh: HTTP 304」这类不是错误的记录 —— 不把它当异常
+      if (w.lastError && !/HTTP 304|304 Not Modified/i.test(String(w.lastError))) return 'error'
       if (w.enabled === false) return 'paused'
       // 设了活跃时段、而此刻在窗口外：它其实不会唤醒，只是把条目攒着 ——
       // 这时候还标「主理中」就是在骗人（2026-11-02 用户截图指出）。

@@ -974,3 +974,17 @@ test('watch_start 能设 ackLabel：两个会话可各用各的标签，互不�
   const other = Object.values(after.watchers).find((w) => w.repo === 'acme/other')
   assert.equal(other.ackLabel, '主理鱼:已处理', '不传就用默认标签')
 })
+
+test('gh 把 304 当失败时，不该记成错误（条件请求命中 ≠ 出错）', async () => {
+  const { classifyGhError } = await import('../lib/gh-format.js')
+  for (const text of ['gh: HTTP 304', 'HTTP 304 Not Modified']) {
+    const why = classifyGhError(text)
+    assert.equal(why.kind, 'notmodified', text + ' → ' + why.kind)
+    assert.ok(/不是错误/.test(why.hint), '提示要说清这不是错误：' + why.hint)
+  }
+  // 304 不属于任何"要人动手"的分类
+  const notActionable = ['auth', 'notfound', 'moved']
+  for (const text of ['gh: HTTP 304']) {
+    assert.ok(!notActionable.includes(classifyGhError(text).kind))
+  }
+})

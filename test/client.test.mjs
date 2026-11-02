@@ -1045,3 +1045,17 @@ test('顶部四个计数必须加得上总数（互斥，不重复数）', () =>
   assert.equal(total, 5, '总数 5 条：' + text.slice(0, 200))
   assert.equal(sum, total, '分项之和要等于总数（实际 ' + sum + ' vs ' + total + '）')
 })
+
+test('历史数据里残留的 304 不该被算成「异常」', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const at = (mins) => new Date(Date.now() - mins * 60000).toISOString()
+  const snap = {
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: 'x', credentials: {}, sessionUsage: { used: 1, cap: 12, capped: 0 },
+      watchers: [watcher('a/b', { id: 'a/b#s1', lastWake: at(10), lastError: 'gh: HTTP 304（没有变化 —— 条件请求命中 304，这不是错误）' })] },
+  }
+  const text = walk(render(desk, deskQueue(snap))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  const counters = text.match(/(\d+)\s*\|\s*异常/) || []
+  assert.ok(!/\|\s*1\s*\|\s*异常/.test(text), '304 不该算进异常：' + text.slice(0, 200))
+})
