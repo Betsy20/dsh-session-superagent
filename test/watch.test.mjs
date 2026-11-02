@@ -745,3 +745,27 @@ test('关联 PR：open 优先、去重、消息里提醒"已有 PR 在做"', () 
   const item = { number: 7, title: 'x', state: 'open', html_url: 'u7', user: { login: 'u' }, labels: [], assignees: [], linkedPr: [{ number: 20, state: 'OPEN' }] }
   assert.ok(formatWatchText('o/r', [item], {}).includes('已有 PR #20'), '消息里要提醒')
 })
+
+test('错误归类覆盖真实见过的 12 种（别退回 other）', () => {
+  const cases = [
+    ['unexpected EOF', 'network'],
+    ['HTTP 403: API rate limit exceeded for user ID 1.', 'ratelimit'],
+    ['gh: Not Found (HTTP 404)', 'notfound'],
+    ['dial tcp 140.82.114.6:443: i/o timeout', 'network'],
+    ['Bad credentials', 'auth'],
+    ['error: unable to get local issuer certificate', 'network'],
+    ['HTTP 502 Bad Gateway', 'gateway'],
+    ['secondary rate limit', 'ratelimit'],
+    ['repository "o/r" not found', 'notfound'],
+    ['gh: command not found', 'nogh'],
+    ['context deadline exceeded', 'network'],
+    ['You have exceeded a secondary rate limit', 'ratelimit'],
+  ]
+  for (const [text, kind] of cases) {
+    const r = classifyGhError(text)
+    assert.equal(r.kind, kind, `「${text}」应归为 ${kind}，实际 ${r.kind}`)
+    assert.ok(r.hint && r.hint.length > 4, `「${text}」必须带一句人话提示`)
+  }
+  // "command not found" 不能被当成 notfound 仓库
+  assert.equal(classifyGhError('gh: command not found').kind, 'nogh')
+})

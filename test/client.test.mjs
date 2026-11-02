@@ -708,3 +708,13 @@ test('需要重启时面板顶部要有横幅（"功能看起来没生效"最常
   const quiet = walk(render(desk, deskQueue(same))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
   assert.ok(!quiet.includes('需要重启宿主'), '一致时不该出现横幅')
 })
+
+test('面板自己的错误也要说人话（Failed to fetch 客户看不懂）', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = { loading: false, error: 'Failed to fetch', body: { sessionGoal: null, sessionTitle: 'x', credentials: {}, watchers: [] } }
+  const text = walk(render(desk, deskQueue(snap))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(!text.includes('Failed to fetch'), '不该把原始英文丢给客户')
+  assert.ok(text.includes('连不上宿主'), '要说明发生了什么：' + text.slice(0, 200))
+  assert.ok(text.includes('诊断'), '要给出下一步动作')
+})

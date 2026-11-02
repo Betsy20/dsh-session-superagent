@@ -2,6 +2,32 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.97] - 2026-11-02 —— 错误提示要回答"我该做什么"
+
+### 学到的（知识库第 46 条）
+NN/g《Error-Message Guidelines》：用平实语言说明问题**并给出建设性解决方案**，不要只显示系统错误码。
+<https://www.nngroup.com/articles/error-message-guidelines/>
+
+### 拿真机见过的 12 条错误串去测，只命中 8 条
+```
+other | （无提示）| error: unable to get local issuer certificate
+other | （无提示）| HTTP 502 Bad Gateway
+other | （无提示）| repository "o/r" not found
+other | （无提示）| context deadline exceeded
+```
+
+### 补齐到 12/12
+- `notfound`：补 `repository "x" not found` 这类（但不能把 `command not found` 误判进来）；
+- `network`：补证书 / `context deadline exceeded` / x509；
+- 新增 `gateway`：GitHub 或本地代理短暂故障 —— 这类最容易被误当成"我的仓库有问题"。
+
+### 面板自己的错误也要人话
+面板拉自己接口失败**不经过**上面那套，以前直接显示 `Failed to fetch`。
+现在：连不上宿主 / 5xx / 404 / 超时 各有对应说明 + 动作（去诊断、重启、或"会自动重试不用管"）。
+
+### 测试
+- 新增 2 例（12 种错误的归类与 hint、面板 `Failed to fetch` 必须翻译且提到「诊断」）。合计 **140 例**。
+
 ## [0.8.96] - 2026-11-02 —— index.js 量完不拆；顺手加文档体检
 
 ### 一、为什么**不**拆 index.js（知识库第 45 条）

@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.96'
+    const CLIENT_VERSION = '0.8.97'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1356,6 +1356,27 @@ window.__ModuleLoader__.load({
         return () => { alive = false }
       }, [])
 
+
+      /**
+       * 面板自己遇到的错误也要说人话。
+       *
+       * 服务端那边的 gh 错误已经由 classifyGhError 归类（并附了 hint）；
+       * 但**面板拉自己接口失败**（宿主正在重启、端口变了、fetch 被拒）不会经过那套，
+       * 以前界面上就是一行 "Failed to fetch" —— 客户看不懂，也不知道要做什么。
+       */
+      function humanizeError(text) {
+        const raw = String(text == null ? '' : text)
+        if (!raw) return ''
+        if (/Failed to fetch|NetworkError|Load failed/i.test(raw)) {
+          return '连不上宿主：DSH 可能正在重启，或插件刚被重载。稍等几秒会自动重试；一直这样就去「设置 → 诊断」复制信息。'
+        }
+        if (/HTTP 401|HTTP 403/i.test(raw)) return '宿主拒绝了请求（401/403）：面板接口可能需要重新挂载，重启宿主即可。'
+        if (/HTTP 5\d\d/.test(raw)) return '宿主内部报错（5xx）：先把「设置 → 诊断」里的信息复制出来，再重启宿主试试。'
+        if (/HTTP 404/.test(raw)) return '接口不存在（404）：多半还在跑旧版本代码，重启宿主。'
+        if (/timeout|timed out|ETIMEDOUT/i.test(raw)) return '请求超时：宿主可能正忙（比如同时在建隔离 worktree），稍后自动重试。'
+        return raw
+      }
+
       /** 仓库能力徽章（与服务端 watch.js:repoBadges 同语义）。 */
       function repoBadges(access) {
         if (!access || typeof access !== 'object') return []
@@ -1428,7 +1449,7 @@ window.__ModuleLoader__.load({
               h('a', { className: 'dt-btn dt-btn-sm dt-btn-outline', href: '#', onClick: (e) => { e.preventDefault(); setTab('settings') } }, '看升级命令'))
           : null,
         toastView,
-        snap.error ? h('div', { className: 'dt-banner dt-danger' }, '读取失败：' + snap.error) : null,
+        snap.error ? h('div', { className: 'dt-banner dt-danger' }, '读取失败：' + humanizeError(snap.error)) : null,
         snap.loading && !snap.body ? h(Hint, null, '正在读取…') : null,
         tab === 'overview' ? overview : null,
         tab === 'judge' ? judge : null,
