@@ -911,3 +911,25 @@ test('迷你时间线：有界、只留最近 N 条、坏数据不崩', () => {
   assert.ok(long[0].kind.length <= 24 && long[0].text.length <= 160)
   assert.ok(/T/.test(long[0].at), '要带时间戳')
 })
+
+test('连续同一条事件合并成带次数的一条（否则每轮一样的记录会刷满 20 条）', () => {
+  let events = []
+  for (let i = 0; i < 10; i += 1) events = pushEvent(events, { kind: 'cap-watcher', text: '每小时最多唤醒 6 次' })
+  assert.equal(events.length, 1, '连续 10 次应合并成 1 条')
+  assert.equal(events[0].count, 10, '次数要记下来：' + JSON.stringify(events[0]))
+
+  // 中间夹了别的事件就不合并，且合并后计数重新开始
+  events = pushEvent(events, { kind: 'wake', text: '唤醒了 2 条：#1 #2' })
+  events = pushEvent(events, { kind: 'cap-watcher', text: '每小时最多唤醒 6 次' })
+  assert.equal(events.length, 3, '不连续就不该合并：' + JSON.stringify(events.map((e) => e.kind)))
+  assert.equal(events[2].count, undefined, '新的一条没有次数')
+
+  // 同样的 kind 但文案不同也不合并（不同原因要分开看）
+  events = pushEvent(events, { kind: 'cap-watcher', text: '这条会话一小时内已被唤醒 12 次' })
+  assert.equal(events.length, 4)
+
+  // 合并后仍然有界
+  let many = []
+  for (let i = 0; i < 50; i += 1) many = pushEvent(many, { kind: 'k' + (i % 3), text: 't' + i })
+  assert.equal(many.length, 20)
+})

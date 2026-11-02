@@ -61,3 +61,4 @@
 | 性能 | [贵的动作放在便宜的判断之后](skip-expensive-work-early.md) | ✅ 0.9.6 |
 | 性能 | [热路径上的维护动作要节流](throttle-cleanup.md) | ✅ 0.9.7 |
 | 可观测性 | ["为什么没叫醒我"要有据可查](bounded-event-timeline.md) | ✅ 0.9.8 |
+| 可观测性 | [噪声会淹没信号：连续同类事件合并](event-noise-reduction.md) | ✅ 0.9.9 |

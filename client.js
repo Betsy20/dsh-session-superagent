@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.8'
+    const CLIENT_VERSION = '0.9.9'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1236,7 +1236,8 @@ window.__ModuleLoader__.load({
           },
             h('div', { className: 'dt-row-main' },
               h('div', { className: 'dt-row-title' },
-                h(Tag, { tone: event.kind === 'wake' ? 'success' : event.kind === 'wake-failed' ? 'danger' : 'outline' }, event.kind),
+                h(Tag, { tone: event.kind === 'wake' ? 'success' : event.kind === 'wake-failed' ? 'danger' : 'outline' },
+                  event.kind + (Number(event.count) > 1 ? ' ×' + event.count : '')),
                 h('span', { className: 'dt-row-meta' }, ageText(event.at))),
               h('div', { className: 'dt-hint' }, watcher.repo + ' · ' + event.text)))))))
 
