@@ -854,3 +854,43 @@ test('刚重启不该被当成「定时器丢了」', async () => {
   const stale = String(await doctor.execute({}))
   assert.ok(stale.includes('没轮询过'), '跑久了还陈旧才算故障：' + stale.slice(0, 300))
 })
+
+test('watch_trace 文本：一切正常时一行说完，异常才展开', async () => {
+  const tools = []
+  const dir = tempDir('zhuli-trace-quiet-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: () => () => {} },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-tq' }) },
+    get: () => null, on() {}, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?tq=' + Date.now())
+  mod.apply(ctx)
+  const start = tools.find((t) => t.name === 'watch_start')
+  const trace = tools.find((t) => t.name === 'watch_trace')
+  await start.execute({ repo: 'acme/q' })
+
+  const state = mod.__test.readState()
+  const key = Object.keys(state.watchers)[0]
+  state.watchers[key].seen = { 55: '2026-11-01T10:00:00.000Z' }
+  state.watchers[key].history = [{ at: '2026-11-02T09:00:00.000Z', numbers: [55], ok: true }]
+  mod.__test.writeState(state)
+
+  const quiet = String(await trace.execute({ number: 55 }))
+  assert.equal(quiet.split(String.fromCharCode(10)).length, 2, '正常情况两行（结论 + 最近一次）：' + quiet)
+  assert.ok(!quiet.includes('水位 seen'), '不堆细节')
+  assert.ok(quiet.includes('最近一次唤醒'), '要给出时间')
+
+  // 有失败唤醒时展开
+  const state2 = mod.__test.readState()
+  state2.watchers[key].history = [
+    { at: '2026-11-02T09:00:00.000Z', numbers: [55], ok: true },
+    { at: '2026-11-02T10:00:00.000Z', numbers: [55], ok: false, reason: 'agent busy' },
+  ]
+  mod.__test.writeState(state2)
+  const loud = String(await trace.execute({ number: 55 }))
+  assert.ok(loud.includes('唤醒尝试'), '有失败要展开：' + loud)
+  assert.ok(loud.includes('agent busy'), '要说明失败原因')
+})
