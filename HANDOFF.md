@@ -182,6 +182,11 @@ computed style 核对：模态 `fixed/inset:0`、宽 380 居中；Toast `fixed/t
   `curl -s http://127.0.0.1:<port>/session-superagent/state | jq .serverVersion` 应为 0.8.85+，
   并确认响应头带 `etag`。
 
+### 真机验证（重启后 5 分钟，见 docs/真机验证清单.md）
+- 一条命令：`node scripts/verify-live.mjs`（会逐项 PASS/FAIL）
+- 重启前实测：版本对齐 / ETag / 304 / diagnose **四项 FAIL**（线上 0.8.38）
+- 重启后预期：7 项全 PASS
+
 ### 外部事项（需要别人动作，别每小时重复提）
 - **awesome 收录**：PR <https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/11266>
   状态 `OPEN / MERGEABLE`、`check=SUCCESS`、0 review / 0 comment —— **在等维护者合并**，我们这边无需动作。

@@ -11,6 +11,7 @@
 | [awesome-submission](awesome-submission.md) | 要提交到 awesome-dsh-plugin：现成的 YAML、图标、核对结论 |
 | [competitive-analysis](competitive-analysis.md) | 想知道和 Sweep / CodeRabbit 这类工具的差别 |
 | [deepseek-papers](deepseek-papers.md) | 想知道设计取舍背后的研究依据 |
+| [真机验证清单](真机验证清单.md) | 重启后三条命令 + 三个动作，5 分钟确认新代码在跑 |
 | [首次唤醒走查](首次唤醒走查.md) | 新客户照着走一遍：7 步 + 每步该看到什么 |
 | [kb/](kb/README.md) | 每轮外部学习沉淀：出处 / 做法 / 我们能怎么用 / 是否已落地 |
 | [optimization-plan](optimization-plan.md) | 要挑活时：11 项 UI/可靠性/客户体验指标 + 当前分数 + 下一批目标 |
