@@ -83,3 +83,12 @@ gh pr create --repo awesome-dsh-plugin/awesome-dsh-plugin   --title "Add dsh-ses
 - 版本：`0.8.11`（`latest` 已指向；`0.0.0-stage` 是 npm 自动占位，已标弃用）
 - 地址：https://www.npmjs.com/package/dsh-session-superagent
 - 安装：`npm i dsh-session-superagent`
+
+---
+
+## 提交状态（2026-11-02 11:05 +08）
+
+- **PR：<https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/11266>**
+- 分支：`MYCF711/awesome-dsh-plugin:main`，只加一个文件 `data/plugins/MYCF711__dsh-session-superagent.yml`（518 字节）
+- CI：`scripts/check-submission.mjs` 的年龄门槛 `MIN_AGE_DAYS = 1` 当时未满（17.2h / 24h）。
+  官方检查器自己写明：这条会**自动重跑并在满 1 天后转绿**（不需要重开 PR 或再推一次），预计 **17:53 +08** 变绿。
