@@ -538,3 +538,30 @@ test('写工具也给 JSON：成功/失败都能被程序判断（不再靠读�
   const text = String(await start.execute({ repo: 'o/wr' }))
   assert.ok(text.startsWith('watching '), '默认仍返回文本：' + text.slice(0, 60))
 })
+
+test('watch_doctor 能发现"定时器丢了"和"隔离目录不可写"', async () => {
+  const tools = []
+  const dir = tempDir('zhuli-doctor-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: () => () => {} },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-doc' }) },
+    get: () => null, on() {}, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?doc=' + Date.now())
+  mod.apply(ctx)
+  const doctor = tools.find((t) => t.name === 'watch_doctor')
+  const start = tools.find((t) => t.name === 'watch_start')
+
+  // 造一个"两小时没轮询过"的守（定时器丢了的样子）
+  await start.execute({ repo: 'o/stale' })
+  const state = mod.__test.readState()
+  const key = Object.keys(state.watchers)[0]
+  state.watchers[key].lastPoll = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+  mod.__test.writeState(state)
+
+  const text = String(await doctor.execute({}))
+  assert.ok(/没轮询过/.test(text), '停滞的守要报出来：' + text.slice(0, 300))
+})
