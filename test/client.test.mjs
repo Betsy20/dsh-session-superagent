@@ -691,3 +691,20 @@ test('中间态：有守但从未唤醒过，要给"在等"的引导而不是沉
   const after = walk(render(desk, deskQueue(woken))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
   assert.ok(!after.includes('还没有唤醒过'), '唤醒过就不该再提示')
 })
+
+test('需要重启时面板顶部要有横幅（"功能看起来没生效"最常见的根因）', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const base = {
+    sessionGoal: null, sessionTitle: '会话',
+    credentials: { token: 'none', sshKeyPath: 'none' }, watchers: [],
+  }
+  const drifted = { loading: false, error: null, body: { ...base, installedVersion: '0.9.0', runningVersion: '0.8.4' } }
+  const text = walk(render(desk, deskQueue(drifted))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(text.includes('需要重启宿主'), '要明确说要重启：' + text.slice(0, 160))
+  assert.ok(text.includes('0.9.0') && text.includes('0.8.4'), '要写出两个版本号')
+
+  const same = { loading: false, error: null, body: { ...base, installedVersion: '0.9.0', runningVersion: '0.9.0' } }
+  const quiet = walk(render(desk, deskQueue(same))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(!quiet.includes('需要重启宿主'), '一致时不该出现横幅')
+})

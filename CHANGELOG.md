@@ -2,6 +2,26 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.94] - 2026-11-02 —— 面板顶部直接告诉你「该重启了」
+
+### 学到的（知识库第 43 条）
+Kubernetes 的 `generation` vs `observedGeneration` 是同一类问题：
+**声明的版本**和**控制器实际处理到的版本**要分别暴露，否则"看起来生效了"和"真的生效了"分不清。
+<https://kubernetes.io/docs/reference/using-api/api-concepts/#generation-and-observedgeneration>
+（我们对应的是「磁盘装好的版本」vs「进程里跑着的版本」。）
+
+### 为什么值得
+上一轮 `watch_doctor` 能报版本漂移，但**只有 agent 调 doctor 才看得到**，客户看不到。
+而"客户端热重载生效、服务端不生效"正是最容易让人困惑的状态：界面是新样式，功能却没生效。
+
+### 改了什么
+- `/state` 新增 `installedVersion`（磁盘）与 `runningVersion`（进程）；
+- 两者不一致时，面板**顶部横幅**：
+  > 代码已更新到 0.9.0，但宿主还在跑 0.8.4 —— 服务端改动需要重启宿主才生效（客户端部分已生效，所以界面可能看起来是新的）。
+
+### 测试
+- 新增 1 例：漂移时必须出现横幅且写出两个版本号；一致时不得出现。合计 **138 例**。
+
 ## [0.8.93] - 2026-11-02 —— 让 watch_doctor 自己说出"改了没重启"
 
 ### 背景

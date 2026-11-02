@@ -46,3 +46,4 @@
 | 文档 | [文档分四种，别用一种应付](docs-four-kinds.md) | ✅ 0.8.91 |
 | 可靠性 | [版本差 54 个版本，界面上看不出来](verify-live-gap.md) | ✅ 0.8.92 |
 | 可靠性 | [从内部发现版本漂移](version-drift-inside.md) | ✅ 0.8.93 |
+| 可靠性 | [声明版本 vs 已生效版本要分别暴露](generation-vs-observed.md) | ✅ 0.8.94 |
