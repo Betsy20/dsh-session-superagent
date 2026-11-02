@@ -93,6 +93,13 @@ const hexAnywhere = count(/#[0-9a-fA-F]{3,8}/g, withoutPorted)
 add('写死颜色（含 inline/JS 常量）', hexAnywhere, 0,
   '状态色、边框色都要用 --dsw-alias-*；写死的 hex 在另一套主题里必错')
 
+// ⑪ 自造 token：我们自己代码里引用的 --dsw-* 必须都在官方 CSS 里出现过（否则宿主机上没有这个变量）
+const officialTokens = new Set([...PORTED.matchAll(/--dsw-[a-z0-9-]+/g)].map((m) => m[0]))
+const ourTokens = new Set([...withoutPorted.matchAll(/--dsw-[a-z0-9-]+/g)].map((m) => m[0]))
+const invented = [...ourTokens].filter((token) => !officialTokens.has(token))
+add('自造 token', invented.length, 0,
+  invented.length ? '官方 CSS 里不存在的变量：' + invented.join(' ') : ourTokens.size + ' 个引用全部有出处')
+
 const passed = results.filter((r) => r.ok).length
 const score = Math.round((passed / results.length) * 100)
 

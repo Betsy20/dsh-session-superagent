@@ -2,6 +2,28 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.46] - 2026-11-02 —— 双主题预览 + 「自造 token」守门
+
+### ① 预览脚本终于能看两套主题
+`node scripts/render-preview.mjs out.html` 现在一次输出 **浅色 + 深色**两套（9 个场景 × 2 = 18 块），
+覆盖：总览 / 判定 / 触发 / 设置（来源）/ 设置（版本与更新）/ 新版本横幅 / 两种 Toast / 术语表。
+
+顺手修掉一个长期误导：预览的兜底 token 用的是
+`--dsw-alias-border-default`、`--dsw-alias-success-500`、`--dsw-alias-accent-primary` ——
+**宿主机上根本没有这些变量**，所以以前预览一直"没上色"，看起来像样式没移植对。
+现在全部换成真实变量名（`--dsw-alias-border-l3`、`--dsw-alias-state-success-primary`、`--dsw-alias-brand-primary` …）。
+
+### ② 新增守门：自造 token
+`ui-audit` 第 11 项 —— 我们自己代码里引用的 `--dsw-*` 必须都在官方 CSS 里出现过。
+当前 0 处自造（引用 20 个变量，全部有出处）。这条能防住「变量名拼错→样式静默失效」。
+
+### 指标
+```
+11/11 通过（100 分）
+写死颜色（样式块）0 · 写死颜色（inline/JS）0 · 自造 token 0
+官方结构 8/8 · 弹层键盘 3/3 · 裸 button 5/17 · 死代码 0
+```
+
 ## [0.8.45] - 2026-11-02 —— 表单字段补齐官方 Field，状态色全部 token 化
 
 ### ① 表单字段用官方 `Field`（带 hint / note）
