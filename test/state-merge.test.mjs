@@ -3,7 +3,7 @@
 //
 // 修法：写状态时与盘上内容合并 —— 盘上有、内存里没有的条目保留；
 // 只有「墓碑里记过的 id」才允许消失（删除时立墓碑，避免被迟到写入复活）。
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tempDir } from './fixtures/tmpdir.mjs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -72,4 +72,40 @@ test('主文件坏了会退回备份，而不是把客户所有守当空状态',
   const again = JSON.parse(readFileSync(join(dir, 'watchers.json'), 'utf8'))
   assert.ok(again.watchers['a#1'], '恢复时要把好内容写回主文件')
   rmSync(dir, { recursive: true, force: true })
+})
+
+test('主文件被写坏时能从备份恢复（第一次写入也要有备份）', async () => {
+  const dir = tempDir('zhuli-recover-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const mod = await import('../lib/index.js?recover=' + Date.now())
+
+  // 第一次写入就必须留下 .bak（否则一次损坏就全丢）
+  const state = mod.__test.readState()
+  state.watchers['a/b#s'] = { id: 'a/b#s', repo: 'a/b', sessionId: 's', intervalSec: 60, enabled: true }
+  mod.__test.writeState(state)
+  assert.ok(existsSync(join(dir, 'watchers.json.bak')), '第一次写入后就要有备份')
+
+  // 把主文件截断，模拟断电/手改
+  writeFileSync(join(dir, 'watchers.json'), '{"watchers": {"a/b#s": {"id"')
+  const recovered = mod.__test.readState()
+  assert.equal(Object.keys(recovered.watchers).length, 1, '从备份恢复，不能丢守')
+  assert.equal(recovered.watchers['a/b#s'].repo, 'a/b')
+})
+
+test('主文件和备份都坏时：留证据、从空状态开始（不静默吞掉）', async () => {
+  const dir = tempDir('zhuli-corrupt-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const mod = await import('../lib/index.js?corrupt=' + Date.now())
+  const state = mod.__test.readState()
+  state.watchers['a/b#s'] = { id: 'a/b#s', repo: 'a/b', sessionId: 's', intervalSec: 60, enabled: true }
+  mod.__test.writeState(state)
+
+  writeFileSync(join(dir, 'watchers.json'), 'not json')
+  writeFileSync(join(dir, 'watchers.json.bak'), 'also not json')
+  const empty = mod.__test.readState()
+  assert.equal(Object.keys(empty.watchers).length, 0, '都坏时从空开始')
+  const files = readdirSync(dir)
+  assert.ok(files.some((name) => name.includes('.corrupt-')), '坏文件要留证据：' + files.join(','))
 })
