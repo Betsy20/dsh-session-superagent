@@ -73,15 +73,31 @@ for (const [tab, label] of TABS) {
 }
 
 const body = lines.join(String.fromCharCode(10)) + String.fromCharCode(10)
+
+// 分级门禁：面板里允许少数长句，但不允许越来越多。
+// 上限取 3 —— 超过就说明"这次又想用长句糊过去"，该拆了。
+const LIMIT_CHARS = 80
+const MAX_LONG = 3
+const allText = lines.filter((line) => line.startsWith('- ')).map((line) => line.slice(2))
+const longOnes = allText.filter((item) => [...item].length > LIMIT_CHARS)
+const worst = allText.reduce((max, item) => Math.max(max, [...item].length), 0)
+
 const mode = process.argv[2] || ''
+const limitFlag = process.argv.indexOf('--limit')
+const maxLong = limitFlag > 0 ? Number(process.argv[limitFlag + 1]) : MAX_LONG
 
 if (mode === '--write') {
   writeFileSync(target, body)
   console.log('已写入 docs/面板文案.md（' + body.split(String.fromCharCode(10)).length + ' 行）')
 } else if (mode === '--check') {
   const saved = existsSync(target) ? readFileSync(target, 'utf8') : ''
-  if (saved === body) {
-    console.log('PASS 面板文案与当前实现一致（' + body.split(String.fromCharCode(10)).length + ' 行）')
+  const stats = '最长 ' + worst + ' 字符；超过 ' + LIMIT_CHARS + ' 字符的 ' + longOnes.length + ' 条（上限 ' + maxLong + '）'
+  if (longOnes.length > maxLong) {
+    console.log('FAIL ' + stats)
+    for (const item of longOnes.slice(0, 5)) console.log('  ' + [...item].length + ' 字符：' + item.slice(0, 50))
+    process.exitCode = 1
+  } else if (saved === body) {
+    console.log('PASS 面板文案与当前实现一致（' + body.split(String.fromCharCode(10)).length + ' 行；' + stats + '）')
   } else {
     const savedLines = saved.split(String.fromCharCode(10))
     const nowLines = body.split(String.fromCharCode(10))
