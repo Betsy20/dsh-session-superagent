@@ -183,12 +183,57 @@ const record = (name, detected, detail) => {
   }
 }
 
+// ⑫ 语法：临时把一行写成非法语法，preflight 的「语法」必须红
+{
+  const path = join(root, 'lib', 'redact.js')
+  const original = readFileSync(path, 'utf8')
+  try {
+    writeFileSync(path, original + String.fromCharCode(10) + 'const broken = (' + String.fromCharCode(10))
+    const res = run(['scripts/preflight.mjs', '--fast'])
+    record('语法（注入非法语法）', res.code !== 0 && /语法/.test(res.out))
+  } finally {
+    writeFileSync(path, original)
+  }
+}
+
+// ⑬ profile 一致性：往 lib/index.js 加一条指向不存在文件的 import，--check 必须红
+{
+  const path = join(root, 'lib', 'index.js')
+  const original = readFileSync(path, 'utf8')
+  try {
+    writeFileSync(path, original + String.fromCharCode(10) + "import './zz-not-here.js'" + String.fromCharCode(10))
+    const res = run(['scripts/sync-profile.mjs', '--check'])
+    record('profile 一致性（注入断链 import）', res.code !== 0 && /断链/.test(res.out))
+  } finally {
+    writeFileSync(path, original)
+  }
+}
+
+// ⑮ 单行长度：把消息里一句改成超长，audit-line-length 必须红
+{
+  const path = join(root, 'lib', 'watch.js')
+  const original = readFileSync(path, 'utf8')
+  try {
+    const filler = '这是一句被故意拉长的注入文本'.repeat(20)
+    writeFileSync(path, original.replace('【完成标准】', '【完成标准】' + filler))
+    const res = run(['scripts/audit-line-length.mjs'])
+    record('单行长度（注入超长行）', res.code !== 0)
+  } finally {
+    writeFileSync(path, original)
+  }
+}
+
 // 覆盖率报告：明确列出"还没被注入验证过"的检查，别让人以为全验过了
 const covered = new Set(coverage.covered)
 const notCovered = allChecks.filter((name) => !covered.has(name))
 console.log('---')
 console.log('注入覆盖：' + (allChecks.length - notCovered.length) + '/' + allChecks.length + ' 项检查有注入验证')
 if (notCovered.length > 0) console.log('未验证（不一定是问题，但要知道）：' + notCovered.join('、'))
+const suspect = Object.entries(coverage.suspect || {})
+if (suspect.length > 0) {
+  console.log('疑似失明（注入后指标没动，需人工查）：')
+  for (const [name, why] of suspect) console.log('  ' + name + ' —— ' + why)
+}
 
 const failed = results.filter((item) => !item.detected)
 console.log('---')
