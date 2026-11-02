@@ -101,9 +101,9 @@ function walk(node, out = []) {
 
 /** 主理鱼面板的 useState 队列：snap / tab / notice / form / token / goalDraft / goalTouched / toast / editing / draft */
 const deskForm = { repo: '', intervalSec: '60', goal: '', labels: '', onlyAssigned: false, activeHours: '', isolated: false, workdir: '' }
-const deskQueue = (snapshot, editing = null, draft = {}, tab = 'overview', search = '', glossary = false) =>
+const deskQueue = (snapshot, editing = null, draft = {}, tab = 'overview', search = '', glossary = false, update = null) =>
   // 末尾两个是 0.8.38 新增的 update / checking 槽位（版本检查），顺序必须跟组件里的 useState 一致
-  [snapshot, tab, null, deskForm, '', '', false, [], editing, draft, search, glossary, null, false]
+  [snapshot, tab, null, deskForm, '', '', false, [], editing, draft, search, glossary, update, false]
 
 const watcher = (repo, extra = {}) => ({
   repo,
@@ -531,4 +531,23 @@ test('删除按钮 armed 态仍然保留 dt-btn 基类（并变成危险色）',
   const className = String(buttons[index].props.className || '')
   assert.ok(className.includes('dt-btn '), 'armed 态丢了 dt-btn 基类：' + className)
   assert.ok(className.includes('dt-danger'), 'armed 态要标危险：' + className)
+})
+
+test('有新版本时面板顶部给一条横幅，点进去看升级命令', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snapshot = {
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: '会话', credentials: { token: 'configured', sshKeyPath: 'none' }, watchers: [] },
+  }
+  const update = { current: '0.8.38', latest: '0.9.0', hasUpdate: true, command: 'dsh plugin add dsh-session-superagent@0.9.0' }
+  const nodes = walk(render(desk, deskQueue(snapshot, null, {}, 'overview', '', false, update)))
+  const text = nodes.filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(text.includes('有新版本 0.9.0'), '横幅要写明新版本：' + text.slice(0, 200))
+  assert.ok(text.includes('看升级命令'), '要有入口')
+
+  // 没有新版本时不该出现横幅
+  const quiet = walk(render(desk, deskQueue(snapshot, null, {}, 'overview', '', false, { current: '0.8.38', latest: '0.8.38', hasUpdate: false })))
+  const quietText = quiet.filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(!quietText.includes('有新版本'), '没新版本就别打扰')
 })

@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.38'
+    const CLIENT_VERSION = '0.8.39'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1051,6 +1051,12 @@ window.__ModuleLoader__.load({
           value: tab, onChange: setTab, label: '主理鱼分区',
         }),
         notice ? h('div', { className: 'dt-banner dt-danger' }, notice.text) : null,
+        // 有新版本时在顶部提示一次（埋在设置页里客户不会主动翻）
+        update && update.hasUpdate
+          ? h('div', { className: 'dt-banner dt-banner-actions' },
+              h('span', { className: 'dt-banner-label' }, '有新版本 ' + update.latest + '（当前 ' + update.current + '）'),
+              h('a', { className: 'dt-btn dt-btn-sm dt-btn-outline', href: '#', onClick: (e) => { e.preventDefault(); setTab('settings') } }, '看升级命令'))
+          : null,
         toastView,
         snap.error ? h('div', { className: 'dt-banner dt-danger' }, '读取失败：' + snap.error) : null,
         snap.loading && !snap.body ? h(Hint, null, '正在读取…') : null,
