@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.67'
+    const CLIENT_VERSION = '0.8.68'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -925,7 +925,7 @@ window.__ModuleLoader__.load({
       }, action === 'pause' ? '全部已暂停' : '全部已恢复')
 
       const addWatcher = () => run(async () => {
-        await call('/watch', {
+        const created = await call('/watch', {
           method: 'POST',
           body: JSON.stringify({
             repo: form.repo.trim(),
@@ -945,7 +945,12 @@ window.__ModuleLoader__.load({
           }),
         })
         setForm({ repo: '', intervalSec: form.intervalSec, goal: '', labels: '', onlyAssigned: false, activeHours: form.activeHours, isolated: form.isolated, workdir: form.workdir, observe: form.observe })
-      }, '已添加，首轮立即开始轮询')
+        // 添加前体检的警告直接说出来：填错仓库名 / 只读 / 归档，这一刻讲最省事
+        const warnings = (created && Array.isArray(created.warnings)) ? created.warnings : []
+        if (warnings.length > 0) notify('已添加，但注意：' + warnings.join(' ／ '), 'error')
+        else notify('已添加，首轮立即开始轮询', 'info')
+        return warnings
+      }, null)
 
       const saveCredentials = () => run(async () => {
         const payload = {}

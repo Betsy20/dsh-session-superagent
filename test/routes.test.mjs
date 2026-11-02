@@ -315,3 +315,10 @@ test('/state 字段契约：client.js 引用的每个字段都必须真的回传
 
   await call('POST', '/session-superagent/watch', { action: 'delete', id: created.id })
 })
+
+test('新增守会回传 warnings 字段（添加前体检的结论；测试环境跳过网络但字段要在）', async () => {
+  const res = await call('POST', '/session-superagent/watch', { repo: 'o/precheck', sessionId: 's10', intervalSec: 60 })
+  assert.equal(res.statusCode, 200)
+  const body = JSON.parse(res.body)
+  assert.ok(Array.isArray(body.warnings), 'warnings 必须始终是数组：' + res.body.slice(0, 120))
+})

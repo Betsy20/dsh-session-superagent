@@ -20,3 +20,4 @@
 | 可靠性 | [守一个没有 issue 的仓库是空转](repo-structure.md) | ✅ 0.8.65 |
 | 可靠性 | [归档仓库是只读的](archived-repo.md) | ✅ 0.8.66 |
 | 轮询调度 | [限流是分池的](rate-limit-pools.md) | ⚠️ 准则已记，代码待用 |
+| 交互 | [输入错误要在点添加那一刻说](add-time-precheck.md) | ✅ 0.8.68 |
