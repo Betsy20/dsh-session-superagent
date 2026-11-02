@@ -81,7 +81,7 @@ async function call(method, path, body, headers) {
 
 test('注册了预期的工具与路由', () => {
   const names = tools.map((t) => t.name).sort()
-  for (const want of ['github', 'repo_here', 'watch_ack', 'watch_doctor', 'watch_start', 'watch_status', 'watch_stop']) {
+  for (const want of ['github', 'repo_here', 'watch_ack', 'watch_doctor', 'watch_trace', 'watch_start', 'watch_status', 'watch_stop']) {
     assert.ok(names.includes(want), '缺工具 ' + want + '（实际：' + names.join(',') + '）')
   }
   for (const want of ['/session-superagent/state', '/session-superagent/watch', '/session-superagent/client-note']) {

@@ -37,7 +37,8 @@ import {
   retryAfterMs,
   throttleDelayMs,
   advanceSeen, applyWatcherAction, batchFresh, decideWake, formatWatchText, newestUpdatedAt,
-  hasAckLabel, nextDelayMs, normalizeFilters, partitionItems, passesFilters, pruneSeen, pruneWakeTimes,
+  hasAckLabel,
+  itemTrace, nextDelayMs, normalizeFilters, partitionItems, passesFilters, pruneSeen, pruneWakeTimes,
   inActiveHours, mergePollResult, filterReason, pushFiltered, recordReported, splitFresh,
   staleWorktrees, worktreePlan,
 } from '../lib/watch.js'
@@ -1025,4 +1026,34 @@ test('拆分批量：剩余里绝不能出现已被选中的条目（真实消�
   assert.equal(listed.length + rest.length, fresh.length, '两边加起来必须是全部')
   for (const n of restNumbers) assert.ok(!listedNumbers.includes(n), '#' + n + ' 同时出现在两边：' + JSON.stringify({ listedNumbers, restNumbers }))
   assert.deepEqual([...listedNumbers, ...restNumbers].sort(), [42, 43, 77])
+})
+
+test('单条追溯：把"为什么没叫醒"拼成一条结论', () => {
+  const watcher = {
+    repo: 'acme/x',
+    seen: { 42: '2026-11-02T09:55:00.000Z' },
+    lastReported: { 42: '2026-11-02T09:55:00.000Z' },
+    filteredLog: [{ at: '2026-11-02T09:30:00.000Z', number: 51, title: 'x', reason: '已关闭' }],
+    history: [
+      { at: '2026-11-02T09:55:00.000Z', numbers: [42], ok: true, reason: null },
+      { at: '2026-11-02T09:41:00.000Z', numbers: [43], ok: false, reason: 'agent busy (running)' },
+    ],
+  }
+  const hit = itemTrace(watcher, 42)
+  assert.match(hit.verdict, /已经唤醒过 1 次/)
+  assert.equal(hit.seen, '2026-11-02T09:55:00.000Z')
+  assert.equal(hit.wakes.length, 1)
+
+  const filtered = itemTrace(watcher, 51)
+  assert.match(filtered.verdict, /被过滤掉了：已关闭/)
+  assert.equal(filtered.wakes.length, 0)
+
+  const failed = itemTrace(watcher, 43)
+  assert.match(failed.verdict, /尝试唤醒过 1 次但都没成功/)
+  assert.equal(failed.wakes[0].ok, false)
+
+  const unknown = itemTrace(watcher, 999)
+  assert.match(unknown.verdict, /还没轮到它/)
+  assert.equal(itemTrace(watcher, null), null)
+  assert.equal(itemTrace(null, 1), null)
 })

@@ -2,6 +2,28 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.30] - 2026-11-02 —— 单条追溯：`watch_trace` 工具 + `trace-item` 脚本
+
+### 学到的（知识库第 78 条）
+PostgreSQL 的 `EXPLAIN`：不改变执行，只解释"为什么是这个结果"。
+
+### 之前的状态
+同一件事的数据散在三处：`seen[number]`（水位）、`filteredLog`（过滤记录）、`history`（唤醒历史）。
+客户问"#42 为什么没叫醒我"，得在脑子里拼 —— 拼错就给错答案。
+
+### 做了什么
+`itemTrace(watcher, number)` 拼成一条结论 + 明细：
+`被过滤掉了：已关闭` / `已经唤醒过 N 次` / `已记入水位但没唤醒` / `尝试唤醒过 N 次但都没成功` / `还没轮到它`。
+
+两个入口：工具 **`watch_trace`**（agent 直接查）+ 脚本 `node scripts/trace-item.mjs <编号>`
+（支持 `--demo` 和 `--state <path>`）。
+
+### 一个真实实现坑
+`String(null) === 'null'` 是真值 → `if (!target)` 拦不住 null 入参，用例当场红。先判入参再转字符串。
+
+### 测试
+- 新增 1 例（5 种情况）。合计 **169 例**；工具已进契约快照。
+
 ## [0.9.29] - 2026-11-02 —— 「多久会叫醒我」现在能算给人看
 
 ### 学到的（知识库第 77 条）

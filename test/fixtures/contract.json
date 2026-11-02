@@ -71,6 +71,14 @@
       "required": [
         "repo"
       ]
+    },
+    {
+      "name": "watch_trace",
+      "params": [
+        "number",
+        "repo"
+      ],
+      "required": []
     }
   ],
   "routes": [
