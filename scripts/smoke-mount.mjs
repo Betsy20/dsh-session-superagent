@@ -63,6 +63,8 @@ rmSync(stateDir, { recursive: true, force: true })
 
 if (process.argv.includes('--json')) {
   console.log(JSON.stringify(result, null, 2))
+  // --json 模式以前永远 exit 0：调用方只看退出码就会被骗（注入验证当场撞上）
+  if (!result.ok) process.exitCode = 1
 } else if (result.ok) {
   console.log(`挂载冒烟 OK：${result.version}，工具 ${result.tools.length} 个（${result.tools.join(',')}），路由 ${result.routes.length} 条`)
 } else {

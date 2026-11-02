@@ -128,3 +128,19 @@ npm notice 2.7kB test/agents-context.test.mjs
 
 剩下 2 项（`路由面（9 条）`、`离线挂载冒烟`）留到下一轮。
 **规律很清楚：每抽出一个独立脚本，注入验证就快一档，"经常跑"才成为可能。**
+
+## 0.9.73 追加：覆盖率 26/26，同时抓到"失败却 exit 0"
+最后两项（路由面 / 离线挂载冒烟）补上后，注入覆盖到 **26/26**。
+
+过程中撞到一个更基础的问题：**`smoke-mount --json` 在失败时仍 `exit 0`** ——
+它打印 `{"ok": false}` 但退出码是成功。preflight 因为读 JSON 所以没受影响，
+但任何只看退出码的调用方（包括注入验证、CI、脚本串联）都会被骗。
+
+```js
+if (process.argv.includes('--json')) {
+  console.log(JSON.stringify(result, null, 2))
+  if (!result.ok) process.exitCode = 1   // ← 这一行以前没有
+}
+```
+
+> 这是同一主题的第三类"装死"：**输出说失败，退出码说成功**。

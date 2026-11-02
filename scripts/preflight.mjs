@@ -98,29 +98,11 @@ if (!FAST) {
   record('版本一致（4 处）', same, `${pkg.version} / client ${clientVersion} / badge ${badge} / changelog ${top}`)
 }
 
-// ⑤ 路由面（期望 9 条）
+// ⑤ 路由面（独立脚本，注入验证也能单独跑）
 {
-  const stateDir = mkdtempSync(join(tmpdir(), 'preflight-'))
-  process.env.DSH_SUPERAGENT_STATE = stateDir
-  process.env.DSH_SUPERAGENT_NO_POLL = '1'
-  let count = 0
-  let paths = []
-  try {
-    const mod = await import('../lib/index.js?preflight=' + Date.now())
-    mod.apply({
-      tools: { register() {} },
-      webServer: { register: (r) => { count += 1; paths.push(r.path); return () => {} } },
-      agents: { get: () => null, currentInitiator: () => null },
-      get: () => null, on() {}, effect: (fn) => fn(),
-    })
-  } catch (error) {
-    record('路由面（9 条）', false, 'apply 抛错：' + (error && error.message))
-  }
-  const expected = ['client-error', 'client-note', 'credentials', 'diagnose', 'goal', 'state', 'update', 'watch']
-    .map((n) => '/session-superagent/' + n)
-  const ok = count === 9 && expected.every((p) => paths.includes(p))
-  record('路由面（9 条）', ok, `${count} 条：${paths.map((p) => p.split('/').pop()).join(' ')}`)
-  rmSync(stateDir, { recursive: true, force: true })
+  const res = tryRun('node', ['scripts/audit-routes.mjs'], { timeout: 60000 })
+  const line = (String(res.stdout || '').trim().split(String.fromCharCode(10))[0] || '无输出')
+  record('路由面（9 条）', res.status === 0, line.replace(/^(PASS|FAIL) 路由面（9 条）\s*/, ''))
 }
 
 // ⑥ 打包内容（脚本独立，注入验证也能单独跑它）

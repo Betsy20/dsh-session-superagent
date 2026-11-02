@@ -295,6 +295,32 @@ const record = (name, detected, detail) => {
   }
 }
 
+// 路由面：改一条路由路径，audit-routes 必须红
+{
+  const path = join(root, 'lib', 'index.js')
+  const original = readFileSync(path, 'utf8')
+  try {
+    writeFileSync(path, original.replace("path: '/session-superagent/trace'", "path: '/session-superagent/zz-injected'"))
+    const res = run(['scripts/audit-routes.mjs'])
+    record('路由面（9 条）（注入改路径）', res.code !== 0)
+  } finally {
+    writeFileSync(path, original)
+  }
+}
+
+// 离线挂载冒烟：让 apply 直接抛错，smoke-mount 必须红
+{
+  const path = join(root, 'lib', 'index.js')
+  const original = readFileSync(path, 'utf8')
+  try {
+    writeFileSync(path, original.replace('export function apply(ctx) {', "export function apply(ctx) {" + String.fromCharCode(10) + "  throw new Error('注入的挂载失败')"))
+    const res = run(['scripts/smoke-mount.mjs', '--json'])
+    record('离线挂载冒烟（注入 apply 抛错）', res.code !== 0)
+  } finally {
+    writeFileSync(path, original)
+  }
+}
+
 // 覆盖率报告：明确列出"还没被注入验证过"的检查，别让人以为全验过了
 const covered = new Set(coverage.covered)
 const exempt = coverage.exempt || {}

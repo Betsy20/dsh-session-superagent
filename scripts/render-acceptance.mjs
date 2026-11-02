@@ -34,7 +34,7 @@ const WHY = {
   '语法 node --check': ['生成代码时的语法错误（模板字符串把 \\n 写成真换行）', 'CHANGELOG 0.9.44'],
   'profile 一致性 --check': ['新文件没进 profile → 插件整体不挂载（2026-11-02 真机事故）', 'KB `limits-must-track-code.md`'],
   '版本一致（4 处）': ['改了代码没重启，面板显示的样子骗人', 'KB `version-drift-inside.md`'],
-  '路由面': ['路由注册异常（数量/路径与契约不符）', 'CHANGELOG 0.9.31（加 /trace 时同步改四处期望）'],
+  '路由面（9 条）': ['路由注册异常（数量/路径与契约不符）', 'CHANGELOG 0.9.31（加 /trace 时同步改四处期望）'],
   '路由面（9 条）': ['路由数量漂移：面板接口与工具面不一致', 'CHANGELOG 0.9.31'],
   'npm pack 内容': ['包内容泄漏或漏文件（发布后才发现的经典事故）', 'README 安装节'],
   '离线挂载冒烟': ['apply 抛错 / 挂载后路由缺失', 'KB `offline-mount-smoke.md`'],
