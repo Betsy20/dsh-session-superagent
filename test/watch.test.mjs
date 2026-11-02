@@ -11,7 +11,9 @@ import {
   pickSuggestion,
   repoBadges,
   repoStructureNote,
+  buildCommentBatchQuery,
   commentSummaryLine,
+  parseCommentBatch,
   countReasons,
   jitterMs,
   retryAfterMs,
@@ -578,4 +580,25 @@ test('最后评论是"我自己发的"要说清楚（那不是有人在处理，
   }]
   const text = formatWatchText('o/r', items, {})
   assert.ok(text.includes('我（上一轮留的）'), text.slice(0, 200))
+})
+
+test('GraphQL 批量：一次查多条，单条 NOT_FOUND 不影响其他条', () => {
+  const q3 = buildCommentBatchQuery(3)
+  assert.ok(q3.includes('i0:') && q3.includes('i2:'), '要有 3 个别名')
+  assert.ok(q3.includes('$n0: Int!') && q3.includes('$n2: Int!'), '变量声明要齐')
+  assert.equal(buildCommentBatchQuery(0).includes('i0:'), false, '0 条时不生成别名')
+  assert.equal(buildCommentBatchQuery(99).match(/i\d+:/g).length, 10, '上限 10')
+
+  const payload = {
+    data: { repository: {
+      i0: { number: 7, comments: { nodes: [{ author: { login: 'helper' }, createdAt: '2026-11-02T07:00:00Z' }] } },
+      i1: null, // NOT_FOUND
+      i2: { number: 9, comments: { nodes: [] } },
+    } },
+    errors: [{ type: 'NOT_FOUND', path: ['repository', 'i1'] }],
+  }
+  const parsed = parseCommentBatch(payload)
+  assert.deepEqual(parsed['7'], { login: 'helper', at: '2026-11-02T07:00:00Z' })
+  assert.equal(parsed['9'], undefined, '没有评论就不放进来')
+  assert.equal(parseCommentBatch(null) && Object.keys(parseCommentBatch(null)).length, 0)
 })

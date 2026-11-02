@@ -24,3 +24,4 @@
 | 轮询调度 | [search 池只有 30 次/分钟](search-rate-pool.md) | ✅ 0.8.69 |
 | 通知设计 | [叫醒前先说有没有人在处理](last-commenter.md) | ✅ 0.8.70 |
 | 通知设计 | [「我发的」≠「有人在处理」](viewer-self-comment.md) | ✅ 0.8.71 |
+| 性能 | [一次 GraphQL 查 N 条，别 N 次 REST](graphql-batch.md) | ✅ 0.8.72 |
