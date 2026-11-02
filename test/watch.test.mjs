@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import { decodeBody } from '../lib/body.js'
 import * as watchModule from '../lib/watch.js'
 import {
+  assignmentNote,
   priorityScore,
   classifyGhError,
   parseGhInclude,
@@ -652,4 +653,21 @@ test('优先级开关：关掉某一类加权后，就按"最近更新"顺序处
   // 权重本身不受影响
   assert.equal(priorityScore(reopened, { reopened: false }), 0)
   assert.equal(priorityScore({ comments: 1, labels: [{}] }, { comments: false }), 5)
+})
+
+test('认领状态：无人认领如实标注，加权默认关闭', () => {
+  assert.equal(assignmentNote(null), '')
+  assert.equal(assignmentNote({ assignees: [{ login: 'a' }] }), '')
+  assert.equal(assignmentNote({ assignees: [] }), '未认领')
+  assert.equal(assignmentNote({}), '未认领')
+
+  const item = { number: 9, title: 'x', state: 'open', html_url: 'https://x/9', user: { login: 'u' }, labels: [], assignees: [] }
+  const text = formatWatchText('o/r', [item], {})
+  assert.ok(text.includes('未认领'), '消息里要如实标注')
+
+  // 默认不加权；显式打开才有
+  assert.equal(priorityScore(item), 0)
+  assert.equal(priorityScore(item, { unassigned: true }), 3)
+  // 已认领的不受 unassigned 影响
+  assert.equal(priorityScore({ assignees: [{ login: 'a' }] }, { unassigned: true }), 0)
 })
