@@ -125,6 +125,15 @@
 | `observe` | 稳定 |
 | `isolated` | 稳定 |
 | `activeHours` | 稳定 |
+| `repos` | 稳定 |
+
+**`reposItem`**
+
+| 字段 | 稳定性 |
+|---|---|
+| `repo` | 稳定 |
+| `id` | 稳定 |
+| `updated` | 稳定 |
 
 ## watch_stop
 

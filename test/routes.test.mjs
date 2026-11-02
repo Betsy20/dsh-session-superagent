@@ -712,3 +712,34 @@ test('/state 的事件按预算收缩：守越多，每守带的事件越少', a
   assert.ok(total <= 240, '总事件数不该超过预算 240：' + total)
   assert.ok(parsed.watchers[0].events.length <= 6, '每守最多 6 条')
 })
+
+test('watch_start 一次加多个仓库：逗号/空格都认，JSON 列出每个的结果', async () => {
+  const tools = []
+  const dir = tempDir('zhuli-multi-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: () => () => {} },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-multi' }) },
+    get: () => null, on() {}, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?multi=' + Date.now())
+  mod.apply(ctx)
+  const start = tools.find((t) => t.name === 'watch_start')
+
+  const text = String(await start.execute({ repo: 'acme/a, acme/b acme/c' }))
+  assert.equal(text.split(String.fromCharCode(10)).length, 3, '三个仓库三行：' + text)
+  const state = mod.__test.readState()
+  assert.equal(Object.keys(state.watchers).length, 3, '三个守都要建好')
+
+  const json = JSON.parse(String(await start.execute({ repo: 'acme/d acme/e', format: 'json' })))
+  assert.equal(json.repos.length, 2, 'JSON 要列出每个仓库的结果')
+  assert.equal(json.repo, 'acme/d', '旧的 repo 字段保留（兼容）')
+
+  // 有一个写错就整体拒绝，不能只加一半
+  const bad = String(await start.execute({ repo: 'acme/f not-a-repo' }))
+  assert.ok(bad.includes('仓库要写成 owner/name'), '错误要说清格式：' + bad)
+  const after = mod.__test.readState()
+  assert.equal(Object.keys(after.watchers).length, 5, '失败时不该写进任何一条')
+})

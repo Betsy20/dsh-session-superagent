@@ -86,7 +86,13 @@
       "updated": "stable",
       "observe": "stable",
       "isolated": "stable",
-      "activeHours": "stable"
+      "activeHours": "stable",
+      "repos": "stable"
+    },
+    "reposItem": {
+      "repo": "stable",
+      "id": "stable",
+      "updated": "stable"
     }
   },
   "watch_stop": {

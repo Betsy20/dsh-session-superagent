@@ -2,6 +2,26 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.89] - 2026-11-02 —— watch_start 一次加多个仓库（客户三仓库不用点三次）
+
+### 为什么
+`watch_start` 一次只收一个 `repo`，三个仓库要点三次、三个工具调用 —— 而它们的
+间隔/过滤/限流通常完全一样。
+
+### 改法
+`repo` 支持 `a/b, c/d e/f`（逗号、空格、换行都认）：
+- 文本：每个仓库一行 `watching a/b → session s1 every 60s`；
+- JSON：保留原字段（兼容），新增 `repos: [{repo,id,updated}]`；
+- **有一个写错就整体拒绝**（`仓库要写成 owner/name，这些不对：…`），不会只加一半。
+
+### 过程中踩到的坑
+第一版把 `applyOne()` 包在原逻辑外面，但**原逻辑里还留着旧的 `format=json` 提前 return** ——
+于是多仓库时只返回第一个仓库的 JSON。删掉那段之后才对。
+
+### 测试
+- 新增 1 例：三个仓库三行、守数=3；JSON 带 `repos`；一个写错时整体拒绝且不写入。
+- `contract-stability.json` 登记 `repos: stable`（用例先红一次）。合计 **201 例**。
+
 ## [0.9.88] - 2026-11-02 —— 先量 /state 体积：100 条守 347 KB，加事件预算后 143 KB
 
 ### 先量（`scripts/measure-state.mjs`）
