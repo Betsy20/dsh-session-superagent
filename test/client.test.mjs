@@ -938,3 +938,17 @@ test('"今天明显比平时忙"只有 busy=true 时才提示（阈值判断在�
   assert.ok(hot.includes('今天明显比平时忙'), '该提示时要提示')
   assert.ok(hot.includes('上限可能不够用'), '要说明为什么值得注意')
 })
+
+test('面板与唤醒消息说的是同一套规则（AGENTS.md → 修/回/待定 → ack）', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = {
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: 'x', credentials: {}, watchers: [watcher('a/b', { id: 'a/b#s1' })] },
+  }
+  const text = walk(render(desk, deskQueue(snap))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' ')
+  // 三件事必须都能在面板里找到，否则客户只看到"会叫醒我"，不知道叫醒之后发生什么
+  assert.ok(text.includes('AGENTS.md'), '面板要提到按仓库规则判断')
+  assert.ok(text.includes('修 / 回 / 待定'), '面板要给出三种处理方式')
+  assert.ok(text.includes('watch_ack'), '面板要说明最后要 ack')
+})

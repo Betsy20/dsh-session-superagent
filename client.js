@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.38'
+    const CLIENT_VERSION = '0.9.39'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1186,7 +1186,8 @@ window.__ModuleLoader__.load({
         (watchers.length > 0 && watchers.every((w) => !w.lastWake))
           ? h('div', { className: 'sa-dock-foot', key: 'waiting' },
             '还没有唤醒过：守会在仓库出现新条目时叫醒这个会话。'
-            + '想先试一次，点行里的「立刻」；如果一直没动静，看上面「需要关注」里有没有被过滤的记录。')
+            + '想先试一次，点行里的「立刻」；如果一直没动静，看上面「需要关注」里有没有被过滤的记录。'
+            + '叫醒之后：会话先读仓库 AGENTS.md → 决定「修 / 回 / 待定」→ 做完写回并 watch_ack 打标签；不做也要说明理由并 ack。')
           : null,
         // 需要重启：这是"功能看起来没生效"最常见的根因，必须显眼
         (body.installedVersion && body.runningVersion && body.installedVersion !== body.runningVersion)
