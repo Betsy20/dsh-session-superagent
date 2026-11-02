@@ -846,3 +846,16 @@ test('面板与唤醒消息说的是同一套规则（AGENTS.md → 修/回/待�
   const triggerText = walk(render(desk, deskQueue(snap, null, {}, 'trigger'))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' ')
   assert.ok(triggerText.includes('自动回收'), '隔离执行要说明用完会回收：' + triggerText.slice(0, 200))
 })
+
+test('只读提示必须说出仓库名（不能是"你对 这个仓库 只有读权限"）', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = {
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: 'x', credentials: {}, sessionUsage: { used: 0, cap: 12, capped: 0 },
+      watchers: [watcher('acme/widgets', { id: 'acme/widgets#s1', repoAccess: { repo: undefined, push: false } })] },
+  }
+  const text = walk(render(desk, deskQueue(snap))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(text.includes('你对 acme/widgets 只有读权限'), '要带上仓库名：' + text.slice(0, 240))
+  assert.ok(!text.includes('你对 这个仓库'), '不该出现占位文案')
+})
