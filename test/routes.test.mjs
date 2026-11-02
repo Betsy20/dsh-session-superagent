@@ -565,3 +565,35 @@ test('watch_doctor 能发现"定时器丢了"和"隔离目录不可写"', async 
   const text = String(await doctor.execute({}))
   assert.ok(/没轮询过/.test(text), '停滞的守要报出来：' + text.slice(0, 300))
 })
+
+test('watch_trace 能说清"被冷却期吸收"，而不是三合一猜测', async () => {
+  const tools = []
+  const dir = tempDir('zhuli-absorb-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: () => () => {} },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-ab' }) },
+    get: () => null, on() {}, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?ab=' + Date.now())
+  mod.apply(ctx)
+  const start = tools.find((t) => t.name === 'watch_start')
+  const trace = tools.find((t) => t.name === 'watch_trace')
+  await start.execute({ repo: 'o/ab' })
+
+  const state = mod.__test.readState()
+  const key = Object.keys(state.watchers)[0]
+  state.watchers[key].absorbedLog = [{ at: '2026-11-02T10:00:00.000Z', number: '42', title: '被吸收的条目' }]
+  state.watchers[key].seen = { 42: '2026-11-02T09:59:00.000Z' }
+  mod.__test.writeState(state)
+
+  const text = String(await trace.execute({ number: 42 }))
+  assert.ok(text.includes('被冷却期吸收'), '结论要指名吸收：' + text.slice(0, 200))
+  assert.ok(!text.includes('仅观察，或上报前就已存在'), '不该再给三合一猜测')
+
+  const json = JSON.parse(String(await trace.execute({ number: 42, format: 'json' })))
+  const item = json.results[0]
+  assert.equal(item.absorbed.length, 1, 'JSON 里要有 absorbed 明细')
+})

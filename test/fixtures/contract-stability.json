@@ -55,7 +55,8 @@
       "reported": "stable",
       "filtered": "stable",
       "wakes": "stable",
-      "verdict": "stable"
+      "verdict": "stable",
+      "absorbed": "stable"
     },
     "filteredItem": {
       "at": "stable",
@@ -66,6 +67,10 @@
       "at": "stable",
       "ok": "stable",
       "reason": "stable"
+    },
+    "absorbedItem": {
+      "at": "stable",
+      "title": "experimental"
     }
   },
   "watch_start": {

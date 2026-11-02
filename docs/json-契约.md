@@ -82,6 +82,7 @@
 | `filtered` | 稳定 |
 | `wakes` | 稳定 |
 | `verdict` | 稳定 |
+| `absorbed` | 稳定 |
 
 **`filteredItem`**
 
@@ -98,6 +99,13 @@
 | `at` | 稳定 |
 | `ok` | 稳定 |
 | `reason` | 稳定 |
+
+**`absorbedItem`**
+
+| 字段 | 稳定性 |
+|---|---|
+| `at` | 稳定 |
+| `title` | 实验 |
 
 ## watch_start
 
