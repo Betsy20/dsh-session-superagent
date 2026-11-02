@@ -51,6 +51,16 @@ const tryRun = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: ROOT, encod
     bad.length > 0 ? '这些测试还在自己建临时目录：' + bad.join(', ') : (helper ? '全部走 tempDir()，退出时自动清理' : '缺少 test/fixtures/tmpdir.mjs'))
 }
 
+// ①.6 错误建议体检（每条建议要短、要能做 —— 文字会随版本漂移）
+{
+  const res = tryRun('node', ['scripts/audit-error-hints.mjs'], { timeout: 60000 })
+  const out = String(res.stdout || '').split(String.fromCharCode(10))
+  const bad = out.filter((line) => line.startsWith('FAIL'))
+  const cover = (String(res.stdout || '').match(/覆盖 (\d+) 类错误/) || [])[1]
+  record('错误建议', res.status === 0 && bad.length === 0,
+    bad.length > 0 ? bad[0].replace(/^FAIL /, '') : (cover ? cover + ' 类：都 ≤60 字符且有可执行动作' : '无输出'))
+}
+
 // ② 语法
 {
   const files = ['client.js', 'lib/index.js', 'lib/watch.js', 'lib/gh-format.js', 'lib/redact.js', 'lib/body.js']

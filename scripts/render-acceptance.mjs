@@ -22,6 +22,7 @@ for (const match of preflight.matchAll(/record\('([^']+)'/g)) {
 
 // 每项：防什么 + 证据（真实事故 / KB 条目）
 const WHY = {
+  '错误建议': ['错误建议过长或没有可执行动作（0.9.62 曾出现兜底建议为空）', 'KB `error-must-have-next-step.md`'],
   '临时目录收口': ['测试漏建临时目录（本机曾攒到 1654 个、一次跑漏 8 个）', 'KB `temp-dir-leak.md`'],
   '单测 node --test': ['功能回归：纯函数、路由、面板渲染', 'KB `fake-pass.md`（条件断言曾让一档用例静默跳过）'],
   'README 单测数': ['文档里的数字过期（曾写 136，实际 181）', 'KB `prose-numbers-drift.md`'],
