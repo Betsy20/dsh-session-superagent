@@ -8,6 +8,7 @@ import {
   classifyGhError,
   parseGhInclude,
   jitterMs,
+  retryAfterMs,
   throttleDelayMs,
   advanceSeen, applyWatcherAction, batchFresh, decideWake, formatWatchText, newestUpdatedAt,
   hasAckLabel, nextDelayMs, normalizeFilters, partitionItems, passesFilters, pruneSeen, pruneWakeTimes,
@@ -442,4 +443,14 @@ test('throttleDelayMs：额度充足不动，紧张时推到重置（最多 1 �
   assert.equal(throttleDelayMs({ remaining: 10, resetAt: '2026-11-02T12:00:00.000Z', now }), 3600 * 1000)
   // 重置时间已过：不推迟
   assert.equal(throttleDelayMs({ remaining: 10, resetAt: '2026-11-02T07:00:00.000Z', now }), 0)
+})
+
+test('Retry-After：stage 2 限流按服务端说的等，别瞎猜', () => {
+  const LF = String.fromCharCode(10)
+  const sample = ['HTTP/2.0 403 Forbidden', 'Retry-After: 42', '', ''].join(LF)
+  assert.equal(parseGhInclude(sample).retryAfter, 42)
+  assert.equal(retryAfterMs(42), 42000)
+  assert.equal(retryAfterMs(0), 0, '没给就别推迟')
+  assert.equal(retryAfterMs('abc'), 0, '解析不了当没给')
+  assert.equal(retryAfterMs(99999), 3600 * 1000, '封顶 1 小时')
 })
