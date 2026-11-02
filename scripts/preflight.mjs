@@ -6,6 +6,7 @@
 //   node scripts/preflight.mjs            全部检查（gh 不可用时冒烟自动 SKIP）
 //   node scripts/preflight.mjs --fast     跳过冒烟（不请求 GitHub、不建 worktree）
 import { execFileSync, spawnSync } from 'node:child_process'
+import { FAST_SKIPS } from './preflight-modes.mjs'
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -250,6 +251,13 @@ if (!FAST) {
   const bad = out.split(String.fromCharCode(10)).filter((line) => line.startsWith('FAIL') || line.includes('没写落地状态：'))
   record('知识库有据', res.status === 0 && bad.length === 0,
     bad.length > 0 ? bad[0].trim() : (claims ? claims + ' 条 ✅ 都能找到发布 / ' + (paths || '?') + ' 个路径都存在' : '无输出'))
+}
+
+// ⑥.2 模式差异文档（--fast 跳过哪些项，必须写清楚）
+{
+  const res = tryRun('node', ['scripts/render-preflight-modes.mjs', '--check'], { timeout: 60000 })
+  const line = (String(res.stdout || '').trim().split(String.fromCharCode(10)).pop() || '无输出')
+  record('模式差异文档', res.status === 0, line.replace(/^(PASS|FAIL) 模式差异文档\s*/, '').replace(/与清单一致/, '与清单一致'))
 }
 
 // ⑥.25 整句文案不该重复（复制粘贴后改一处忘另一处）
