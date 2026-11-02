@@ -2,6 +2,21 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.83] - 2026-11-02 —— CI 红绿：上一轮的顾虑被实测推翻
+
+### 学到的（知识库第 32 条）
+上一轮我说"取 CI 状态可能要多一轮查询，先不做"。**实测推翻了这个顾虑**：
+把 `statusCheckRollup { state }` 加进**已有的** cross-reference 查询，请求数不变
+（拿到 `"statusCheckRollup":{"state":"SUCCESS"}`）。
+<https://docs.github.com/en/graphql/reference/objects#pullrequest>
+
+### 改了什么
+`·CI 失败`（FAILURE/ERROR）、`·CI 运行中`（PENDING/EXPECTED）叠加进 PR 提示；
+**`SUCCESS` 不显示**（绿的不用提，避免噪音）。
+
+### 测试
+- 用例扩充（FAILURE/PENDING 显示、SUCCESS 不显示）。合计 **132 例**。
+
 ## [0.8.82] - 2026-11-02 —— 关联 PR 要说清"卡在哪"
 
 ### 学到的（知识库第 31 条）

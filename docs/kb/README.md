@@ -35,3 +35,4 @@
 | 判定与可解释性 | [「已有 PR 在做」比评论更硬的信号](linked-pull-requests.md) | ✅ 0.8.80 |
 | 判定与可解释性 | [草稿 PR ≠ 有人在推进](draft-pr-signal.md) | ✅ 0.8.81 |
 | 判定与可解释性 | [「有 PR」不够，要说清卡在哪](pr-blocked-state.md) | ✅ 0.8.82 |
+| 判定与可解释性 | [CI 红绿零成本拿到，值得展示](ci-status-on-linked-pr.md) | ✅ 0.8.83 |

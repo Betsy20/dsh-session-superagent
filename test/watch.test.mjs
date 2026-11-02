@@ -730,6 +730,9 @@ test('关联 PR：open 优先、去重、消息里提醒"已有 PR 在做"', () 
   assert.equal(linkedPrNote([{ number: 21, state: 'MERGED', draft: true }]), '已有 PR #21（已合并）', '合并不可能是草稿，不加后缀')
   assert.equal(linkedPrNote([{ number: 22, state: 'OPEN', mergeable: 'CONFLICTING' }]), '已有 PR #22（进行中·有冲突）', '冲突要说')
   assert.equal(linkedPrNote([{ number: 23, state: 'OPEN', review: 'REVIEW_REQUIRED' }]), '已有 PR #23（进行中·等 review）')
+  assert.equal(linkedPrNote([{ number: 26, state: 'OPEN', ci: 'FAILURE' }]), '已有 PR #26（进行中·CI 失败）')
+  assert.equal(linkedPrNote([{ number: 26, state: 'OPEN', ci: 'PENDING' }]), '已有 PR #26（进行中·CI 运行中）')
+  assert.equal(linkedPrNote([{ number: 26, state: 'OPEN', ci: 'SUCCESS' }]), '已有 PR #26（进行中）', 'CI 绿了不用提')
   assert.equal(linkedPrNote([{ number: 24, state: 'OPEN', review: 'CHANGES_REQUESTED' }]), '已有 PR #24（进行中·被要求修改）')
   assert.equal(
     linkedPrNote([{ number: 25, state: 'OPEN', mergeable: 'CONFLICTING', review: 'REVIEW_REQUIRED', draft: true }]),
