@@ -131,6 +131,16 @@ const tryRun = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: ROOT, encod
   record('文档链接', res.status === 0, out[1] ? out[1].replace(/^PASS /, '') : '无输出')
 }
 
+// ⑥.49 并发隔离（两个会话守同一仓库时会不会互相踩）
+{
+  const res = tryRun('node', ['scripts/verify-concurrency.mjs'], { timeout: 120000 })
+  const lines = String(res.stdout || '').trim().split(String.fromCharCode(10))
+  const last = lines[lines.length - 1] || ''
+  const failedLines = lines.filter((line) => line.startsWith('FAIL'))
+  record('并发隔离', res.status === 0 && failedLines.length === 0,
+    failedLines.length > 0 ? failedLines[0].trim() : last.replace(/^PASS /, ''))
+}
+
 // ⑥.48 隔离执行真机链路（唯一还停留在"读过代码"的环节）
 {
   const res = tryRun('node', ['scripts/verify-isolation.mjs'], { timeout: 120000 })

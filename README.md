@@ -3,7 +3,7 @@
 <img src="assets/icon-180.png" width="88" height="88" alt="">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.9.27-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
+[![Version](https://img.shields.io/badge/version-0.9.28-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
 [![npm](https://img.shields.io/npm/v/dsh-session-superagent.svg)](https://www.npmjs.com/package/dsh-session-superagent)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-plugin-orange.svg)](https://github.com/topics/dsh-plugin)
 
@@ -107,7 +107,10 @@ dsh plugin install /path/to/dsh-session-superagent
   （面板会写「约 X 分钟后可再唤醒」）。默认上限下，**会话级 12 次/小时**：
   守 3 个活跃仓库时约能处理 12 条/小时，其余攒到下一小时（离线模拟实测，见 docs/kb）。
 - 隔离执行会在仓库下留 `.dsh-zhuli/` 副本：默认**最多 5 个**、超 3 天回收；
-  副本体积≈该仓库工作树大小。
+  副本体积≈该仓库工作树大小。开隔离区时会自动把它写进 `.git/info/exclude`，
+  所以**不会污染 `git status`**、也不会误提交。
+- 两个会话守同一个仓库时，隔离区互不影响；但如果它们改了**同一个文件的同一区域**，
+  后合并的那条会产生 git 冲突（这是 git 的语义，不是产品缺陷）。
 
 ## 开发
 

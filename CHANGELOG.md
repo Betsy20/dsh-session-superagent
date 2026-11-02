@@ -2,6 +2,34 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.28] - 2026-11-02 —— 并发隔离真跑通；隔离区不再污染 `git status`
+
+### 新增：`scripts/verify-concurrency.mjs`（9 步）
+两个会话同时对同一仓库开隔离区，改**同一个文件**，各自提交，再尝试合入主线：
+
+```
+PASS 两个隔离区并存　zhuli/a + zhuli/b
+PASS .dsh-zhuli 不污染 git status　status 干净
+PASS 各自改同一文件互不干扰
+PASS A 提交不影响 B 的工作区
+PASS 两条分支各自独立提交
+PASS 先合的能进
+PASS 后合的会冲突（同文件同区域）　自动检测为冲突，符合预期
+PASS 冲突可中止，仓库回到干净状态
+```
+
+### 它发现并修掉的产品问题
+隔离区开在仓库内的 `.dsh-zhuli/`，默认是**未跟踪目录** ——
+客户一切 `git status` 就看到它，甚至可能顺手 `git add` 进去。
+修法：开隔离区前把 `.dsh-zhuli/` 写进 `.git/info/exclude`
+（本地、不提交、**不改客户的 .gitignore**）。
+
+### 边界写进 README
+两个会话守同一仓库不会互相踩，但**改同一文件同一区域**时后合并的会冲突 —— 这是 git 的语义。
+
+### 门禁
+`preflight --fast` 第 **14** 项：`PASS 并发隔离　9 步全部通过`。
+
 ## [0.9.27] - 2026-11-02 —— 隔离执行链路在本机真跑通了（9 步）
 
 ### 为什么做
@@ -12,7 +40,8 @@
 在本机临时仓库里真开 worktree、真改文件、真提交、真回收，输出 9 步结论：
 ```
 PASS 临时仓库就绪
-PASS 开隔离工作区　<tmp>epo\.dsh-zhuli\zhuli-demo
+PASS 开隔离工作区　<tmp>
+epo\.dsh-zhuli\zhuli-demo
 PASS 隔离区里能改能提交　d08af28 fix: #42
 PASS 主工作区没被污染　README.md 仍是原样
 PASS 回收隔离区　1 个 worktree
