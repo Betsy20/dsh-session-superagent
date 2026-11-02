@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.44'
+    const CLIENT_VERSION = '0.8.45'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -438,7 +438,13 @@ window.__ModuleLoader__.load({
       return 'active'
     }
 
-    const SAT_COLOR = { active: '#3fb950', paused: '#d29922', error: '#f85149', dormant: '#8b949e' }
+    // 状态色一律走 token（写死 hex 在深色/浅色两套主题里会有一个是错的）
+    const SAT_COLOR = {
+      active: 'var(--dsw-alias-state-success-primary)',
+      paused: 'var(--dsw-alias-state-warn-primary)',
+      error: 'var(--dsw-alias-state-error-primary)',
+      dormant: 'var(--dsw-alias-label-caption)',
+    }
     const STATE_TEXT = { active: '主理中', paused: '已暂停', error: '异常', dormant: '时段外' }
 
     /** 尊重系统的「减少动态效果」设置。 */
@@ -788,7 +794,7 @@ window.__ModuleLoader__.load({
         'aria-live': 'polite',
         // 官方 toast 是深底白字；错误态不要改成浅红底（白字会看不清），改用左侧红条标记
         style: item.tone === 'error'
-          ? { '--dt-toast-hold': '3600ms', borderLeft: '3px solid #f85149' }
+          ? { '--dt-toast-hold': '3600ms', borderLeft: '3px solid var(--dsw-alias-state-error-primary)' }
           : { '--dt-toast-hold': '3600ms' },
       }, item.text)
       return [view, notify]
@@ -993,9 +999,9 @@ window.__ModuleLoader__.load({
             })))
         const editor = editing === key
           ? h('div', { className: 'dt-fieldset' },
-            field('间隔（秒）', h(Input, { value: draft.intervalSec, onChange: (e) => setDraft({ ...draft, intervalSec: e.target.value }) })),
+            field('间隔（秒）', h(Input, { value: draft.intervalSec, onChange: (e) => setDraft({ ...draft, intervalSec: e.target.value }) }), '多长时间检查一次这个仓库，最小 30 秒'),
             field('只处理这些标签', h(Input, { value: draft.labels, placeholder: '逗号分隔，留空 = 全部', onChange: (e) => setDraft({ ...draft, labels: e.target.value }) })),
-            field('活跃时段', h(Input, { value: draft.activeHours, placeholder: '09:00-23:00，留空 = 全天', onChange: (e) => setDraft({ ...draft, activeHours: e.target.value }) })),
+            field('活跃时段', h(Input, { value: draft.activeHours, placeholder: '09:00-23:00，留空 = 全天', onChange: (e) => setDraft({ ...draft, activeHours: e.target.value }) }), '只在这个时间段内唤醒；窗口外只攒条目，不打扰'),
             field('目标/规则', h(Input, { value: draft.goal || '', placeholder: '可选，会附在唤醒消息里', onChange: (e) => setDraft({ ...draft, goal: e.target.value }) })),
             h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.onlyAssigned, onChange: (v) => setDraft({ ...draft, onlyAssigned: v }), label: '只看已指派' }), '只处理已指派给人的条目'),
             field('单次最多唤醒条数', h(Input, { value: draft.batchLimit || '', placeholder: '5（1-20）', onChange: (e) => setDraft({ ...draft, batchLimit: e.target.value }) })),
@@ -1185,8 +1191,13 @@ window.__ModuleLoader__.load({
         return () => { alive = false }
       }, [])
 
-      function field(label, control) {
-        return h('label', { className: 'dt-field', key: label }, h('span', { className: 'dt-field-head' }, label), control)
+      // 官方 settings-kit.tsx 的 Field：label + hint(InfoTip) + 控件 + note(small)。
+      // 我们之前只有 label，说明只能塞进 placeholder —— 用户看不到「这个字段到底什么意思」。
+      function field(label, control, hint, note) {
+        return h('label', { className: 'dt-field', key: label },
+          h('span', { className: 'dt-field-head' }, label, hint ? h(InfoTip, { text: hint }) : null),
+          control,
+          note ? h('small', null, note) : null)
       }
 
       return h('div', { className: 'dt-page' },

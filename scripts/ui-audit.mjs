@@ -87,6 +87,12 @@ const adopted = OFFICIAL_STRUCTURES.filter((name) => clientSource.includes(name)
 add('官方结构采用数', adopted.length + '/' + OFFICIAL_STRUCTURES.length, (v) => Number(String(v).split('/')[0]) >= 4,
   '已用：' + adopted.join(' ') + '；未用：' + OFFICIAL_STRUCTURES.filter((n) => !adopted.includes(n)).join(' '))
 
+// ⑩ 写死颜色（含 inline style 与 JS 常量）：只允许出现在搬来的 PORTED_CSS 里
+const withoutPorted = clientSource.replace(PORTED, '')
+const hexAnywhere = count(/#[0-9a-fA-F]{3,8}/g, withoutPorted)
+add('写死颜色（含 inline/JS 常量）', hexAnywhere, 0,
+  '状态色、边框色都要用 --dsw-alias-*；写死的 hex 在另一套主题里必错')
+
 const passed = results.filter((r) => r.ok).length
 const score = Math.round((passed / results.length) * 100)
 

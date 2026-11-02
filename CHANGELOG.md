@@ -2,6 +2,32 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.45] - 2026-11-02 —— 表单字段补齐官方 Field，状态色全部 token 化
+
+### ① 表单字段用官方 `Field`（带 hint / note）
+官方 `settings-kit.tsx` 的 `Field` 是 `label + hint(InfoTip) + 控件 + note(small)`。
+我们之前只有 `label`，说明只能塞进 placeholder。现在字段名旁有 `?` 图标，点开看人话：
+
+- 「间隔（秒）」→ 多长时间检查一次这个仓库，最小 30 秒
+- 「活跃时段」→ 只在这个时间段内唤醒；窗口外只攒条目，不打扰
+
+### ② 状态色不再写死
+轨道环的四个状态色之前是 `#3fb950 / #d29922 / #f85149 / #8b949e`（写死 hex，深色主题里就是错的），
+toast 的错误左边条同样写死了 `#f85149`。现在全部改成 `--dsw-alias-state-*` / `--dsw-alias-label-caption`。
+
+### ③ UI 体检加第 10 项：写死颜色（含 inline style 与 JS 常量）
+之前只扫样式块，所以漏掉了上面这些。现在扫整个 client.js（排除搬来的 `PORTED_CSS`），
+要求 0 处 —— 否则「换主题就有一条颜色是错的」这类问题永远发现不了。
+
+### 指标
+```
+10/10 通过（100 分）
+写死颜色（样式块）0 · 写死颜色（inline/JS）0 · 官方结构 8/8 · 弹层键盘 3/3
+```
+
+### 测试
+- 合计 **102 例**。
+
 ## [0.8.44] - 2026-11-02 —— 判定页换官方时间线 + 补齐四个原语
 
 按 `docs/ui-inventory.md` 第 3、4 项。

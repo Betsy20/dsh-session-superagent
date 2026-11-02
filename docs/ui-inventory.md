@@ -75,6 +75,6 @@
 2. ✅ **设置页改成官方「左栏 + 内容」**（0.8.43）
 3. ✅ **判定页改用 `dt-timeline` / `dt-event`**（0.8.44）
 4. ✅ **补齐缺的原语**：`Pill`、`SegmentedControl`、`DisclosureRow`、`InfoTip`（0.8.44；`StateDot` 已在 dock 用 `dt-state-dot`）
-5. **表单字段统一走官方 `Field`（带 hint/note）**；
-6. **Toast → Banner**：重要结果用 banner，toast 只做轻提示；
+5. ✅ **表单字段统一走官方 `Field`（带 hint/note）**（0.8.45，控件旁有 ? 图标）
+6. ◐ **Toast → Banner**：重要结果已用 banner（`notice`），toast 保留给「保存成功」这类轻确认 —— 决定保留，理由：官方无 toast，但一次静默的保存需要即时反馈。
 7. 双主题实拍 + 键盘走查（需宿主，攒批）。
