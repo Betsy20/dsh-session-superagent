@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.65'
+    const CLIENT_VERSION = '0.8.66'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -997,6 +997,7 @@ window.__ModuleLoader__.load({
             }, watcher.repo)),
           h('div', { className: 'dt-row-meta dt-ticket-meta' },
             stateTag(watcher),
+            ...repoBadges(watcher.repoAccess).map((badge) => h(Tag, { key: 'b-' + badge.text, tone: badge.tone }, badge.text)),
             watcher.observe ? h(Tag, { tone: 'warning' }, '仅观察') : null,
             watcher.activeHours ? h(Tag, null, '时段 ' + watcher.activeHours) : null,
             watcher.isolated ? h(Tag, null, isolationText(watcher)) : null,
@@ -1278,6 +1279,19 @@ window.__ModuleLoader__.load({
         } catch { /* 宿主早期渲染时 fetch 可能还不存在，忽略即可 */ }
         return () => { alive = false }
       }, [])
+
+      /** 仓库能力徽章（与服务端 watch.js:repoBadges 同语义）。 */
+      function repoBadges(access) {
+        if (!access || typeof access !== 'object') return []
+        const badges = []
+        if (access.archived === true) badges.push({ text: '已归档', tone: 'warning' })
+        if (access.disabled === true) badges.push({ text: '已禁用', tone: 'danger' })
+        if (access.hasIssues === false) badges.push({ text: '无 Issues', tone: 'warning' })
+        if (access.fork === true && access.parent && access.hasIssues !== true) badges.push({ text: 'fork · 上游 ' + String(access.parent), tone: 'outline' })
+        if (access.push === false) badges.push({ text: '只读', tone: 'warning' })
+        if (access.private === true) badges.push({ text: '私有', tone: 'outline' })
+        return badges
+      }
 
       /** 仓库结构提示（与服务端 watch.js:repoStructureNote 同语义；客户端要独立一份，不能跨包 import）。 */
       function repoStructureNote(access) {

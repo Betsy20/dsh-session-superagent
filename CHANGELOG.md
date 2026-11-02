@@ -2,6 +2,20 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.66] - 2026-11-02 —— 归档仓库：能读不能写，行内加能力徽章
+
+### 学到的（知识库第 15 条）
+`GET /repos` 还有 `archived` / `disabled` / `visibility`（实测 `atom/atom` 就是 `archived: true`）。
+归档是 GitHub 的"冻结"：内容只读，评论/打标签全部失败 —— **换 token 也没用**，比"没写权限"更彻底。
+
+### 改了什么
+1. `probeAccess` 一并取 `archived` / `disabled`；
+2. 「需要关注」区新增归档 / 禁用两条人话（排在轮询失败之前）；
+3. 行内加**能力徽章**：`已归档` `已禁用` `无 Issues` `fork · 上游 x/y` `只读` `私有`。
+
+### 测试
+- 新增 1 例（6 种组合 + fork 自己开了 Issues 不误伤）。合计 **119 例**。
+
 ## [0.8.65] - 2026-11-02 —— 关闭 Issues / 是 fork 的仓库，提前说清楚
 
 ### 学到的（知识库第 14 条）

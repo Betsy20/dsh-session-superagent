@@ -18,3 +18,4 @@
 | 安全 | [token 权限要看得见、也要够窄](token-scopes.md) | ✅ 0.8.63 |
 | 可靠性 | [先查写权限再让它跑](repo-permissions.md) | ✅ 0.8.64 |
 | 可靠性 | [守一个没有 issue 的仓库是空转](repo-structure.md) | ✅ 0.8.65 |
+| 可靠性 | [归档仓库是只读的](archived-repo.md) | ✅ 0.8.66 |

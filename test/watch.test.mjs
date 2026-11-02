@@ -8,6 +8,7 @@ import {
   classifyGhError,
   parseGhInclude,
   accessNote,
+  repoBadges,
   repoStructureNote,
   countReasons,
   jitterMs,
@@ -524,4 +525,16 @@ test('仓库结构提示：关闭 Issues / 是 fork 都要提前说（否则守�
   assert.ok(fork.includes('fork') && fork.includes('up/r'), fork)
   // 有 issue 的 fork（用户自己开了）不提示
   assert.equal(repoStructureNote({ repo: 'me/r', fork: true, parent: 'up/r', hasIssues: true }), '')
+})
+
+test('仓库能力徽章：归档/禁用/无 Issues/fork/只读/私有', () => {
+  assert.deepEqual(repoBadges(null), [])
+  assert.deepEqual(repoBadges({ push: true, hasIssues: true }), [], '正常仓库不该有徽章')
+  const archived = repoBadges({ archived: true })
+  assert.ok(archived.some((b) => b.text === '已归档' && b.tone === 'warning'))
+  const full = repoBadges({ archived: true, disabled: true, hasIssues: false, fork: true, parent: 'up/r', push: false, private: true })
+  assert.equal(full.length, 6, full.map((b) => b.text).join('|'))
+  assert.ok(full.some((b) => b.tone === 'danger'), '禁用要用危险色')
+  // fork 自己开了 Issues：不给 fork 徽章（避免误伤）
+  assert.ok(!repoBadges({ fork: true, parent: 'up/r', hasIssues: true }).some((b) => b.text.startsWith('fork')))
 })
