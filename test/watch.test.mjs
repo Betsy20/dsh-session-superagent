@@ -803,3 +803,24 @@ test('被每小时上限挡住时，要算得出"还有多久有名额"', () => 
   // cap 非法/0 时按 6 兜底，不崩
   assert.equal(typeof nextWaketimeAt(times, 0, now), 'number')
 })
+
+test('隔离区回收：年龄线之外再加数量线（否则 6 次/小时 × 3 天 = 432 个副本）', () => {
+  const now = Date.UTC(2026, 10, 2, 12, 0, 0)
+  const mk = (name, minsAgo) => ({ name, mtimeMs: now - minsAgo * 60_000 })
+  const entries = [1, 2, 3, 4, 5, 6, 7, 8].map((i) => mk('wt' + i, i)) // wt1 最新
+
+  // 都在 3 天内（年龄线不回收），但数量线只留 5 个 -> 回收最旧的 3 个
+  const out = staleWorktrees(entries, { now, keepMs: 3 * 86400_000, keepCount: 5 })
+  assert.deepEqual(out.map((e) => e.name).sort(), ['wt6', 'wt7', 'wt8'])
+
+  // keepCount 足够大时，只剩年龄线生效
+  assert.equal(staleWorktrees(entries, { now, keepMs: 3 * 86400_000, keepCount: 100 }).length, 0)
+
+  // 超龄的即使很新也要回收（wt1 是 3 天前的？不：这里造一个超龄的）
+  const oldOne = [mk('old', 60 * 24 * 60)] // 60 天前
+  const aged = staleWorktrees([...entries, ...oldOne], { now, keepMs: 3 * 86400_000, keepCount: 100 })
+  assert.deepEqual(aged.map((e) => e.name), ['old'])
+
+  // 非法 entry 不该让它崩
+  assert.equal(staleWorktrees([null, {}, { name: 'x' }], { now }).length, 0)
+})

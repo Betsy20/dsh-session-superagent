@@ -168,7 +168,7 @@ test('编辑态初始化必须列全可编辑字段（漏一个就会在保存�
   const start = src.indexOf('setDraft({', src.indexOf('dt-open'))
   assert.ok(start > 0, '找不到点标题时的 setDraft 初始化')
   const block = src.slice(start, src.indexOf('})', start))
-  for (const field of ['intervalSec', 'labels', 'activeHours', 'onlyAssigned', 'observe', 'isolated', 'workdir', 'batchLimit', 'maxWakesPerHour', 'isolateKeepDays', 'priorityReopened', 'priorityComments', 'priorityLabels', 'priorityUnassigned', 'priorityStale']) {
+  for (const field of ['intervalSec', 'labels', 'activeHours', 'onlyAssigned', 'observe', 'isolated', 'workdir', 'batchLimit', 'maxWakesPerHour', 'isolateKeepDays', 'priorityReopened', 'priorityComments', 'priorityLabels', 'priorityUnassigned', 'priorityStale', 'maxIsolated']) {
     assert.ok(block.includes(field + ':'), '编辑态初始化缺字段 ' + field + ' —— 打开再直接保存会把这项写回默认值')
   }
 })

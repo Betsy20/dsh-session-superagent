@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.99'
+    const CLIENT_VERSION = '0.9.0'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -919,6 +919,7 @@ window.__ModuleLoader__.load({
             workdir: draft.workdir || '',
             observe: !!draft.observe,
             isolateKeepDays: Number(draft.isolateKeepDays) || undefined,
+            maxIsolated: Number(draft.maxIsolated) || undefined,
             priority: {
               reopened: draft.priorityReopened !== false,
               comments: draft.priorityComments !== false,
@@ -1020,6 +1021,7 @@ window.__ModuleLoader__.load({
                   batchLimit: watcher.batchLimit ? String(watcher.batchLimit) : '',
                   maxWakesPerHour: watcher.maxWakesPerHour ? String(watcher.maxWakesPerHour) : '',
                   isolateKeepDays: watcher.isolateKeepDays ? String(watcher.isolateKeepDays) : '',
+                  maxIsolated: watcher.maxIsolated ? String(watcher.maxIsolated) : '',
                   priorityReopened: (watcher.priority && watcher.priority.reopened) !== false,
                   priorityComments: (watcher.priority && watcher.priority.comments) !== false,
                   priorityLabels: (watcher.priority && watcher.priority.labels) !== false,
@@ -1082,6 +1084,7 @@ window.__ModuleLoader__.load({
             h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.isolated, onChange: (v) => setDraft({ ...draft, isolated: v }), label: '隔离执行' }), '隔离执行（每次唤醒开一次性 worktree）'),
             draft.isolated ? field('隔离工作目录', h(Input, { value: draft.workdir || '', placeholder: '绝对路径，留空 = 当前工作目录', onChange: (e) => setDraft({ ...draft, workdir: e.target.value }) })) : null,
             draft.isolated ? field('隔离区保留天数', h(Input, { value: draft.isolateKeepDays || '', placeholder: '3（1-30）', onChange: (e) => setDraft({ ...draft, isolateKeepDays: e.target.value }) }), '每次唤醒前回收这个天数之前的一次性工作区；留空用默认 3 天') : null,
+            draft.isolated ? field('最多保留几个隔离区', h(Input, { value: draft.maxIsolated || '', placeholder: '5（1-50）', onChange: (e) => setDraft({ ...draft, maxIsolated: e.target.value }) }), '天数之外的第二道线：超出就回收最旧的（不影响正在用的那个）') : null,
             h('div', { className: 'dt-actions' },
               h(Btn, { size: 'sm', variant: 'primary', onClick: () => saveEdit(watcher) }, '保存'),
               h(Btn, { size: 'sm', onClick: () => setEditing(null) }, '放弃')))

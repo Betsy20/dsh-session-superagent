@@ -52,3 +52,4 @@
 | 交互 | [错误提示要回答"我该做什么"](humanize-errors.md) | ✅ 0.8.97 |
 | 轮询调度 | [时段判断要在拉数据之前](active-hours-before-fetch.md) | ✅ 0.8.98 |
 | 轮询调度 | [被上限挡住时要说还要等多久](wake-cap-wait-visibility.md) | ✅ 0.8.99 |
+| 隔离执行 | [隔离区只按天数回收，管不住"堆"](worktree-count-cap.md) | ✅ 0.9.0 |
