@@ -2,6 +2,27 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.54] - 2026-11-02 —— 演练脚本补上失败路径与"不唤醒"
+
+### 学到的（知识库第 73 条继续追加）
+客户最常问"为什么没动静"，答案有三种：网络抖动、被限流、会话正忙。
+**这三种以前一条都没演示过。**
+
+### 做了什么
+`first-run.mjs` 第 5b 段打印三者的**面板文案与建议**，数据来自真实函数：
+`classifyGhError`（network / ratelimit / notfound）与 `decideWake`（agent busy → 不唤醒）。
+
+```
+kind=network　面板显示：GitHub API 请求: EOF　建议：（网络抖动：已按退避自动重试，不需要手动处理）
+kind=ratelimit　面板显示：HTTP 403: API rate limit exceeded…
+· 会话正忙（不在 idle）→ 不唤醒：{"ok":false,"reason":"agent busy (running)"}
+```
+
+纳入文案快照（50 → 62 行）；单行长度仍 ≤ 120。
+
+### 为什么关键
+演示里的字符串**不是手写的示例** —— 与真实代码同源。文案一改，快照就变。
+
 ## [0.9.53] - 2026-11-02 —— 演练脚本补上"有跳过"分支（那个 bug 藏了两小时的原因）
 
 ### 学到的（知识库第 73 条追加）

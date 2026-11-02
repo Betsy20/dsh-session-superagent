@@ -10,9 +10,11 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { classifyGhError } from '../lib/gh-format.js'
 import {
   accessNote,
   batchFresh,
+  decideWake,
   formatWatchText,
   hasAckLabel,
   normalizeFilters,
@@ -106,6 +108,22 @@ say('· 只有读权限：' + accessNote({ repo: REPO, push: false }))
 say('· 仓库名联想（输入 acme/wid 时）: ' + (pickSuggestion('acme/wid', ['acme/widgets', 'acme/gadgets']) || '（无）'))
 say('· 已打 ack 标签的条目会被跳过：' + hasAckLabel({ labels: [{ name: '主理鱼:已处理' }] }, '主理鱼:已处理'))
 
+say('')
+say('===== 5b. 失败与不唤醒时长什么样（客户最常问：为什么没动静）=====')
+const failures = [
+  'Get "https://api.github.com/repos/a/b/issues?per_page=20": EOF',
+  'HTTP 403: API rate limit exceeded for user ID 1',
+  'HTTP 404: Not Found',
+]
+for (const raw of failures) {
+  const got = classifyGhError(raw)
+  say('· ' + raw.slice(0, 46) + '…')
+  say('    kind=' + got.kind + '　面板显示：' + got.short + '　建议：' + (got.hint || '（不给建议）'))
+}
+say('')
+say('· 会话正忙（不在 idle）→ 不唤醒，记下原因：' + JSON.stringify(decideWake('running')))
+say('· 会话空闲 → 允许唤醒：' + JSON.stringify(decideWake('idle')))
+say('    面板上会显示「暂停唤醒：agent busy (running)」，下一轮空闲时自动补上。')
 say('')
 say('===== 6. 过滤默认值 =====')
 const filters = normalizeFilters({})
