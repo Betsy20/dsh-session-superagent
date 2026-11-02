@@ -8,6 +8,7 @@ import {
   classifyGhError,
   parseGhInclude,
   accessNote,
+  pickSuggestion,
   repoBadges,
   repoStructureNote,
   countReasons,
@@ -537,4 +538,14 @@ test('仓库能力徽章：归档/禁用/无 Issues/fork/只读/私有', () => {
   assert.ok(full.some((b) => b.tone === 'danger'), '禁用要用危险色')
   // fork 自己开了 Issues：不给 fork 徽章（避免误伤）
   assert.ok(!repoBadges({ fork: true, parent: 'up/r', hasIssues: true }).some((b) => b.text.startsWith('fork')))
+})
+
+test('仓库名纠错：优先同名、其次包含、别乱猜', () => {
+  const candidates = ['MYCF711/dsh-session-superagent', 'someone/dsh-session-superagent-fork', 'other/unrelated']
+  assert.equal(pickSuggestion('me/dsh-session-superagent', candidates), 'MYCF711/dsh-session-superagent', '仓库名相同就是它')
+  assert.equal(pickSuggestion('me/dsh-session', candidates), 'MYCF711/dsh-session-superagent', '包含关系也能推')
+  assert.equal(pickSuggestion('me/zzz', candidates), null, '完全不相关就别乱建议')
+  assert.equal(pickSuggestion('', candidates), null)
+  assert.equal(pickSuggestion('me/x', null), null, '没有候选不崩')
+  assert.equal(pickSuggestion('me/abc', ['x/abc']), 'x/abc', '短名字只要同名仍然可用')
 })
