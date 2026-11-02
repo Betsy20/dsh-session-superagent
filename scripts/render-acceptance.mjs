@@ -7,7 +7,7 @@
 //   node scripts/render-acceptance.mjs           # 打印
 //   node scripts/render-acceptance.mjs --write   # 写入 docs/验收清单.md
 //   node scripts/render-acceptance.mjs --check   # 校验文档与代码一致 + 每项都有解释
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -25,12 +25,12 @@ const WHY = {
   '单测 node --test': ['功能回归：纯函数、路由、面板渲染', 'KB `fake-pass.md`（条件断言曾让一档用例静默跳过）'],
   'README 单测数': ['文档里的数字过期（曾写 136，实际 181）', 'KB `prose-numbers-drift.md`'],
   '语法 node --check': ['生成代码时的语法错误（模板字符串把 \\n 写成真换行）', 'CHANGELOG 0.9.44'],
-  'profile 一致性 --check': ['新文件没进 profile → 插件整体不挂载（2026-11-02 真机事故）', 'KB `profile-link.md`'],
-  '版本一致（4 处）': ['改了代码没重启，面板显示的样子骗人', 'KB `version-skew.md`'],
+  'profile 一致性 --check': ['新文件没进 profile → 插件整体不挂载（2026-11-02 真机事故）', 'KB `limits-must-track-code.md`'],
+  '版本一致（4 处）': ['改了代码没重启，面板显示的样子骗人', 'KB `version-drift-inside.md`'],
   '路由面': ['路由注册异常（数量/路径与契约不符）', 'CHANGELOG 0.9.31（加 /trace 时同步改四处期望）'],
   '路由面（9 条）': ['路由数量漂移：面板接口与工具面不一致', 'CHANGELOG 0.9.31'],
   'npm pack 内容': ['包内容泄漏或漏文件（发布后才发现的经典事故）', 'README 安装节'],
-  '离线挂载冒烟': ['apply 抛错 / 挂载后路由缺失', 'KB `route-resilience.md`'],
+  '离线挂载冒烟': ['apply 抛错 / 挂载后路由缺失', 'KB `offline-mount-smoke.md`'],
   '文档链接': ['文档互相引用的断链', 'KB `identifier-drift.md`'],
   '并发隔离': ['两个会话守同一仓库时互相踩', 'KB `concurrent-isolation.md`'],
   '隔离链路': ['worktree 回收不掉、主工作区被污染', 'KB `verify-isolation-chain.md`'],
@@ -41,13 +41,27 @@ const WHY = {
   '信息密度': ['首屏区块过多', 'KB `information-density.md`'],
   '文档标识符': ['工具名/路由改名后文档没跟上', 'KB `identifier-drift.md`'],
   '知识库有据': ['知识库的 ✅ 没有对应发布、路径不存在', 'KB `audit-kb-claims.md`'],
-  '双主题预览可渲染': ['面板在另一套主题下渲染失败', 'KB `design-tokens`'],
+  '双主题预览可渲染': ['面板在另一套主题下渲染失败', 'KB `information-density.md`'],
   'UI 体检': ['写死颜色 / 裸 div 可点 / 弹层键盘不可用', 'KB `information-density.md`'],
   '冒烟 smoke:observe': ['真机 observe 模式跑不起来', 'README 验收节'],
   '验收清单': ['门禁项没有解释（新增检查忘了写“防止什么”）', 'KB `explainable-gates.md`'],
 }
 
 const missing = names.filter((name) => !WHY[name])
+
+// 解释本身也要被验证：证据里提到的 KB 文件与 CHANGELOG 版本必须真实存在
+const kbFiles = new Set(readdirSync(join(root, 'docs', 'kb')).filter((f) => f.endsWith('.md')))
+const changelog = readFileSync(join(root, 'CHANGELOG.md'), 'utf8')
+const versions = new Set([...changelog.matchAll(/^## \[(\d+\.\d+\.\d+)\]/gm)].map((m) => m[1]))
+const badEvidence = []
+for (const [name, [, evidence]] of Object.entries(WHY)) {
+  for (const match of String(evidence).matchAll(/KB `([^`]+)`/g)) {
+    if (!kbFiles.has(match[1])) badEvidence.push(name + ' → 知识库没有 docs/kb/' + match[1])
+  }
+  for (const match of String(evidence).matchAll(/CHANGELOG (\d+\.\d+\.\d+)/g)) {
+    if (!versions.has(match[1])) badEvidence.push(name + ' → CHANGELOG 没有版本 ' + match[1])
+  }
+}
 const stale = Object.keys(WHY).filter((name) => !names.includes(name))
 
 function render() {
@@ -77,6 +91,11 @@ const mode = process.argv[2] || ''
 
 if (missing.length > 0) {
   console.log('FAIL 这些检查没有解释：' + missing.join('、'))
+  process.exitCode = 1
+}
+if (badEvidence.length > 0) {
+  console.log('FAIL 这些解释的证据找不到：')
+  for (const item of badEvidence) console.log('  ' + item)
   process.exitCode = 1
 }
 if (stale.length > 0) {

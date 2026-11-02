@@ -2,6 +2,23 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.51] - 2026-11-02 —— 验收清单的证据本身也被校验（抓到 4 条假引用）
+
+### 学到的（知识库第 96 条追加）
+「可解释」升级成「解释本身也被验证」—— 否则证据栏会变成写空话的地方。
+
+### 做法
+`render-acceptance.mjs` 的 `WHY` 表现在要过两道检查：
+- `KB \`xxx.md\`` 必须存在于 `docs/kb/`；
+- `CHANGELOG x.y.z` 必须真有这个版本。
+
+### 第一次跑就抓到 4 条
+`profile-link.md` / `version-skew.md` / `route-resilience.md` / `design-tokens` ——
+**全是我凭记忆写的文件名**，一个都不存在。换成真实条目（`limits-must-track-code.md` 等）后 PASS。
+
+验证：临时把一条证据改成 `nonexistent.md` →
+`FAIL 文案快照 → 知识库没有 docs/kb/nonexistent.md`，还原后 PASS。
+
 ## [0.9.50] - 2026-11-02 —— 验收清单：每项门禁都能解释"防什么"
 
 ### 学到的（知识库第 96 条）
