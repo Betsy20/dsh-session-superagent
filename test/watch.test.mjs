@@ -13,6 +13,7 @@ import {
   accessNote,
   pickSuggestion,
   repoBadges,
+  stalenessNote,
   stateReasonNote,
   repoStructureNote,
   buildCommentBatchQuery,
@@ -691,4 +692,19 @@ test('分诊信号表：每条都要说清"事实还是判断""默认开不开"'
   assert.equal(priorityScore(reopened), TRIAGE_SIGNALS.find((s) => s.key === 'reopened').weight)
   const commented = { comments: 1 }
   assert.equal(priorityScore(commented), TRIAGE_SIGNALS.find((s) => s.key === 'comments').weight)
+})
+
+test('躺了多久：open 且超过阈值才说，closed 不吵', () => {
+  const now = Date.parse('2026-11-02T00:00:00Z')
+  const old = { state: 'open', updated_at: '2026-09-01T00:00:00Z' } // 62 天
+  assert.match(stalenessNote(old, { now }), /躺了 62 天/)
+  assert.equal(stalenessNote({ state: 'open', updated_at: '2026-11-01T00:00:00Z' }, { now }), '', '刚更新过不算躺')
+  assert.equal(stalenessNote({ state: 'closed', updated_at: '2026-09-01T00:00:00Z' }, { now }), '', 'closed 不标')
+  assert.equal(stalenessNote({ state: 'open' }, { now }), '', '没有时间戳就不猜')
+  assert.equal(stalenessNote({ state: 'open', updated_at: '2026-09-01T00:00:00Z' }, { now, thresholdDays: 90 }), '', '阈值可调')
+
+  const item = { number: 3, title: 'x', state: 'open', html_url: 'https://x/3', user: { login: 'u' }, labels: [], assignees: [], updated_at: new Date(Date.now() - 40 * 86400000).toISOString() }
+  assert.ok(formatWatchText('o/r', [item], {}).includes('躺了 40 天'), '消息里要标出来')
+  assert.equal(priorityScore(item), 0, '默认不参与排序')
+  assert.equal(priorityScore(item, { stale: true }), 2, '开启后 +2')
 })

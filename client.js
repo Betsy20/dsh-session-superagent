@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.78'
+    const CLIENT_VERSION = '0.8.79'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -910,6 +910,7 @@ window.__ModuleLoader__.load({
               comments: draft.priorityComments !== false,
               labels: draft.priorityLabels !== false,
               unassigned: draft.priorityUnassigned === true,
+              stale: draft.priorityStale === true,
             },
             batchLimit: Number(draft.batchLimit) || undefined,
             maxWakesPerHour: Number(draft.maxWakesPerHour) || undefined,
@@ -1009,6 +1010,7 @@ window.__ModuleLoader__.load({
                   priorityComments: (watcher.priority && watcher.priority.comments) !== false,
                   priorityLabels: (watcher.priority && watcher.priority.labels) !== false,
                   priorityUnassigned: Boolean(watcher.priority && watcher.priority.unassigned) === true,
+                  priorityStale: Boolean(watcher.priority && watcher.priority.stale) === true,
                 })
               },
             }, watcher.repo)),
@@ -1060,7 +1062,8 @@ window.__ModuleLoader__.load({
               h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: draft.priorityReopened !== false, onChange: (v) => setDraft({ ...draft, priorityReopened: v }), label: '重开优先' }), '被重开的排最前'),
               h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: draft.priorityComments !== false, onChange: (v) => setDraft({ ...draft, priorityComments: v }), label: '评论优先' }), '有人在等回应的靠前'),
               h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: draft.priorityLabels !== false, onChange: (v) => setDraft({ ...draft, priorityLabels: v }), label: '标签优先' }), '带标签的靠前'),
-              h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: draft.priorityUnassigned === true, onChange: (v) => setDraft({ ...draft, priorityUnassigned: v }), label: '未认领优先' }), '没人认领的靠前（默认关：这是我们的判断，不是规则）')), '全部关掉时按 GitHub 的「最近更新」顺序处理'),
+              h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: draft.priorityUnassigned === true, onChange: (v) => setDraft({ ...draft, priorityUnassigned: v }), label: '未认领优先' }), '没人认领的靠前（默认关：这是我们的判断，不是规则）'),
+              h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: draft.priorityStale === true, onChange: (v) => setDraft({ ...draft, priorityStale: v }), label: '积压优先' }), '躺了 30 天以上的靠前（默认关，只展示）')), '全部关掉时按 GitHub 的「最近更新」顺序处理'),
             h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.observe, onChange: (v) => setDraft({ ...draft, observe: v }), label: '仅观察' }), '仅观察（只记录不唤醒）'),
             h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.isolated, onChange: (v) => setDraft({ ...draft, isolated: v }), label: '隔离执行' }), '隔离执行（每次唤醒开一次性 worktree）'),
             draft.isolated ? field('隔离工作目录', h(Input, { value: draft.workdir || '', placeholder: '绝对路径，留空 = 当前工作目录', onChange: (e) => setDraft({ ...draft, workdir: e.target.value }) })) : null,

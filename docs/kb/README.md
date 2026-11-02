@@ -31,3 +31,4 @@
 | 判定与可解释性 | [权重是产品判断，别写死](priority-configurable.md) | ✅ 0.8.76 |
 | 判定与可解释性 | [认领状态：事实默认展示，判断默认关闭](assignment-signal.md) | ✅ 0.8.77 |
 | 判定与可解释性 | [一张表说清分诊信号与取舍](triage-signal-table.md) | ✅ 0.8.78 |
+| 判定与可解释性 | [躺了多久：60 天是社区默认，我们用 30 天](stale-threshold.md) | ✅ 0.8.79 |
