@@ -923,3 +923,18 @@ test('面板显示近几天的累计（来自每条守的 daily）', () => {
   const text = walk(render(desk, deskQueue(snap))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
   assert.ok(text.includes('过去 3 天：共 9 次'), '要显示历史累计：' + text.slice(0, 240))
 })
+
+test('"今天明显比平时忙"只有 busy=true 时才提示（阈值判断在服务端）', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const mk = (busy) => ({
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: 'x', credentials: {}, sessionUsage: { used: 2, cap: 12, capped: 0 },
+      watchers: [watcher('a/b', { id: 'a/b#s1', daily: { days: 4, total: 12, avg: 3, today: 9 }, busy })] },
+  })
+  const calm = walk(render(desk, deskQueue(mk(false)))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(!calm.includes('明显比平时忙'), '不该提示：' + calm.slice(0, 200))
+  const hot = walk(render(desk, deskQueue(mk(true)))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(hot.includes('今天明显比平时忙'), '该提示时要提示')
+  assert.ok(hot.includes('上限可能不够用'), '要说明为什么值得注意')
+})

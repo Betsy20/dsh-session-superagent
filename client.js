@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.34'
+    const CLIENT_VERSION = '0.9.35'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1344,7 +1344,12 @@ window.__ModuleLoader__.load({
               const total = watchers.reduce((n, w) => n + (Number(w.daily && w.daily.total) || 0), 0)
               if (total === 0) return null
               const span = Math.max(...watchers.map((w) => Number(w.daily && w.daily.days) || 0))
-              return h('span', { className: 'dt-row-meta' }, '过去 ' + span + ' 天：共 ' + total + ' 次（日均 ' + (Math.round((total / Math.max(1, span)) * 10) / 10) + '）')
+              return [
+                h('span', { key: 'hist', className: 'dt-row-meta' }, '过去 ' + span + ' 天：共 ' + total + ' 次（日均 ' + (Math.round((total / Math.max(1, span)) * 10) / 10) + '）'),
+                watchers.some((w) => w.busy)
+                  ? h('span', { key: 'busy', className: 'dt-error-text' }, '今天明显比平时忙 —— 上限可能不够用')
+                  : null,
+              ]
             })())
           : null,
         visible.length === 0 ? h(Hint, null, '没有符合条件的主理鱼。点上面「全部」看所有守。') : null,

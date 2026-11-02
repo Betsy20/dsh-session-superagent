@@ -18,6 +18,7 @@ import {
   msUntilActiveWindow,
   nextWaketimeAt,
   bumpDailyWakes,
+  busierThanUsual,
   countCapped,
   dailySummary,
   durationText,
@@ -1090,5 +1091,23 @@ test('按天累计：同日累加、只留最近 N 天、坏数据不崩', () =>
 
   assert.deepEqual(bumpDailyWakes(null, 'bad-input'), {}, '坏日期不写入')
   assert.equal(dailySummary({}), null)
-  assert.deepEqual(dailySummary({ a: '3', b: 2 }), { days: 2, total: 5, avg: 2.5 })
+  assert.deepEqual(dailySummary({ a: '3', b: 2 }), { days: 2, total: 5, avg: 2.5, today: 0 })
+  // today 取当天那一格
+  assert.equal(dailySummary({ '2026-11-02': 4, '2026-11-01': 2 }, '2026-11-02T09:00:00Z').today, 4)
+})
+
+test('"今天明显比平时忙"要保守：历史不足或高得不多都不提示', () => {
+  // 历史不足 3 天 -> 不提示
+  assert.equal(busierThanUsual({ days: 2, avg: 3, today: 99 }), false)
+  // 历史为 0 -> 没有基线，不提示
+  assert.equal(busierThanUsual({ days: 5, avg: 0, today: 10 }), false)
+  // 高出不到 2 倍 -> 不提示
+  assert.equal(busierThanUsual({ days: 4, avg: 5, today: 9 }), false)
+  // 刚好 2 倍 -> 提示
+  assert.equal(busierThanUsual({ days: 4, avg: 5, today: 10 }), true)
+  // 明显更忙 -> 提示
+  assert.equal(busierThanUsual({ days: 7, avg: 3, today: 20 }), true)
+  // 坏输入不崩
+  assert.equal(busierThanUsual(null), false)
+  assert.equal(busierThanUsual({}), false)
 })
