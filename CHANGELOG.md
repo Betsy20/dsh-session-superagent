@@ -2,6 +2,25 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.74] - 2026-11-02 —— 「判过不做」又被重开的条目，要显眼
+
+### 学到的（知识库第 23 条）
+issue 对象带 `state_reason`：`completed` / `not_planned` / `reopened`。
+本机实测 `cli/cli` 最近 5 条里 4 条是 `not_planned`。
+<https://docs.github.com/en/rest/issues/issues>
+
+主理鱼默认跳过 closed，但**判过 not_planned 之后又被重开**说明"不做"的判断被推翻了 ——
+这是最该被人看一眼的信号。
+
+### 改了什么
+1. 轮询记住最近一条 `reopened` 的 issue 号（`entry.lastReopened`）；
+2. 唤醒消息给重开条目加 `⚠ 这条被重新打开过（之前关过，判"不做"可能不对）`；
+3. 面板「需要关注」显示 `o/r #N 被重新打开过`；
+4. **正常的 not_planned / completed 在消息里不提示** —— 不喧哗。
+
+### 测试
+- 新增 1 例（null / 无原因 / reopened / not_planned / completed / 只有重开带 ⚠）。合计 **126 例**。
+
 ## [0.8.73] - 2026-11-02 —— 主轮询要不要换 GraphQL：测完结论是**不换**（并留下基准脚本）
 
 ### 学到/测到的（知识库第 22 条）

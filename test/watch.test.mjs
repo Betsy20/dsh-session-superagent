@@ -10,6 +10,7 @@ import {
   accessNote,
   pickSuggestion,
   repoBadges,
+  stateReasonNote,
   repoStructureNote,
   buildCommentBatchQuery,
   commentSummaryLine,
@@ -601,4 +602,18 @@ test('GraphQL 批量：一次查多条，单条 NOT_FOUND 不影响其他条', (
   assert.deepEqual(parsed['7'], { login: 'helper', at: '2026-11-02T07:00:00Z' })
   assert.equal(parsed['9'], undefined, '没有评论就不放进来')
   assert.equal(parseCommentBatch(null) && Object.keys(parseCommentBatch(null)).length, 0)
+})
+
+test('关闭原因与"反复重开"：只有重开才在消息里警示', () => {
+  assert.equal(stateReasonNote(null), '')
+  assert.equal(stateReasonNote({ state: 'open' }), '', '没原因就不说话')
+  assert.match(stateReasonNote({ state: 'open', state_reason: 'reopened' }), /重新打开/)
+  assert.match(stateReasonNote({ state: 'closed', state_reason: 'not_planned' }), /不做/)
+  assert.match(stateReasonNote({ state: 'closed', state_reason: 'completed' }), /已完成/)
+
+  const base = { number: 11, title: 'x', html_url: 'https://x/11', user: { login: 'u' }, labels: [], assignees: [] }
+  const reopened = formatWatchText('o/r', [{ ...base, state: 'open', state_reason: 'reopened' }], {})
+  assert.ok(reopened.includes('⚠'), '重开的要显眼')
+  const closedFine = formatWatchText('o/r', [{ ...base, state: 'closed', state_reason: 'not_planned' }], {})
+  assert.ok(!closedFine.includes('⚠'), '正常的关闭原因不喧哗')
 })
