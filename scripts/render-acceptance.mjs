@@ -22,6 +22,7 @@ for (const match of preflight.matchAll(/record\('([^']+)'/g)) {
 
 // 每项：防什么 + 证据（真实事故 / KB 条目）
 const WHY = {
+  '临时目录收口': ['测试漏建临时目录（本机曾攒到 1654 个、一次跑漏 8 个）', 'KB `temp-dir-leak.md`'],
   '单测 node --test': ['功能回归：纯函数、路由、面板渲染', 'KB `fake-pass.md`（条件断言曾让一档用例静默跳过）'],
   'README 单测数': ['文档里的数字过期（曾写 136，实际 181）', 'KB `prose-numbers-drift.md`'],
   '语法 node --check': ['生成代码时的语法错误（模板字符串把 \\n 写成真换行）', 'CHANGELOG 0.9.44'],

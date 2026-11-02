@@ -4,12 +4,13 @@
 // 修法：写状态时与盘上内容合并 —— 盘上有、内存里没有的条目保留；
 // 只有「墓碑里记过的 id」才允许消失（删除时立墓碑，避免被迟到写入复活）。
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tempDir } from './fixtures/tmpdir.mjs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-const STATE_DIR = mkdtempSync(join(tmpdir(), 'superagent-merge-'))
+const STATE_DIR = tempDir('superagent-merge-')
 process.env.DSH_SUPERAGENT_STATE = STATE_DIR
 process.env.DSH_SUPERAGENT_NO_POLL = '1'
 
@@ -52,7 +53,7 @@ test('删除留下的墓碑能挡住迟到写入的复活', () => {
 })
 
 test('主文件坏了会退回备份，而不是把客户所有守当空状态', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'zhuli-bak-'))
+  const dir = tempDir('zhuli-bak-')
   process.env.DSH_SUPERAGENT_STATE = dir
   const mod = await import('../lib/index.js?bak=' + Date.now())
   const { readState, writeState } = mod.__test

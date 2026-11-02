@@ -5,12 +5,13 @@
 //
 // 这个用例用一个「读 ctx.agents 就抛」的宿主替身，验证插件仍能正常工作。
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tempDir } from './fixtures/tmpdir.mjs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-const STATE_DIR = mkdtempSync(join(tmpdir(), 'superagent-inactive-'))
+const STATE_DIR = tempDir('superagent-inactive-')
 process.env.DSH_SUPERAGENT_STATE = STATE_DIR
 process.env.DSH_SUPERAGENT_NO_POLL = '1'
 

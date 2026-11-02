@@ -3,6 +3,7 @@
 // 为什么需要：有了 schemaVersion 还不够 —— 消费方要知道"哪个字段可以依赖"。
 // 这份清单是**唯一口径**：stable 表示不会无故改名/删除；experimental 表示可能变。
 import { test } from 'node:test'
+import { tempDir } from './fixtures/tmpdir.mjs'
 import assert from 'node:assert/strict'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -14,7 +15,7 @@ const manifest = JSON.parse(readFileSync(join(root, 'test', 'fixtures', 'contrac
 
 async function loadTools() {
   const tools = []
-  const dir = mkdtempSync(join(tmpdir(), 'zhuli-stab-'))
+  const dir = tempDir('zhuli-stab-')
   process.env.DSH_SUPERAGENT_STATE = dir
   process.env.DSH_SUPERAGENT_NO_POLL = '1'
   const ctx = {

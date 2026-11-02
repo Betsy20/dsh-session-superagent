@@ -4,12 +4,13 @@
 //
 // 现在每条路由单独容错：重复的那条记进 state.server.failed，其余照常注册。
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tempDir } from './fixtures/tmpdir.mjs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-const STATE_DIR = mkdtempSync(join(tmpdir(), 'superagent-routes-resilience-'))
+const STATE_DIR = tempDir('superagent-routes-resilience-')
 process.env.DSH_SUPERAGENT_STATE = STATE_DIR
 process.env.DSH_SUPERAGENT_NO_POLL = '1'
 

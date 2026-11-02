@@ -2,6 +2,25 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.60] - 2026-11-02 —— 测试漏掉的临时目录：本机攒了 1654 个
+
+### 发现（实测，不是猜）
+```
+临时目录残留: 1654
+一次测试后新残留: 8（superagent-routes-* / zhuli-acct-* / zhuli-fmt-* …）
+```
+根因：测试里到处 `mkdtempSync(join(tmpdir(), …))`，有的删了有的没删，
+还有的在模块顶层创建（失败时走不到清理）。
+
+### 改法
+1. `test/fixtures/tmpdir.mjs`：`tempDir()` 建目录并登记，进程退出统一删除；
+2. 9 个测试文件全部改用它 —— `mkdtempSync(join(tmpdir()` 出现次数 **0**；
+3. `scripts/clean-tmp.mjs` 清历史残留（支持 `--dry`）；
+4. `preflight` 新增「临时目录收口」：还有测试自己建临时目录就红。
+
+### 效果
+清理后残留 **0**；改造后跑一次测试残留 **0**（原 8）；188 例全过。
+
 ## [0.9.59] - 2026-11-02 —— 把唯一会走网络的单测改成离线（消除偶发红）
 
 ### 发现

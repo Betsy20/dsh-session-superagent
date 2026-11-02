@@ -4,12 +4,13 @@
 // 于是"会话正忙被拒"的情况会：计了次、推进了 seen —— 那几条既不会重试，又白占名额。
 // 本用例锁住：被拒时回调拿到 ok:false，成功时拿到 ok:true。
 import assert from 'node:assert/strict'
+import { tempDir } from './fixtures/tmpdir.mjs'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-process.env.DSH_SUPERAGENT_STATE = mkdtempSync(join(tmpdir(), 'zhuli-acct-'))
+process.env.DSH_SUPERAGENT_STATE = tempDir('zhuli-acct-')
 process.env.DSH_SUPERAGENT_NO_POLL = '1'
 process.env.DSH_SUPERAGENT_WAKE_WINDOW_MS = '5'
 

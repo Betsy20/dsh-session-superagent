@@ -4,12 +4,13 @@
 //   cannot get required service "agents" in inactive context
 // 就是旧实例的 ctx 已 dispose 却还在处理 HTTP 请求。
 import { mkdtempSync, rmSync } from 'node:fs'
+import { tempDir } from './fixtures/tmpdir.mjs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-const STATE_DIR = mkdtempSync(join(tmpdir(), 'superagent-cross-instance-'))
+const STATE_DIR = tempDir('superagent-cross-instance-')
 process.env.DSH_SUPERAGENT_STATE = STATE_DIR
 process.env.DSH_SUPERAGENT_NO_POLL = '1'
 

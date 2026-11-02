@@ -1,12 +1,13 @@
 // 路由层单测：之前 0 覆盖，全靠真机 curl 手测。
 // 用环境变量把状态目录指到临时目录，并把轮询关掉，避免打到真 GitHub。
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tempDir } from './fixtures/tmpdir.mjs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-const STATE_DIR = mkdtempSync(join(tmpdir(), 'superagent-routes-'))
+const STATE_DIR = tempDir('superagent-routes-')
 process.env.DSH_SUPERAGENT_STATE = STATE_DIR
 process.env.DSH_SUPERAGENT_NO_POLL = '1'
 
@@ -412,7 +413,7 @@ test('watch_start 能设面板里的三项（会话上限 / 隔离保留天数 /
 
 test('watch_status 带诊断：暂停原因、未回音、会话用量（agent 自诊不用看面板）', async () => {
   const tools = []
-  const dir = (await import('node:fs')).mkdtempSync((await import('node:path')).join((await import('node:os')).tmpdir(), 'zhuli-st-'))
+  const dir = tempDir('zhuli-st-')
   process.env.DSH_SUPERAGENT_STATE = dir
   process.env.DSH_SUPERAGENT_NO_POLL = '1'
   const ctx = {
@@ -439,7 +440,7 @@ test('watch_status 带诊断：暂停原因、未回音、会话用量（agent �
 
 test('watch_status 支持 format=json（同一份数据的机器可读形式）', async () => {
   const tools = []
-  const dir = (await import('node:fs')).mkdtempSync((await import('node:path')).join((await import('node:os')).tmpdir(), 'zhuli-json-'))
+  const dir = tempDir('zhuli-json-')
   process.env.DSH_SUPERAGENT_STATE = dir
   process.env.DSH_SUPERAGENT_NO_POLL = '1'
   const ctx = {
@@ -464,7 +465,7 @@ test('watch_status 支持 format=json（同一份数据的机器可读形式）'
 
 test('三个只读工具口径一致：都支持 format=json 且带 schemaVersion', async () => {
   const tools = []
-  const dir = (await import('node:fs')).mkdtempSync((await import('node:path')).join((await import('node:os')).tmpdir(), 'zhuli-fmt-'))
+  const dir = tempDir('zhuli-fmt-')
   process.env.DSH_SUPERAGENT_STATE = dir
   process.env.DSH_SUPERAGENT_NO_POLL = '1'
   const ctx = {
@@ -502,7 +503,7 @@ test('三个只读工具口径一致：都支持 format=json 且带 schemaVersio
 
 test('写工具也给 JSON：成功/失败都能被程序判断（不再靠读中文）', async () => {
   const tools = []
-  const dir = (await import('node:fs')).mkdtempSync((await import('node:path')).join((await import('node:os')).tmpdir(), 'zhuli-wr-'))
+  const dir = tempDir('zhuli-wr-')
   process.env.DSH_SUPERAGENT_STATE = dir
   process.env.DSH_SUPERAGENT_NO_POLL = '1'
   const ctx = {

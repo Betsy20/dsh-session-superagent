@@ -6,7 +6,7 @@
 //   node scripts/preflight.mjs            全部检查（gh 不可用时冒烟自动 SKIP）
 //   node scripts/preflight.mjs --fast     跳过冒烟（不请求 GitHub、不建 worktree）
 import { execFileSync, spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -36,6 +36,19 @@ const tryRun = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: ROOT, encod
   const claimed = (readFileSync(join(ROOT, 'README.md'), 'utf8').match(/(\d+) 项单测/) || [])[1]
   record('README 单测数', Boolean(claimed) && claimed === String(tests),
     claimed ? (claimed === String(tests) ? 'README 写 ' + claimed + '，实际 ' + tests : 'README 写 ' + claimed + '，实际 ' + tests + '（改 README）') : 'README 没写单测数')
+}
+
+// ①.5 临时目录收口（历史教训：一次测试跑漏 8 个，本机攒到 1654 个）
+{
+  const bad = []
+  for (const name of readdirSync(join(ROOT, 'test'))) {
+    if (!name.endsWith('.test.mjs')) continue
+    const text = readFileSync(join(ROOT, 'test', name), 'utf8')
+    if (text.includes('mkdtempSync(join(tmpdir()')) bad.push(name)
+  }
+  const helper = existsSync(join(ROOT, 'test', 'fixtures', 'tmpdir.mjs'))
+  record('临时目录收口', bad.length === 0 && helper,
+    bad.length > 0 ? '这些测试还在自己建临时目录：' + bad.join(', ') : (helper ? '全部走 tempDir()，退出时自动清理' : '缺少 test/fixtures/tmpdir.mjs'))
 }
 
 // ② 语法

@@ -2,6 +2,7 @@
 // 于是 `git worktree list` 一直显示一个已经不存在的目录。
 // 这条用例用一个真 git 仓库把「删目录 → prune → list 干净」跑一遍。
 import { execFileSync } from 'node:child_process'
+import { tempDir } from './fixtures/tmpdir.mjs'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -11,7 +12,7 @@ import assert from 'node:assert/strict'
 const git = (cwd, args) => execFileSync('git', args, { cwd, encoding: 'utf8' })
 
 test('孤儿目录删掉后，git worktree prune 能把管理记录清干净', () => {
-  const root = mkdtempSync(join(tmpdir(), 'zhuli-prune-'))
+  const root = tempDir('zhuli-prune-')
   try {
     git(root, ['init', '-q'])
     git(root, ['config', 'user.email', 't@t.t'])
