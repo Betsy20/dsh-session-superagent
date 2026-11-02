@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.84'
+    const CLIENT_VERSION = '0.8.85'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -54,6 +54,9 @@ window.__ModuleLoader__.load({
 
     const POLL_MS = 5000
 
+    // 上一次 /state 的 ETag：带上它，没变化时服务端回 304，省掉整份 JSON
+    let stateEtag = null
+
     async function call(path, options, retried) {
       const init = {
         ...(options || {}),
@@ -73,6 +76,14 @@ window.__ModuleLoader__.load({
         await discoverBase()
         return call(path, options, true)
       }
+      // 304：内容没变（服务端带 ETag）。不是错误，也没有正文。
+      if (res.status === 304) {
+        const etag = res.headers && res.headers.get ? res.headers.get('etag') : null
+        if (etag) stateEtag = etag
+        return { notModified: true }
+      }
+      const freshEtag = res.headers && res.headers.get ? res.headers.get('etag') : null
+      if (freshEtag && path.startsWith('/state')) stateEtag = freshEtag
       const text = await res.text()
       let body = null
       try { body = text ? JSON.parse(text) : null } catch { body = { raw: text } }
@@ -847,7 +858,10 @@ window.__ModuleLoader__.load({
 
       const load = useCallback(async () => {
         try {
-          const body = await call('/state')
+          const payload = await call('/state', stateEtag ? { headers: { 'if-none-match': stateEtag } } : undefined)
+          // 304：内容没变，别白白重渲染
+          if (payload && payload.notModified) return null
+          const body = payload
           setSnap({ loading: false, error: null, body })
           return body
         } catch (error) {

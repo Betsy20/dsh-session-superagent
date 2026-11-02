@@ -32,11 +32,12 @@ const ctx = {
 apply(ctx)
 
 /** 造一个够用的 req：readBody 只用到 on('data') / on('end')。 */
-function makeReq(method, url, body) {
+function makeReq(method, url, body, headers) {
   const handlers = {}
   const req = {
     method,
     url,
+    headers: headers || {},
     on(event, cb) {
       ;(handlers[event] ||= []).push(cb)
       return req
@@ -70,11 +71,11 @@ function makeRes() {
   }
 }
 
-async function call(method, path, body) {
+async function call(method, path, body, headers) {
   const route = routes.get(path.split('?')[0])
   assert.ok(route, '路由不存在：' + path.split('?')[0])
   const res = makeRes()
-  await route.handler(makeReq(method, path, body === undefined ? undefined : JSON.stringify(body)), res)
+  await route.handler(makeReq(method, path, body === undefined ? undefined : JSON.stringify(body), headers), res)
   return res
 }
 
@@ -336,4 +337,20 @@ test('/state 不回传客户端从不读的字段（面板每 5 秒拉一次，�
   for (const field of ['id', 'repo', 'intervalSec', 'enabled', 'filters', 'priority', 'history']) {
     assert.notEqual(entry[field], undefined, field + ' 必须在')
   }
+})
+
+test('/state 带 ETag：同一份内容再问一次回 304（面板轮询省流量）', async () => {
+  await call('POST', '/session-superagent/watch', { repo: 'o/etag', sessionId: 's12', intervalSec: 60 })
+  const first = await call('GET', '/session-superagent/state')
+  assert.equal(first.statusCode, 200)
+  const etag = first.headers && first.headers.etag
+  assert.ok(etag, '200 响应必须带 ETag：' + JSON.stringify(first.headers || {}))
+  // 同样的内容 + If-None-Match → 304，且没有正文
+  const second = await call('GET', '/session-superagent/state', null, { 'if-none-match': etag })
+  assert.equal(second.statusCode, 304, '内容没变应该回 304，实际 ' + second.statusCode)
+  assert.ok(!second.body || second.body.length === 0, '304 不该带正文')
+  // ETag 不匹配时必须给完整内容（否则客户端会丢状态）
+  const third = await call('GET', '/session-superagent/state', null, { 'if-none-match': '"stale"' })
+  assert.equal(third.statusCode, 200)
+  assert.ok(JSON.parse(third.body).watchers.length > 0)
 })

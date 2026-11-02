@@ -2,6 +2,28 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.85] - 2026-11-02 —— /state 接上 ETag/304：没变化就不重传
+
+### 学到的（知识库第 34 条）
+RFC 9110 §15.4.5：304 响应**不带正文**，客户端沿用本地缓存。
+<https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.5>
+
+面板每 5 秒拉一次 `/state`，而 99% 的轮询都是"没变化"。上一轮我们减了单次体积（3.8→2.2 KB），
+这一轮把**没变化时整份重传**这件事也去掉 —— 照搬我们对 GitHub 用的那套，只是方向反过来。
+
+### 改了什么
+1. 服务端对响应体算 SHA-1 前 16 位作为 `ETag`；
+2. 客户端把上次的 ETag 放进 `If-None-Match`；
+3. 命中回 **304 空响应**，客户端保持现状（不 setState、不重渲染）。
+
+### 踩到的坑
+响应体里有 `updatedAt`（每次都变），直接算指纹的话 **ETag 永不命中**。
+指纹改为基于 `JSON.stringify({ ...stateBody, updatedAt: undefined })`。
+
+### 测试
+- 新增 1 例：200 必须带 ETag、同内容回 304 且无正文、ETag 不匹配必须给完整内容。
+- 测试基础设施（`makeReq` / `call`）补了 headers 支持。合计 **134 例**。
+
 ## [0.8.84] - 2026-11-02 —— 接口做减法：/state 少传 3 个没人读的字段
 
 ### 怎么找出来的（知识库第 33 条）
