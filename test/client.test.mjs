@@ -1019,3 +1019,29 @@ test('错误旁边要有「下一步」按钮（登录失效 → 去填 token；
   const other = text(base('other', 'GitHub API 请求: 418 我是茶壶'))
   assert.ok(!other.includes('去填 token') && !other.includes('改仓库地址') && !other.includes('立刻重试'), '未归类的错误不给乱指路的按钮')
 })
+
+test('顶部四个计数必须加得上总数（互斥，不重复数）', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const at = (mins) => new Date(Date.now() - mins * 60000).toISOString()
+  // 四种状态各一条 + 一条"已暂停且出错"（以前会被数两次）
+  const list = [
+    watcher('a/active', { id: 'a/active#s1', lastWake: at(10) }),
+    watcher('a/paused', { id: 'a/paused#s1', enabled: false, lastWake: at(10) }),
+    watcher('a/error', { id: 'a/error#s1', lastError: 'GitHub API 请求: EOF（网络抖动）', lastWake: at(10) }),
+    watcher('a/dormant', { id: 'a/dormant#s1', activeHours: '03:00-04:00', lastWake: at(10) }),
+    watcher('a/both', { id: 'a/both#s1', enabled: false, lastError: 'GitHub API 请求: EOF（网络抖动）', lastWake: at(10) }),
+  ]
+  const snap = { loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: 'x', credentials: {}, sessionUsage: { used: 1, cap: 12, capped: 0 }, watchers: list } }
+  const text = walk(render(desk, deskQueue(snap))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  const value = (label) => {
+    const idx = text.indexOf(' | ' + label)
+    const before = text.slice(0, idx).split(' | ')
+    return Number(before[before.length - 1])
+  }
+  const total = value('条主理鱼')
+  const sum = value('主理中') + value('已暂停') + value('异常') + value('时段外')
+  assert.equal(total, 5, '总数 5 条：' + text.slice(0, 200))
+  assert.equal(sum, total, '分项之和要等于总数（实际 ' + sum + ' vs ' + total + '）')
+})

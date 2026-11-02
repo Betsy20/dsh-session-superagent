@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.103'
+    const CLIENT_VERSION = '0.9.104'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1017,9 +1017,14 @@ window.__ModuleLoader__.load({
         setGoalTouched(false)
       }, 'goal 已保存')
 
-      const running = watchers.filter((w) => orbitStateOf(w) === 'active').length
-      const broken = watchers.filter((w) => orbitStateOf(w) === 'error').length
-      const paused = watchers.filter((w) => w.enabled === false).length
+      // 四个数字必须加得上总数（以前「已暂停」按 enabled 数、「异常」按 lastError 数：
+      // 一条已暂停又有错误的守会被数两次，而「时段外」根本没被数）
+      const byState = { active: 0, paused: 0, error: 0, dormant: 0 }
+      for (const w of watchers) byState[orbitStateOf(w)] += 1
+      const running = byState.active
+      const broken = byState.error
+      const paused = byState.paused
+      const dormant = byState.dormant
 
       const stateTag = (watcher) => {
         const state = orbitStateOf(watcher)
@@ -1248,7 +1253,8 @@ window.__ModuleLoader__.load({
           h('div', { className: 'dt-stat' }, h('span', { className: 'dt-stat-value' }, String(watchers.length)), h('span', null, '条主理鱼')),
           h('div', { className: 'dt-stat' }, h('span', { className: 'dt-stat-value' }, String(running)), h('span', null, '主理中')),
           h('div', { className: 'dt-stat' }, h('span', { className: 'dt-stat-value' }, String(paused)), h('span', null, '已暂停')),
-          h('div', { className: 'dt-stat' }, h('span', { className: 'dt-stat-value' }, String(broken)), h('span', null, '异常'))),
+          h('div', { className: 'dt-stat' }, h('span', { className: 'dt-stat-value' }, String(broken)), h('span', null, '异常')),
+          dormant > 0 ? h('div', { className: 'dt-stat' }, h('span', { className: 'dt-stat-value' }, String(dormant)), h('span', null, '时段外')) : null),
         h(Section, { key: 'list', title: needle ? '搜索结果' : '主理鱼', count: visible.length },
           watchers.length === 0
             ? h(Onboarding, { onStart: () => setTab('trigger') })
