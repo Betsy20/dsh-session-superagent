@@ -131,6 +131,13 @@ const tryRun = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: ROOT, encod
   record('文档链接', res.status === 0, out[1] ? out[1].replace(/^PASS /, '') : '无输出')
 }
 
+// ⑥.47 客户会读到的文字有没有被改动（示例文档是快照，改动必须是有意的）
+{
+  const res = tryRun('node', ['scripts/first-run.mjs', '--check'], { timeout: 60000 })
+  const out = String(res.stdout || '').trim().split(String.fromCharCode(10))
+  record('文案快照', res.status === 0, res.status === 0 ? (out[0] || '').replace(/^PASS /, '') : '文案变了：跑 node scripts/first-run.mjs --write 再看 diff')
+}
+
 // ⑥.46 知识库的 ✅ 必须能在 CHANGELOG 里找到对应版本（KB 不能只靠自己声称）
 {
   const res = tryRun('node', ['scripts/audit-kb-claims.mjs'], { timeout: 60000 })
