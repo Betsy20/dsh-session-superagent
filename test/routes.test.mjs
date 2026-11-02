@@ -669,3 +669,46 @@ test('watch_status 文本：正常的守不堆字段，异常的守才追加原�
   assert.ok(badLine.includes('暂停：active-hours'), '异常的守要说原因：' + badLine)
   assert.equal(lines.filter((l) => l.includes('| 每 ')).length, 2, '每条守一行')
 })
+
+test('/state 的事件按预算收缩：守越多，每守带的事件越少', async () => {
+  const tools = []
+  const localRoutes = new Map()
+  const dir = tempDir('zhuli-budget-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    // 必须用本实例自己的路由表：共享的 call() 会打到别的实例/别的 state 目录（第一版就这么假失败）
+    webServer: { register: (route) => { localRoutes.set(route.path, route); return () => {} } },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-budget' }) },
+    get: () => null, on() {}, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?budget=' + Date.now())
+  mod.apply(ctx)
+
+  // 造 40 条守，每条 20 个事件
+  const state = mod.__test.readState()
+  state.watchers = {}
+  for (let i = 0; i < 40; i += 1) {
+    const id = 'acme/r' + i + '#session-budget'
+    state.watchers[id] = {
+      id, repo: 'acme/r' + i, sessionId: 'session-budget', intervalSec: 60, enabled: true,
+      events: Array.from({ length: 20 }, (_, k) => ({ at: new Date().toISOString(), kind: 'poll', text: 'x' + k })),
+    }
+  }
+  mod.__test.writeState(state)
+
+  const route = localRoutes.get('/session-superagent/state')
+  const fakeRes = {
+    statusCode: 200, headers: {}, chunks: [],
+    setHeader(k, v) { this.headers[k] = v },
+    end(chunk) { if (chunk !== undefined) this.chunks.push(chunk) },
+    get body() { return this.chunks.join('') },
+  }
+  await route.handler({ method: 'GET', url: '/session-superagent/state' }, fakeRes)
+  const parsed = JSON.parse(fakeRes.body)
+  const total = parsed.watchers.reduce((sum, w) => sum + (w.events || []).length, 0)
+  assert.equal(parsed.watchers.length, 40)
+  assert.ok(total <= 240, '总事件数不该超过预算 240：' + total)
+  assert.ok(parsed.watchers[0].events.length <= 6, '每守最多 6 条')
+})
