@@ -5,6 +5,8 @@ import assert from 'node:assert/strict'
 import { decodeBody } from '../lib/body.js'
 import * as watchModule from '../lib/watch.js'
 import {
+  linkedPrNote,
+  pickLinkedPullRequests,
   TRIAGE_SIGNALS,
   assignmentNote,
   priorityScore,
@@ -603,7 +605,7 @@ test('GraphQL 批量：一次查多条，单条 NOT_FOUND 不影响其他条', (
     errors: [{ type: 'NOT_FOUND', path: ['repository', 'i1'] }],
   }
   const parsed = parseCommentBatch(payload)
-  assert.deepEqual(parsed['7'], { login: 'helper', at: '2026-11-02T07:00:00Z' })
+  assert.deepEqual(parsed['7'], { login: 'helper', at: '2026-11-02T07:00:00Z', linked: [] }, '没关联 PR 时给空数组')
   assert.equal(parsed['9'], undefined, '没有评论就不放进来')
   assert.equal(parseCommentBatch(null) && Object.keys(parseCommentBatch(null)).length, 0)
 })
@@ -707,4 +709,26 @@ test('躺了多久：open 且超过阈值才说，closed 不吵', () => {
   assert.ok(formatWatchText('o/r', [item], {}).includes('躺了 40 天'), '消息里要标出来')
   assert.equal(priorityScore(item), 0, '默认不参与排序')
   assert.equal(priorityScore(item, { stale: true }), 2, '开启后 +2')
+})
+
+test('关联 PR：open 优先、去重、消息里提醒"已有 PR 在做"', () => {
+  const nodes = [
+    { __typename: 'CrossReferencedEvent', source: { __typename: 'PullRequest', number: 21, state: 'CLOSED', url: 'u21' } },
+    { __typename: 'CrossReferencedEvent', source: { __typename: 'PullRequest', number: 20, state: 'OPEN', url: 'u20' } },
+    { __typename: 'CrossReferencedEvent', source: { __typename: 'PullRequest', number: 20, state: 'OPEN', url: 'u20' } },
+    { __typename: 'CrossReferencedEvent', source: { __typename: 'Issue', number: 99 } },
+    { __typename: 'CrossReferencedEvent', source: null },
+  ]
+  const picked = pickLinkedPullRequests(nodes)
+  assert.deepEqual(picked.map((p) => p.number), [20, 21], 'open 在前、去重、非 PR 忽略')
+  assert.equal(pickLinkedPullRequests(null).length, 0)
+
+  assert.equal(linkedPrNote(null), '')
+  assert.equal(linkedPrNote([]), '')
+  assert.equal(linkedPrNote([{ number: 20, state: 'OPEN' }]), '已有 PR #20（进行中）')
+  assert.equal(linkedPrNote([{ number: 21, state: 'MERGED' }]), '已有 PR #21（已合并）')
+  assert.match(linkedPrNote([{ number: 20, state: 'OPEN' }, { number: 21, state: 'CLOSED' }]), /等 2 个/)
+
+  const item = { number: 7, title: 'x', state: 'open', html_url: 'u7', user: { login: 'u' }, labels: [], assignees: [], linkedPr: [{ number: 20, state: 'OPEN' }] }
+  assert.ok(formatWatchText('o/r', [item], {}).includes('已有 PR #20'), '消息里要提醒')
 })

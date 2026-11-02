@@ -2,6 +2,27 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.80] - 2026-11-02 —— 「已经有 PR 在做了」：避免重复劳动
+
+### 学到的（知识库第 29 条）
+GraphQL `CrossReferencedEvent` 能拿到引用过这条 issue 的 PR；`source` 是 **union**，
+必须 `source { __typename ... on PullRequest { … } }`，否则报
+`Selections can't be made directly on unions`（实测踩到）。
+<https://docs.github.com/en/graphql/reference/objects#crossreferencedevent>
+
+### 为什么值得
+评论只能看出"有人在说话"，**关联 PR** 才能看出"已经有人在写代码"。
+会话最怕重复劳动：其实已经有人开了 PR，它又从零改一遍。
+
+### 改了什么（零额外请求）
+把时间线查询**挂进已有的批量 GraphQL**，解析出关联 PR：
+- 去重、忽略非 PR 引用；
+- 排序 `OPEN > MERGED > CLOSED`；
+- 消息里提示 `已有 PR #20（进行中）` / `已有 PR #21（已合并）` / `等 N 个`。
+
+### 测试
+- 新增 1 例（open 优先/去重/忽略 Issue 类型/null 源/各状态文案/等 N 个/消息提醒）。合计 **132 例**。
+
 ## [0.8.79] - 2026-11-02 —— 「躺了 62 天」：积压看得见
 
 ### 学到的（知识库第 28 条）
