@@ -322,3 +322,18 @@ test('新增守会回传 warnings 字段（添加前体检的结论；测试环�
   const body = JSON.parse(res.body)
   assert.ok(Array.isArray(body.warnings), 'warnings 必须始终是数组：' + res.body.slice(0, 120))
 })
+
+test('/state 不回传客户端从不读的字段（面板每 5 秒拉一次，省的是真流量）', async () => {
+  await call('POST', '/session-superagent/watch', { repo: 'o/lean', sessionId: 's11', intervalSec: 60 })
+  const res = await call('GET', '/session-superagent/state')
+  const body = JSON.parse(res.body)
+  const entry = body.watchers.find((w) => w.repo === 'o/lean')
+  assert.ok(entry, '应该能找到刚建的守')
+  for (const field of ['wakeTimes', 'cooldownMs', 'lastBatch']) {
+    assert.equal(entry[field], undefined, field + ' 不该出现在 /state 里（服务端自己用即可）')
+  }
+  // 但真正在用的字段必须在
+  for (const field of ['id', 'repo', 'intervalSec', 'enabled', 'filters', 'priority', 'history']) {
+    assert.notEqual(entry[field], undefined, field + ' 必须在')
+  }
+})
