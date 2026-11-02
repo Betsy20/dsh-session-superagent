@@ -1272,3 +1272,22 @@ test('凭证失效要走 30 分钟退避（auth 不会自己好）', () => {
   assert.equal(watchModule.permanentBackoffMs('auth', 60000), 30 * 60 * 1000)
   assert.equal(watchModule.permanentBackoffMs('network', 60000), 0, '网络抖动仍按指数退避')
 })
+
+test('合并唤醒消息：收尾的「接下来」只保留一份（内容不同的完成标准照样各留）', () => {
+  const tail = String.fromCharCode(10, 10) + '接下来：' + String.fromCharCode(10)
+    + '1. 先读仓库 AGENTS.md 的判断规则；' + String.fromCharCode(10)
+    + '2. 没有测试结果不算完成；' + String.fromCharCode(10)
+    + '3. 做完一条就写回 GitHub。'
+  const items = [1, 2, 3].map((n) => '【主理鱼】o/r 有 1 条新动态：' + String.fromCharCode(10)
+    + '# ' + n + ' 标题' + String.fromCharCode(10) + '【完成标准】' + String.fromCharCode(10)
+    + '1. 第 ' + n + ' 条的标准' + tail)
+  const merged = watchModule.mergeWakeTexts(items)
+  const tailCount = (merged.match(/接下来：/g) || []).length
+  assert.equal(tailCount, 1, '收尾只该出现一次（实际 ' + tailCount + '）')
+  for (const n of [1, 2, 3]) {
+    assert.ok(merged.includes('第 ' + n + ' 条的标准'), '每条各自的完成标准要保留')
+  }
+  // 结构断言为主：合并后会多出「—— 第 N 处 ——」分隔行，所以长度只要求净省下一点
+  const saved = items.join('').length - merged.length
+  assert.ok(saved > 30, '合并后要净省下长度（实际省 ' + saved + '）')
+})

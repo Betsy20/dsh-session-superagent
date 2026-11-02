@@ -2,6 +2,37 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.120] - 2026-11-03 —— 合并唤醒消息：同一份「接下来」只印一次
+
+### 学到什么（出处）
+Google SRE 书《Monitoring Distributed Systems》讲告警的核心原则：
+
+> **Every page should be actionable.** … Every time the pager goes off, I should be able to react
+> with a sense of urgency.
+
+<https://sre.google/sre-book/monitoring-distributed-systems/>
+
+但 **actionable ≠ 把同一份指令印 N 遍** —— 合并唤醒（多条一起叫）原来每条都带一份
+「接下来：1/2/3」，三条就是同一段指令重复三次，读者只会更快跳过它。
+
+### 改法
+`mergeWakeTexts()` 把每条消息里 `接下来：` 之后的收尾剥掉，最后**统一附一份**，
+每条自己的【完成标准】仍各自保留（内容不同，不能合并）。
+
+### 证据（3 条合并，实测）
+| | 长度 |
+|---|---|
+| 改前 | 309 字符（「接下来」出现 **3** 次） |
+| 改后 | 259 字符（出现 **1** 次，净省 50） |
+
+省下的不是大头（分隔行会补回来一点），关键是**读起来的噪音**：一份指令只出现一次。
+
+### 测试
+新增 1 例：3 条合并后「接下来」恰好 1 次、每条完成标准都在、净省长度 > 30。合计 **229 例**。
+
+### 说明
+`raw.githubusercontent.com` 与 `api.github.com` 本轮仍 502，所以学习源换成了 `sre.google`（可访问）。
+
 ## [0.9.119] - 2026-11-03 —— 凭证失效要单独报，并说清"不会自己恢复"
 
 ### 真机现场
