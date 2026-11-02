@@ -1,0 +1,99 @@
+// 生成 docs/验收清单.md：把 preflight 的每一项翻译成"它能防止什么事故"。
+//
+// 判据（写死）：**每个 record('…') 都必须有解释**，否则 --check 失败 ——
+// 门禁从"一堵墙"变成"可解释的保障"。
+//
+// 用法：
+//   node scripts/render-acceptance.mjs           # 打印
+//   node scripts/render-acceptance.mjs --write   # 写入 docs/验收清单.md
+//   node scripts/render-acceptance.mjs --check   # 校验文档与代码一致 + 每项都有解释
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const root = join(dirname(fileURLToPath(import.meta.url)), '..')
+const preflight = readFileSync(join(root, 'scripts', 'preflight.mjs'), 'utf8')
+
+// 代码里真实的检查项（按出现顺序，去重）
+const names = []
+for (const match of preflight.matchAll(/record\('([^']+)'/g)) {
+  if (!names.includes(match[1])) names.push(match[1])
+}
+
+// 每项：防什么 + 证据（真实事故 / KB 条目）
+const WHY = {
+  '单测 node --test': ['功能回归：纯函数、路由、面板渲染', 'KB `fake-pass.md`（条件断言曾让一档用例静默跳过）'],
+  'README 单测数': ['文档里的数字过期（曾写 136，实际 181）', 'KB `prose-numbers-drift.md`'],
+  '语法 node --check': ['生成代码时的语法错误（模板字符串把 \\n 写成真换行）', 'CHANGELOG 0.9.44'],
+  'profile 一致性 --check': ['新文件没进 profile → 插件整体不挂载（2026-11-02 真机事故）', 'KB `profile-link.md`'],
+  '版本一致（4 处）': ['改了代码没重启，面板显示的样子骗人', 'KB `version-skew.md`'],
+  '路由面': ['路由注册异常（数量/路径与契约不符）', 'CHANGELOG 0.9.31（加 /trace 时同步改四处期望）'],
+  '路由面（9 条）': ['路由数量漂移：面板接口与工具面不一致', 'CHANGELOG 0.9.31'],
+  'npm pack 内容': ['包内容泄漏或漏文件（发布后才发现的经典事故）', 'README 安装节'],
+  '离线挂载冒烟': ['apply 抛错 / 挂载后路由缺失', 'KB `route-resilience.md`'],
+  '文档链接': ['文档互相引用的断链', 'KB `identifier-drift.md`'],
+  '并发隔离': ['两个会话守同一仓库时互相踩', 'KB `concurrent-isolation.md`'],
+  '隔离链路': ['worktree 回收不掉、主工作区被污染', 'KB `verify-isolation-chain.md`'],
+  '文案快照': ['客户会读到的文字被悄悄改坏', 'KB `copy-snapshot.md`'],
+  'JSON 契约': ['字段清单与契约文档脱节', 'KB `field-stability-manifest.md`'],
+  '全库文档一致': ['文档里提到不存在的工具/路由/文件', 'KB `audit-false-positives.md`'],
+  '单行长度': ['唤醒消息里出现过长的行', 'KB `line-length-limit.md`'],
+  '信息密度': ['首屏区块过多', 'KB `information-density.md`'],
+  '文档标识符': ['工具名/路由改名后文档没跟上', 'KB `identifier-drift.md`'],
+  '知识库有据': ['知识库的 ✅ 没有对应发布、路径不存在', 'KB `audit-kb-claims.md`'],
+  '双主题预览可渲染': ['面板在另一套主题下渲染失败', 'KB `design-tokens`'],
+  'UI 体检': ['写死颜色 / 裸 div 可点 / 弹层键盘不可用', 'KB `information-density.md`'],
+  '冒烟 smoke:observe': ['真机 observe 模式跑不起来', 'README 验收节'],
+  '验收清单': ['门禁项没有解释（新增检查忘了写“防止什么”）', 'KB `explainable-gates.md`'],
+}
+
+const missing = names.filter((name) => !WHY[name])
+const stale = Object.keys(WHY).filter((name) => !names.includes(name))
+
+function render() {
+  const lines = []
+  lines.push('# 验收清单（由 `scripts/render-acceptance.mjs` 生成，不要手改）')
+  lines.push('')
+  lines.push('`node scripts/preflight.mjs` 共 **' + names.length + '** 项。每一项都写清"它能防止什么"，')
+  lines.push('因为**不可解释的门禁等于没有门禁** —— 红了没人知道该不该急。')
+  lines.push('')
+  lines.push('| # | 检查 | 防止什么 | 证据 |')
+  lines.push('|---|---|---|---|')
+  names.forEach((name, index) => {
+    const [why, evidence] = WHY[name] || ['（缺解释）', '（缺证据）']
+    lines.push('| ' + (index + 1) + ' | `' + name + '` | ' + why + ' | ' + evidence + ' |')
+  })
+  lines.push('')
+  lines.push('---')
+  lines.push('')
+  lines.push('新增检查时：先在 `scripts/preflight.mjs` 里 `record(...)`，再到 `scripts/render-acceptance.mjs` 的 `WHY` 表里写一句话')
+  lines.push('（防止什么 + 证据），然后跑 `--write`。**没写解释的检查会让 `--check` 变红。**')
+  return lines.join(String.fromCharCode(10)) + String.fromCharCode(10)
+}
+
+const text = render()
+const target = join(root, 'docs', '验收清单.md')
+const mode = process.argv[2] || ''
+
+if (missing.length > 0) {
+  console.log('FAIL 这些检查没有解释：' + missing.join('、'))
+  process.exitCode = 1
+}
+if (stale.length > 0) {
+  console.log('WARN 这些解释对应的检查已不存在：' + stale.join('、'))
+}
+
+if (mode === '--write') {
+  writeFileSync(target, text)
+  console.log('已写入 docs/验收清单.md（' + names.length + ' 项）')
+} else if (mode === '--check') {
+  const saved = existsSync(target) ? readFileSync(target, 'utf8') : ''
+  if (saved === text) {
+    console.log('PASS 验收清单与 preflight 一致（' + names.length + ' 项，每项都有解释）')
+  } else {
+    console.log('FAIL docs/验收清单.md 与 preflight 不一致 —— 跑 node scripts/render-acceptance.mjs --write')
+    process.exitCode = 1
+  }
+} else {
+  console.log(text)
+}
