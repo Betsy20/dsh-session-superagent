@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.34'
+    const CLIENT_VERSION = '0.8.35'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -42,7 +42,13 @@ window.__ModuleLoader__.load({
           if (!best || score > best.score) best = { base, score }
         } catch {}
       }
-      if (best) BASE = best.base
+      if (best && best.base !== BASE) {
+        BASE = best.base
+        // 记一笔：排查「面板到底在跟哪一代」时用得上（不像轮询那样完全不落痕迹）
+        try { note('client-base', BASE) } catch {}
+      } else if (best) {
+        BASE = best.base
+      }
       return BASE
     }
 
