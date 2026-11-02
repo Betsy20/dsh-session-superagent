@@ -7,11 +7,11 @@
 - 仓库：https://github.com/MYCF711/dsh-session-superagent
 - 版本：**v0.8.20**
 - 本地：`<本仓库 checkout 路径>`（profile 里以 `file:` 安装，**硬链接**：改源码即改 profile 内文件）
-- 真机：Windows 11 + DSH 0.2.1-rc.5，`node --test` **88/88**（重启后真机复验通过）
+- 真机：Windows 11 + DSH 0.2.1-rc.5，`node --test` **94/94**（重启后真机复验通过）
 
 | 能力 | 实现位置 | 验证方式 |
 |---|---|---|
-| 主理鱼标签页（移植官方 GUI） | `client.js` → `conversation.view`，用 `docs/official-gui-ia.md` 的 IA 重建 | `desk-registered ok` + 85 例测试 |
+| 主理鱼标签页（移植官方 GUI） | `client.js` → `conversation.view`，用 `docs/official-gui-ia.md` 的 IA 重建 | `desk-registered ok` + 94 例测试 |
 | 状态栏「主理鱼」轨道环（0 条灰环占位 / 卫星公转 / 点击看详情） | `client.js` → `conversation.composer.dock`（`order: -10` 最左端） | `/client-note?key=client-version` 探针 + 面板实测 |
 | 轮询 + 唤醒 | `lib/index.js` + `lib/watch.js` | `lastPoll` 前进；`followup` 唤醒 |
 | 过滤器 / 批量 / 每小时上限 / 失败退避 | `lib/watch.js` 纯函数 + `/watch` 路由 | `node --test`（`passesFilters` / `batchFresh` / `nextDelayMs` / `pruneWakeTimes`） |
@@ -179,7 +179,7 @@ computed style 核对：模态 `fixed/inset:0`、宽 380 居中；Toast `fixed/t
 结论：**改服务端代码不再需要重启 DSH** —— 换前缀重放（0.8.32/33）+ 失效重探（0.8.34）+
 探针（0.8.35）三段拼起来，在真机上跑通了。
 
-### 交付终态快照（2026-11-02 04:14）
+### 交付快照（2026-11-02 04:14，当时 0.8.31 —— 属历史记录）
 
 ```
 preflight（全量，7 项）                                         全部通过

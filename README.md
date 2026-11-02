@@ -99,7 +99,7 @@ dsh plugin install /path/to/dsh-session-superagent
 ## 开发
 
 ```sh
-node --test          # 88 项单测
+node --test          # 94 项单测
 ```
 
 版本与发布流程见 [UPDATING.md](UPDATING.md)，交付门见 [CHECKLIST.md](CHECKLIST.md)，接手台账见 [MAINTENANCE.md](MAINTENANCE.md)。
