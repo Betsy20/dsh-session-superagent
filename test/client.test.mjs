@@ -103,7 +103,7 @@ function walk(node, out = []) {
 const deskForm = { repo: '', intervalSec: '60', goal: '', labels: '', onlyAssigned: false, activeHours: '', isolated: false, workdir: '' }
 const deskQueue = (snapshot, editing = null, draft = {}, tab = 'overview', search = '', glossary = false, update = null) =>
   // 末尾两个是 0.8.38 新增的 update / checking 槽位（版本检查），顺序必须跟组件里的 useState 一致
-  [snapshot, tab, null, deskForm, '', '', false, [], editing, draft, search, glossary, update, false]
+  [snapshot, tab, null, deskForm, '', '', false, [], editing, draft, search, glossary, update, false, 'source']
 
 const watcher = (repo, extra = {}) => ({
   repo,
@@ -380,9 +380,14 @@ test('主理鱼面板：每行有「编辑」按钮（点开后可改间隔/过�
   }
   const form = { repo: '', intervalSec: '60', goal: '', labels: '', onlyAssigned: false, activeHours: '', isolated: false, workdir: '' }
   const nodes = walk(render(desk, deskQueue(snapshot)))
+  // 对齐官方 TicketLine：点标题（dt-open 按钮）展开，而不是另设一个「编辑」按钮
+  const opens = nodes.filter((n) => n.type === 'button' && String(n.props.className || '').includes('dt-open'))
+  assert.equal(opens.length, 1, '每行应该有一个可点标题（dt-open）')
+  assert.equal(opens[0].props['aria-expanded'], false, '未展开时 aria-expanded=false')
+  assert.ok(String(opens[0].props.children).includes('a/b'), '标题就是仓库名')
   const labels = nodes.filter((n) => n.type === 'button')
     .map((b) => (b.props.children || []).filter((c) => typeof c === 'string').join(''))
-  assert.ok(labels.includes('编辑'), labels.join('|'))
+  assert.ok(labels.includes('立刻') && labels.includes('暂停'), '行内操作仍在：' + labels.join('|'))
   // 打开编辑态：editing === id 时出现保存/放弃
   const editing = walk(render(desk, deskQueue(snapshot, 'a/b#session-a/b', { intervalSec: '60', labels: '', activeHours: '', isolated: false })))
   const editingLabels = editing.filter((n) => n.type === 'button')
@@ -573,4 +578,20 @@ test('活跃时段之外的 watcher 不再谎报「主理中」（改显示「�
   const text = nodes.filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
   assert.ok(text.includes('时段外'), '窗口外应显示「时段外」，实际：' + text.slice(0, 200))
   assert.ok(text.includes('时段 ' + window), '时段本身仍然要显示给人看')
+})
+
+test('设置页用官方左栏导航（dt-settings + dt-settings-nav）', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snapshot = {
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: '会话', credentials: { token: 'none', sshKeyPath: 'none' }, watchers: [] },
+  }
+  const nodes = walk(render(desk, deskQueue(snapshot, null, {}, 'settings')))
+  const grid = nodes.filter((n) => String(n.props && n.props.className || '').includes('dt-settings'))
+  assert.ok(grid.length >= 1, '设置页要用 dt-settings 网格')
+  const links = nodes.filter((n) => String(n.props && n.props.className || '').includes('dt-settings-link'))
+  assert.equal(links.length, 4, '左栏应有 4 个分区')
+  const current = links.filter((n) => n.props['aria-current'] === 'page')
+  assert.equal(current.length, 1, '当前分区要有 aria-current=page')
 })

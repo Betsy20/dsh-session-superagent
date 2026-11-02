@@ -2,6 +2,32 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.43] - 2026-11-02 —— 行结构与设置页改用官方模板
+
+按 `docs/ui-inventory.md` 的第 1、2 项打。
+
+### 行列表：改用官方 `TicketLine` 结构
+官方 `rows.tsx` 的行是 `<li class="dt-row dt-link dt-ticket">`，两列网格：
+**左列状态（`dt-ticket-stage`）** + **右列正文（`dt-ticket-body`）**，标题本身是 `dt-open` 按钮。
+我们之前是普通 `dt-row` + 一个单独的「编辑」按钮。现在：
+
+- 列表容器 `dt-rows` → **`dt-list`**（只有 `.dt-list > .dt-ticket` 才有左侧状态列网格）；
+- 标题改成 `dt-open` 按钮（带 `aria-expanded`），点标题展开行内编辑 —— 官方就是点标题进详情；
+- 行内 `dt-ticket-note` 承载会话/间隔/轮询/唤醒这串说明，错误行用 `dt-ticket-note-error`；
+- 操作收进 `dt-ticket-actions`。
+
+### 设置页：改用官方「左栏 + 内容」
+`dt-settings` 网格（140px + 内容）之前搬来了 CSS 却没用。现在是四个分区（来源 / 凭证 / 版本与更新 / 会话 goal）
+配 `dt-settings-nav` 左栏，当前项 `aria-current="page"`，深链路里不用一路滚到底。
+
+### UI 体检扩到 9 项
+新增「官方结构采用数」（`dt-ticket` / `dt-list` / `dt-open` / `dt-settings` / `dt-settings-nav` /
+`dt-timeline` / `dt-event` / `dt-disclosure`），当前 **8/8**。合计 **9/9 = 100 分**。
+
+### 测试
+- 新增：设置页必须有 `dt-settings` 网格、4 个左栏项、且只有 1 个 `aria-current=page`；
+- 「编辑按钮」用例改成断言 `dt-open` 标题（交互位置变了，行为没丢）。合计 **101 例**。
+
 ## [0.8.42] - 2026-11-02 —— 全界面盘点 + 弹层键盘行为对齐官方
 
 用户要求：「所有 UI，包括二三级页面，有官方素材就用官方素材」。先做盘点，再按清单打。

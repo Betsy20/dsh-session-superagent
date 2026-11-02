@@ -81,6 +81,12 @@ const ownClasses = [...new Set([...ownStyleBlocks.matchAll(/\.(sa-[a-z0-9-]+)/g)
 const deadOwnClasses = ownClasses.filter((c) => count(new RegExp('(^|[^a-z0-9-])' + c + '([^a-z0-9-]|$)'), clientSource) <= 1)
 add('自造类里的死代码', deadOwnClasses.length, 0, deadOwnClasses.length ? '没用到的自造类：' + deadOwnClasses.join(' ') : '全部有用到')
 
+// ⑨ 官方结构采用度：这几套结构来自官方 rows.tsx / settings-kit / eval.tsx，用得越多越像原生
+const OFFICIAL_STRUCTURES = ['dt-ticket', 'dt-list', 'dt-open', 'dt-settings', 'dt-settings-nav', 'dt-timeline', 'dt-event', 'dt-disclosure']
+const adopted = OFFICIAL_STRUCTURES.filter((name) => clientSource.includes(name))
+add('官方结构采用数', adopted.length + '/' + OFFICIAL_STRUCTURES.length, (v) => Number(String(v).split('/')[0]) >= 4,
+  '已用：' + adopted.join(' ') + '；未用：' + OFFICIAL_STRUCTURES.filter((n) => !adopted.includes(n)).join(' '))
+
 const passed = results.filter((r) => r.ok).length
 const score = Math.round((passed / results.length) * 100)
 

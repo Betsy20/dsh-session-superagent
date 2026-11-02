@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.42'
+    const CLIENT_VERSION = '0.8.43'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -747,6 +747,8 @@ window.__ModuleLoader__.load({
       // 版本检查结果（只读）：面板里直接告诉客户「有没有新版本、该跑什么命令」
       const [update, setUpdate] = useState(null)
       const [checking, setChecking] = useState(false)
+      // 设置页用官方的「左栏 + 内容」结构（dt-settings），所以要记当前分区
+      const [settingsSection, setSettingsSection] = useState('source')
 
       const load = useCallback(async () => {
         try {
@@ -871,61 +873,57 @@ window.__ModuleLoader__.load({
         return h(Tag, { tone, title: state === 'dormant' ? '不在活跃时段：只攒条目，不唤醒' : undefined }, STATE_TEXT[state])
       }
 
+      // 行结构对齐官方 rows.tsx 的 TicketLine：dt-ticket（左侧状态列）+ dt-open 标题 + dt-ticket-actions。
+      // 标题本身是按钮 —— 官方就是点标题进详情，我们点标题展开行内编辑，交互更轻但不脱离这套结构。
+      const STAGE_STATE = { active: undefined, paused: 'warning', error: 'error', dormant: 'warning' }
       const row = (watcher) => {
         const key = watcher.repo + '#' + watcher.sessionId
-        const rowBody = h('div', { className: 'dt-row' },
-        h('div', { className: 'dt-row-main' },
-          h(Dot, { state: orbitStateOf(watcher) === 'active' ? 'done' : orbitStateOf(watcher) === 'error' ? 'error' : 'idle', label: STATE_TEXT[orbitStateOf(watcher)] }),
+        const state = orbitStateOf(watcher)
+        const rowBody = h('div', { className: 'dt-ticket-body' },
           h('div', { className: 'dt-row-title' },
-            h('span', { className: 'dt-row-name' }, watcher.repo),
-            h('span', { className: 'dt-row-meta' },
-              [
-                (watcher.title || '未命名会话') + ' · ' + sessionTag(watcher.sessionId),
-                '每 ' + watcher.intervalSec + 's',
-                '轮询 ' + ageText(watcher.lastPoll),
-                '唤醒 ' + wakeText(watcher.lastWake),
-                historyText(watcher),
-                watcher.note ? '目标: ' + String(watcher.note).slice(0, 40) : '',
-                watcher.lastDeferred,
-                watcher.lastError,
-              ].filter(Boolean).join(' · '))),
-          h('div', { className: 'dt-row-meta' },
+            h('button', {
+              type: 'button', className: 'dt-open', title: '展开或收起这条主理鱼的设置',
+              'aria-expanded': editing === key, onClick: () => {
+                setEditing(editing === key ? null : key)
+                setDraft({
+                  intervalSec: String(watcher.intervalSec ?? 60),
+                  labels: (watcher.filters && watcher.filters.labels ? watcher.filters.labels : []).join(','),
+                  activeHours: watcher.activeHours || '',
+                  goal: watcher.note || '',
+                  onlyAssigned: !!(watcher.filters && watcher.filters.onlyAssigned),
+                })
+              },
+            }, watcher.repo)),
+          h('div', { className: 'dt-row-meta dt-ticket-meta' },
             stateTag(watcher),
             watcher.observe ? h(Tag, { tone: 'warning' }, '仅观察') : null,
             watcher.activeHours ? h(Tag, null, '时段 ' + watcher.activeHours) : null,
             watcher.isolated ? h(Tag, null, isolationText(watcher)) : null,
             filterText(watcher.filters) ? h(Tag, null, filterText(watcher.filters)) : null,
-            backoffText(watcher) ? h(Tag, { tone: 'warning' }, backoffText(watcher)) : null)),
-        h('div', { className: 'dt-row-actions' },
-          h(Btn, {
-            size: 'sm', variant: 'ghost', icon: h(Icon, { name: 'settings' }), label: '编辑',
-            onClick: () => {
-              setEditing(editing === key ? null : key)
-              setDraft({
-                intervalSec: String(watcher.intervalSec ?? 60),
-                labels: ((watcher.filters && watcher.filters.labels) || []).join(','),
-                onlyAssigned: !!(watcher.filters && watcher.filters.onlyAssigned),
-                activeHours: watcher.activeHours || '',
-                goal: watcher.note || '',
-                isolated: !!watcher.isolated,
-                workdir: watcher.workdir || '',
-                observe: !!watcher.observe,
-                batchLimit: String(watcher.batchLimit ?? 5),
-                maxWakesPerHour: String(watcher.maxWakesPerHour ?? 6),
-              })
-            },
-          }, editing === key ? '收起' : '编辑'),
-          h(Btn, { size: 'sm', variant: 'outline', icon: h(Icon, { name: 'refresh' }), onClick: () => act(watcher, 'poll') }, '立刻'),
-          h(Btn, {
-            size: 'sm', variant: 'ghost',
-            icon: h(Icon, { name: watcher.enabled ? 'pause' : 'play' }),
-            label: watcher.enabled ? '暂停' : '恢复',
-            onClick: () => act(watcher, watcher.enabled ? 'pause' : 'resume'),
-          }, watcher.enabled ? '暂停' : '恢复'),
-          h(ConfirmBtn, {
-            size: 'sm', variant: 'ghost', icon: h(Icon, { name: 'trash' }), label: '删除',
-            confirmLabel: '确认删除', onConfirm: () => act(watcher, 'delete'),
-          })))
+            backoffText(watcher) ? h(Tag, { tone: 'warning' }, backoffText(watcher)) : null),
+          h('div', { className: 'dt-ticket-note' },
+            [
+              (watcher.title || '未命名会话') + ' · ' + sessionTag(watcher.sessionId),
+              '每 ' + watcher.intervalSec + 's',
+              '轮询 ' + ageText(watcher.lastPoll),
+              '唤醒 ' + wakeText(watcher.lastWake),
+              historyText(watcher),
+              watcher.note ? '目标: ' + String(watcher.note).slice(0, 40) : '',
+            ].filter(Boolean).join(' · ')),
+          watcher.lastDeferred ? h('div', { className: 'dt-ticket-note' }, watcher.lastDeferred) : null,
+          watcher.lastError ? h('div', { className: 'dt-ticket-note dt-ticket-note-error' }, String(watcher.lastError).slice(0, 160)) : null,
+          h('div', { className: 'dt-ticket-actions' },
+            h(Btn, { size: 'sm', variant: 'outline', icon: h(Icon, { name: 'refresh' }), onClick: () => act(watcher, 'poll') }, '立刻'),
+            h(Btn, {
+              size: 'sm', variant: 'ghost',
+              icon: h(Icon, { name: watcher.enabled ? 'pause' : 'play' }),
+              label: watcher.enabled ? '暂停' : '恢复',
+              onClick: () => act(watcher, watcher.enabled ? 'pause' : 'resume'),
+            }, watcher.enabled ? '暂停' : '恢复'),
+            h(ConfirmBtn, {
+              size: 'sm', variant: 'ghost', icon: h(Icon, { name: 'trash' }), label: '删除',
+              confirmLabel: '确认删除', onConfirm: () => act(watcher, 'delete'),
+            })))
         const editor = editing === key
           ? h('div', { className: 'dt-fieldset' },
             field('间隔（秒）', h(Input, { value: draft.intervalSec, onChange: (e) => setDraft({ ...draft, intervalSec: e.target.value }) })),
@@ -942,7 +940,17 @@ window.__ModuleLoader__.load({
               h(Btn, { size: 'sm', variant: 'primary', onClick: () => saveEdit(watcher) }, '保存'),
               h(Btn, { size: 'sm', onClick: () => setEditing(null) }, '放弃')))
           : null
-        return h(React.Fragment, { key }, rowBody, editor)
+        // 官方 TicketLine 是 <li class="dt-row dt-link dt-ticket"> 里套「状态列 + 正文列」，
+        // 展开的表单跟在正文列里，不破坏两列网格。
+        const bodyChildren = [].concat(rowBody.props.children || []).filter(Boolean)
+        return h('li', {
+          key,
+          className: 'dt-row dt-link dt-ticket',
+          'data-state': state === 'error' ? 'error' : undefined,
+        },
+          h('div', { className: 'dt-ticket-stage' },
+            h('span', { className: 'dt-stage', 'data-state': STAGE_STATE[state] }, STATE_TEXT[state])),
+          h('div', { className: 'dt-ticket-body' }, ...bodyChildren, editor))
       }
 
       const problems = []
@@ -982,7 +990,7 @@ window.__ModuleLoader__.load({
             ? h(Hint, null, '还没有主理鱼。切到「触发」页填一个 owner/name 添加。')
             : visible.length === 0
               ? h(Hint, null, '没有匹配「' + search + '」的主理鱼。')
-              : h('div', { className: 'dt-rows' }, visible.map(row))),
+              : h('ul', { className: 'dt-list' }, visible.map(row))),
       ]
 
       // 判定日志（对应官方 eval 页）：每轮的唤醒结果、跳过原因、被过滤记录，一次看全
@@ -1018,7 +1026,7 @@ window.__ModuleLoader__.load({
             h(Btn, { variant: 'primary', icon: h(Icon, { name: 'plus' }), onClick: addWatcher, disabled: !sessionId || !form.repo.trim() },
               sessionId ? '添加到当前会话' : '需要会话上下文'))))
 
-      const settings = [
+      const settingsSections = [
         h(Section, { key: 'source', title: '来源' },
           h(KeyValues, { rows: [
             ['仓库', watchers.length === 0 ? '未绑定' : watchers.map((w) => w.repo).join(', ')],
@@ -1053,6 +1061,26 @@ window.__ModuleLoader__.load({
           }),
           h('div', { className: 'dt-actions' }, h(Btn, { variant: 'primary', onClick: saveGoal, disabled: !sessionId }, '保存 goal'))),
       ]
+
+
+      // 官方设置页是「左栏导航 + 右侧内容」的网格（dt-settings / dt-settings-nav / dt-settings-body）。
+      // 我们之前是单列堆叠，四个分区一起铺开，深链路里翻起来很累。
+      const SETTINGS_SECTIONS = [
+        { key: 'source', title: '来源' },
+        { key: 'creds', title: '凭证' },
+        { key: 'update', title: '版本与更新' },
+        { key: 'goal', title: '会话 goal' },
+      ]
+      const settingsBody = settingsSections.find((node) => node && node.props && node.props.key === settingsSection)
+        || settingsSections.find(Boolean)
+      const settings = h('div', { className: 'dt-settings' },
+        h('nav', { className: 'dt-settings-nav', 'aria-label': '设置分区' },
+          SETTINGS_SECTIONS.map((item) => h('button', {
+            key: item.key, type: 'button', className: 'dt-settings-link',
+            'aria-current': settingsSection === item.key ? 'page' : undefined,
+            onClick: () => setSettingsSection(item.key),
+          }, item.title))),
+        h('div', { className: 'dt-settings-body' }, settingsBody))
 
       const checkUpdate = useCallback(async (force) => {
         setChecking(true)
