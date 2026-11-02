@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.30'
+    const CLIENT_VERSION = '0.9.31'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1228,6 +1228,31 @@ window.__ModuleLoader__.load({
         count: watchers.reduce((n, w) => n + (w.history || []).length, 0),
         action: h(InfoTip, { text: '每轮判定都会记一条：唤醒、仅观察，或跳过及其原因。只存最近若干条。' }),
       },
+        (() => {
+          const needle = search.trim()
+          const asNumber = /^#?[0-9]+$/.test(needle) ? needle.replace('#', '') : ''
+          if (!asNumber) {
+            return h(Section, { key: 'trace', title: '追溯一条', hint: '在右上角搜索框输入编号（如 42），这里就能查它经历了什么' },
+              h(Hint, null, '追溯会告诉你：它被过滤了、已经唤醒过、还是根本没轮到。'))
+          }
+          const onlyRepo = watchers.length === 1 ? watchers[0].repo : ''
+          return h(Section, { key: 'trace', title: '追溯一条' },
+            h('div', { className: 'dt-row-meta' },
+              h('button', {
+                className: 'dt-textlink',
+                type: 'button',
+                onClick: async () => {
+                  try {
+                    const query = '/trace?number=' + encodeURIComponent(asNumber) + (onlyRepo ? '&repo=' + encodeURIComponent(onlyRepo) : '')
+                    const payload = await call(query)
+                    notify(String((payload && payload.text) || '没有结果').split(String.fromCharCode(10)).join(' · '), 'info')
+                  } catch (error) {
+                    notify('追溯失败：' + String((error && error.message) || error), 'error')
+                  }
+                },
+              }, '追溯 #' + asNumber),
+              h('span', { className: 'dt-row-meta' }, onlyRepo ? '（在 ' + onlyRepo + ' 里查）' : '（在所有守里查）')))
+        })(),
         (() => {
           const counts = new Map()
           for (const w of watchers) if (w.deferReason) counts.set(w.deferReason, (counts.get(w.deferReason) || 0) + 1)

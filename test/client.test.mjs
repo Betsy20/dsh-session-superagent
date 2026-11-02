@@ -895,3 +895,19 @@ test('暂停原因可以按原因码筛选（点 Pill 只看那一类）', () =>
   assert.ok(text.includes('a/cap'), '命中原因的要留下')
   assert.ok(!text.includes('b/rate'), '别的原因不该出现：' + text.slice(0, 240))
 })
+
+test('判定页：搜索框输入编号后可追溯（点它问服务端要结论）', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = {
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: 'x', credentials: {}, watchers: [watcher('a/b', { id: 'a/b#s1' })] },
+  }
+  const empty = walk(render(desk, deskQueue(snap, null, {}, 'judge'))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(empty.includes('追溯一条'), '要有追溯区块')
+  assert.ok(empty.includes('输入编号'), '没输入时要提示怎么用')
+
+  const filled = walk(render(desk, deskQueue(snap, null, {}, 'judge', '42'))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(filled.includes('追溯 #42'), '输入编号后要出现追溯按钮：' + filled.slice(0, 200))
+  assert.ok(filled.includes('在 a/b 里查'), '只有一条守时应说明在哪个仓库查')
+})

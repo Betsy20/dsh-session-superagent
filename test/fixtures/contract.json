@@ -88,6 +88,7 @@
     "/session-superagent/diagnose",
     "/session-superagent/goal",
     "/session-superagent/state",
+    "/session-superagent/trace",
     "/session-superagent/update",
     "/session-superagent/watch"
   ]

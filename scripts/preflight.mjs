@@ -68,7 +68,7 @@ const tryRun = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: ROOT, encod
   record('版本一致（4 处）', same, `${pkg.version} / client ${clientVersion} / badge ${badge} / changelog ${top}`)
 }
 
-// ⑤ 路由面（期望 8 条）
+// ⑤ 路由面（期望 9 条）
 {
   const stateDir = mkdtempSync(join(tmpdir(), 'preflight-'))
   process.env.DSH_SUPERAGENT_STATE = stateDir
@@ -88,8 +88,8 @@ const tryRun = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: ROOT, encod
   }
   const expected = ['client-error', 'client-note', 'credentials', 'diagnose', 'goal', 'state', 'update', 'watch']
     .map((n) => '/session-superagent/' + n)
-  const ok = count === 8 && expected.every((p) => paths.includes(p))
-  record('路由面（8 条）', ok, `${count} 条：${paths.map((p) => p.split('/').pop()).join(' ')}`)
+  const ok = count === 9 && expected.every((p) => paths.includes(p))
+  record('路由面（9 条）', ok, `${count} 条：${paths.map((p) => p.split('/').pop()).join(' ')}`)
   rmSync(stateDir, { recursive: true, force: true })
 }
 

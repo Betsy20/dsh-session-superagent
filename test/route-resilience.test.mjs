@@ -39,7 +39,7 @@ test('某条路由重复时，整组换一个带序号的前缀重放（面板�
   const firstPass = registered.filter((p) => p.startsWith('/session-superagent/') && !p.includes('/r'))
   const replay = registered.filter((p) => /\/session-superagent\/r\d+\//.test(p))
   assert.ok(firstPass.length >= 1, '第一遍至少注册了前面几条')
-  assert.equal(replay.length, 8, '撞车后整组 8 条换新前缀重放')
+  assert.equal(replay.length, 9, '撞车后整组 9 条换新前缀重放')
   assert.ok(replay.every((p) => p.includes('/r2/')), '前缀应该带序号')
   assert.ok(replay.some((p) => p.endsWith('/state')), '新前缀下 /state 必须可用')
 
@@ -62,10 +62,10 @@ test('同一个模块被 apply 两次时，会先摘掉上一次的路由（接�
     effect: (fn) => fn(),
   }
   apply(ctx)
-  assert.equal(made.length, 8)
+  assert.equal(made.length, 9)
   apply(ctx)                      // 模拟宿主重载：同一个模块再来一次
-  assert.equal(unregistered.length, 8, '第二次 apply 应该先把第一批摘掉')
-  assert.equal(made.length, 16, '然后重新注册一份')
+  assert.equal(unregistered.length, 9, '第二次 apply 应该先把第一批摘掉')
+  assert.equal(made.length, 18, '然后重新注册一份')
 })
 
 test('卸载时会真的把路由 unregister（否则重载后就是重复路由）', () => {
@@ -91,10 +91,10 @@ test('卸载时会真的把路由 unregister（否则重载后就是重复路由
   assert.ok(disposeListeners.length > 0, '也应该挂 dispose 监听')
 
   for (const cleanup of cleanups) cleanup()
-  assert.equal(unregistered.length, 8, '八条路由都应该被 unregister')
+  assert.equal(unregistered.length, 9, '九条路由都应该被 unregister')
 
   // dispose 监听也要能安全重复调用（宿主可能两条路都走）
   for (const listener of disposeListeners) listener()
-  assert.equal(unregistered.length, 8, '重复卸载不应该重复 unregister')
+  assert.equal(unregistered.length, 9, '重复卸载不应该重复 unregister')
   rmSync(STATE_DIR, { recursive: true, force: true })
 })
