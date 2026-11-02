@@ -18,6 +18,7 @@ import {
   nextWaketimeAt,
   repoBadges,
   stalenessNote,
+  sessionWakesLastHour,
   stateReasonNote,
   repoStructureNote,
   buildCommentBatchQuery,
@@ -823,4 +824,25 @@ test('隔离区回收：年龄线之外再加数量线（否则 6 次/小时 × 
 
   // 非法 entry 不该让它崩
   assert.equal(staleWorktrees([null, {}, { name: 'x' }], { now }).length, 0)
+})
+
+test('会话级上限：多个守的唤醒次数要累加（单守上限挡不住多守叠加）', () => {
+  const now = Date.now()
+  const mk = (id, sessionId, times) => ({ id, sessionId, wakeTimes: times })
+  const entries = [
+    mk('a#s1', 's1', [now - 60_000, now - 120_000, now - 180_000]),
+    mk('b#s1', 's1', [now - 90_000, now - 200_000]),
+    mk('c#s2', 's2', [now - 60_000]),
+    mk('d#s1', 's1', [now - 2 * 3600_000]), // 超过 1 小时，不计入
+  ]
+  assert.equal(sessionWakesLastHour(entries, 's1', now), 5, 'a 3 次 + b 2 次；过期的不算')
+  assert.equal(sessionWakesLastHour(entries, 's2', now), 1)
+  assert.equal(sessionWakesLastHour(entries, 'nope', now), 0)
+  // 也支持传对象（readState().watchers 的形态）
+  const asObject = Object.fromEntries(entries.map((e) => [e.id, e]))
+  assert.equal(sessionWakesLastHour(asObject, 's1', now), 5)
+  // 空/坏数据不崩
+  assert.equal(sessionWakesLastHour(null, 's1', now), 0)
+  assert.equal(sessionWakesLastHour([null, {}], 's1', now), 0)
+  assert.equal(sessionWakesLastHour(entries, '', now), 0)
 })

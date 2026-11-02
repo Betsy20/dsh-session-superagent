@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.1'
+    const CLIENT_VERSION = '0.9.2'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -929,6 +929,7 @@ window.__ModuleLoader__.load({
             },
             batchLimit: Number(draft.batchLimit) || undefined,
             maxWakesPerHour: Number(draft.maxWakesPerHour) || undefined,
+            sessionMaxWakes: Number(draft.sessionMaxWakes) || undefined,
           }),
         })
         setEditing(null)
@@ -1020,6 +1021,7 @@ window.__ModuleLoader__.load({
                   workdir: watcher.workdir || '',
                   batchLimit: watcher.batchLimit ? String(watcher.batchLimit) : '',
                   maxWakesPerHour: watcher.maxWakesPerHour ? String(watcher.maxWakesPerHour) : '',
+                  sessionMaxWakes: watcher.sessionMaxWakes ? String(watcher.sessionMaxWakes) : '',
                   isolateKeepDays: watcher.isolateKeepDays ? String(watcher.isolateKeepDays) : '',
                   maxIsolated: watcher.maxIsolated ? String(watcher.maxIsolated) : '',
                   priorityReopened: (watcher.priority && watcher.priority.reopened) !== false,
@@ -1074,6 +1076,7 @@ window.__ModuleLoader__.load({
             h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.onlyAssigned, onChange: (v) => setDraft({ ...draft, onlyAssigned: v }), label: '只看已指派' }), '只处理已指派给人的条目'),
             field('单次最多唤醒条数', h(Input, { value: draft.batchLimit || '', placeholder: '5（1-20）', onChange: (e) => setDraft({ ...draft, batchLimit: e.target.value }) })),
             field('每小时最多唤醒次数', h(Input, { value: draft.maxWakesPerHour || '', placeholder: '6（1-60）', onChange: (e) => setDraft({ ...draft, maxWakesPerHour: e.target.value }) })),
+            field('这条会话每小时最多被唤醒', h(Input, { value: draft.sessionMaxWakes || '', placeholder: '12（1-60）', onChange: (e) => setDraft({ ...draft, sessionMaxWakes: e.target.value }) }), '跨所有守累计：守 5 个仓库时，光有单守上限挡不住叠加'),
             field('优先级（一次只处理 N 条时先挑谁）', h('div', { className: 'dt-actions' },
               h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: draft.priorityReopened !== false, onChange: (v) => setDraft({ ...draft, priorityReopened: v }), label: '重开优先' }), '被重开的排最前'),
               h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: draft.priorityComments !== false, onChange: (v) => setDraft({ ...draft, priorityComments: v }), label: '评论优先' }), '有人在等回应的靠前'),
