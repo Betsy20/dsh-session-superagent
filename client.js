@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.33'
+    const CLIENT_VERSION = '0.9.34'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1337,7 +1337,15 @@ window.__ModuleLoader__.load({
               : null,
             body.sessionUsage.capped > 0
               ? h('span', { className: 'dt-error-text' }, body.sessionUsage.capped + ' 条守正因上限暂停')
-              : null)
+              : null,
+            (() => {
+              // 过去几天累计（数据来自每条守的 daily，几十字节）
+              const days = watchers.reduce((n, w) => n + (Number(w.daily && w.daily.days) || 0), 0)
+              const total = watchers.reduce((n, w) => n + (Number(w.daily && w.daily.total) || 0), 0)
+              if (total === 0) return null
+              const span = Math.max(...watchers.map((w) => Number(w.daily && w.daily.days) || 0))
+              return h('span', { className: 'dt-row-meta' }, '过去 ' + span + ' 天：共 ' + total + ' 次（日均 ' + (Math.round((total / Math.max(1, span)) * 10) / 10) + '）')
+            })())
           : null,
         visible.length === 0 ? h(Hint, null, '没有符合条件的主理鱼。点上面「全部」看所有守。') : null,
         h('div', { className: 'dt-rows' }, ...summarizeByRepo(visible).map((group) => h('div', { key: 'repo-' + group.repo, className: 'dt-row' },

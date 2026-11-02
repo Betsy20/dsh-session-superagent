@@ -17,7 +17,9 @@ import {
   mergeWakeTexts,
   msUntilActiveWindow,
   nextWaketimeAt,
+  bumpDailyWakes,
   countCapped,
+  dailySummary,
   durationText,
   pushEvent,
   repoBadges,
@@ -1072,4 +1074,21 @@ test('用满了要给具体数字建议（别让客户自己算）', () => {
   const weird = suggestSessionCap({ used: 'x', cap: 'y', capped: 'z' })
   assert.equal(weird, null)
   assert.ok(suggestSessionCap({ used: 99, cap: 1, capped: 1 }) >= 1)
+})
+
+test('按天累计：同日累加、只留最近 N 天、坏数据不崩', () => {
+  let daily = {}
+  daily = bumpDailyWakes(daily, '2026-11-02T10:00:00Z')
+  daily = bumpDailyWakes(daily, '2026-11-02T11:00:00Z')
+  assert.equal(daily['2026-11-02'], 2, '同一天要累加')
+
+  for (let i = 1; i <= 9; i += 1) {
+    daily = bumpDailyWakes(daily, '2026-10-' + String(i).padStart(2, '0') + 'T10:00:00Z')
+  }
+  assert.ok(Object.keys(daily).length <= 7, '最多保留 7 天：' + Object.keys(daily).length)
+  assert.ok(!('2026-10-01' in daily), '最早的那天应被挤掉')
+
+  assert.deepEqual(bumpDailyWakes(null, 'bad-input'), {}, '坏日期不写入')
+  assert.equal(dailySummary({}), null)
+  assert.deepEqual(dailySummary({ a: '3', b: 2 }), { days: 2, total: 5, avg: 2.5 })
 })

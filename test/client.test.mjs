@@ -911,3 +911,15 @@ test('判定页：搜索框输入编号后可追溯（点它问服务端要结�
   assert.ok(filled.includes('追溯 #42'), '输入编号后要出现追溯按钮：' + filled.slice(0, 200))
   assert.ok(filled.includes('在 a/b 里查'), '只有一条守时应说明在哪个仓库查')
 })
+
+test('面板显示近几天的累计（来自每条守的 daily）', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = {
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: 'x', credentials: {}, sessionUsage: { used: 2, cap: 12, capped: 0 },
+      watchers: [watcher('a/b', { id: 'a/b#s1', daily: { days: 3, total: 9, avg: 3 } })] },
+  }
+  const text = walk(render(desk, deskQueue(snap))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(text.includes('过去 3 天：共 9 次'), '要显示历史累计：' + text.slice(0, 240))
+})
