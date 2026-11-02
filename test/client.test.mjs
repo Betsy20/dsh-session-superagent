@@ -889,3 +889,18 @@ test('长错误不能把建议切掉（截断曾恰好切掉最有用的一段�
   assert.ok(text.includes('已按退避自动重试'), '建议必须完整出现：' + text.slice(0, 300))
   assert.ok(!text.includes('x'.repeat(150)), '现象部分要截断，避免占满版面')
 })
+
+test('首次使用（空态）不能露出内部字段名，并且要给出三步引导', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const empty = {
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: null, credentials: {}, sessionUsage: null, watchers: [] },
+  }
+  const text = walk(render(desk, deskQueue(empty))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(text.includes('三步让这个会话开始盯办'), '空态要有引导：' + text.slice(0, 200))
+  for (const leaked of ['deferReason', 'silentWakes', 'cursor', 'filterCounts', 'watch_ack']) {
+    assert.ok(!text.includes(leaked), '空态露出了内部字段：' + leaked)
+  }
+  assert.ok(!text.includes('需要会话上下文'), '「需要会话上下文」是内部说法，客户看不懂')
+})

@@ -68,8 +68,33 @@ for (const [tab, label] of TABS) {
   lines.push('')
   lines.push('`' + unique.length + '` 条文字：')
   lines.push('')
-  for (const item of unique) lines.push('- ' + item.replace(/\n/g, ' '))
+    for (const item of unique) lines.push('- ' + item.replace(/\n/g, ' '))
   lines.push('')
+}
+
+// 首次使用（空态）：没配守、没凭证、没有用量 —— 客户第一眼看到的东西
+const emptySnap = {
+  loading: false,
+  error: null,
+  body: { sessionGoal: null, sessionTitle: null, credentials: {}, sessionUsage: null, watchers: [] },
+}
+
+for (const [tab, label] of TABS) {
+  const tree = render(desk, deskQueue(emptySnap, null, {}, tab))
+  const text = walk(tree)
+    .filter((node) => node.type === '#text')
+    .map((node) => node.text.trim())
+    .filter(Boolean)
+  const unique = []
+  for (const item of text) if (!unique.includes(item)) unique.push(item)
+  if (tab === 'overview') {
+    lines.push('## 首次使用（空态 · ' + label + '）')
+    lines.push('')
+    lines.push('`' + unique.length + '` 条文字：')
+    lines.push('')
+    for (const item of unique) lines.push('- ' + item.replace(/\n/g, ' '))
+    lines.push('')
+  }
 }
 
 const body = lines.join(String.fromCharCode(10)) + String.fromCharCode(10)

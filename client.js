@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.73'
+    const CLIENT_VERSION = '0.9.74'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1410,7 +1410,7 @@ window.__ModuleLoader__.load({
           form.isolated ? field('隔离工作目录', h(Input, { value: form.workdir, placeholder: '绝对路径，留空 = 当前工作目录', onChange: (e) => setForm({ ...form, workdir: e.target.value }) })) : null,
           h('div', { className: 'dt-actions' },
             h(Btn, { variant: 'primary', icon: h(Icon, { name: 'plus' }), onClick: addWatcher, disabled: !sessionId || !form.repo.trim() },
-              sessionId ? '添加到当前会话' : '需要会话上下文'))))
+              sessionId ? '添加到当前会话' : '先打开一个会话'))))
 
       const settingsSections = [
         h(Section, { key: 'source', title: '来源' },
@@ -1661,7 +1661,7 @@ window.__ModuleLoader__.load({
             h('h1', { className: 'dt-page-title' }, '主理鱼'),
             h('span', { className: 'dt-hint' },
               (body.sessionTitle ? '会话：' + body.sessionTitle + ' · ' : '')
-              + (sessionId ? '盯办 + 主动办：仓库有动静就叫醒本会话' : '需要会话上下文'))),
+              + (sessionId ? '盯办 + 主动办：仓库有动静就叫醒本会话' : '（在会话里打开本面板，才能把仓库绑到会话上）'))),
           h('div', { className: 'dt-toolbar' },
             h(Input, { value: search, placeholder: '搜索仓库 / 编号 / 标题', onChange: (e) => setSearch(e.target.value), 'aria-label': '搜索' }),
             h(Btn, { size: 'sm', variant: 'ghost', icon: h(Icon, { name: 'question' }), onClick: () => setGlossary(true) }, '术语'),
