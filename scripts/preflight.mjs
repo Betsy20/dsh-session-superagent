@@ -253,6 +253,13 @@ if (!FAST) {
     bad.length > 0 ? bad[0].trim() : (claims ? claims + ' 条 ✅ 都能找到发布 / ' + (paths || '?') + ' 个路径都存在' : '无输出'))
 }
 
+// ⑥.15 退出码一致：打印 FAIL 的脚本必须返回非 0
+{
+  const res = tryRun('node', ['scripts/audit-exit-codes.mjs'], { timeout: 60000 })
+  const line = (String(res.stdout || '').trim().split(String.fromCharCode(10)).pop() || '无输出')
+  record('退出码一致', res.status === 0, line.replace(/^(PASS|FAIL) 退出码一致\s*/, ''))
+}
+
 // ⑥.2 模式差异文档（--fast 跳过哪些项，必须写清楚）
 {
   const res = tryRun('node', ['scripts/render-preflight-modes.mjs', '--check'], { timeout: 60000 })

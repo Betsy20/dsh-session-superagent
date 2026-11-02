@@ -988,3 +988,40 @@ test('gh 把 304 当失败时，不该记成错误（条件请求命中 ≠ 出�
     assert.ok(!notActionable.includes(classifyGhError(text).kind))
   }
 })
+
+test('暂停一条守时会清掉旧的错误（否则暂停后永远显示"异常"）', async () => {
+  const tools = []
+  const localRoutes = new Map()
+  const dir = tempDir('zhuli-pause-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: (route) => { localRoutes.set(route.path, route); return () => {} } },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-pause' }) },
+    get: () => null, on() {}, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?pause=' + Date.now())
+  mod.apply(ctx)
+  await tools.find((t) => t.name === 'watch_start').execute({ repo: 'acme/pause' })
+
+  // 先造一个错误（模拟刚才那条 304 误报）
+  const state = mod.__test.readState()
+  const key = Object.keys(state.watchers)[0]
+  state.watchers[key].lastError = 'gh: HTTP 304（没归类的错误）'
+  state.watchers[key].deferReason = 'unchanged'
+  mod.__test.writeState(state)
+
+  // 在面板点「暂停」
+  const route = localRoutes.get('/session-superagent/watch')
+  const fakeRes = makeRes()
+  const body = JSON.stringify({ id: key, repo: 'acme/pause', sessionId: 'session-pause', enabled: false })
+  await route.handler(makeReq('POST', '/session-superagent/watch', body, { 'content-type': 'application/json' }), fakeRes)
+  assert.ok(fakeRes.statusCode === 200 || fakeRes.statusCode === 201, 'POST 应成功：' + fakeRes.statusCode + ' ' + fakeRes.body.slice(0, 120))
+
+  const after = mod.__test.readState()
+  const entry = after.watchers[key]
+  assert.equal(entry.enabled, false, '要真的暂停')
+  assert.equal(entry.lastError, null, '旧错误要清掉')
+  assert.equal(entry.deferReason, null, '旧的暂停原因也要清掉')
+})

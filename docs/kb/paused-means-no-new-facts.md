@@ -1,0 +1,39 @@
+# 暂停之后，旧状态就不该再代表"现在"
+
+## 出处
+- 状态新鲜度（staleness）是监控系统的老问题：**一个不再更新的状态，其展示必须降级或标注时间**，
+  否则它会被读成"当前事实"。
+  （Prometheus 的 staleness 处理就是这个思路：<https://prometheus.io/docs/prometheus/latest/querying/basics/#staleness>）
+
+## 现场（从截图那条误报想到的）
+304 误报修好之后，还有个遗留问题：**暂停的守不再轮询**，旧的 `lastError` 就永远挂在面板上。
+客户看到的红点与「异常」计数，其实是几小时前的旧记录 —— 而"现在"根本没有失败。
+
+## 改法
+暂停 / 恢复时清掉瞬时状态：
+```js
+if (body.enabled === false || body.enabled === true) {
+  entry.lastError = null
+  entry.deferReason = null
+  entry.lastDeferred = null
+  entry.consecutiveFailures = 0
+  entry.nextAt = null
+}
+```
+
+## 判据
+**凡是"最后一次结果"的字段，都要回答：它还会被更新吗？**
+- 会 → 可以当"现在"；
+- 不会（暂停/停用/放弃）→ 必须清掉，或至少带上时间戳，否则它会变成一句永久的谎。
+
+## 顺带：给"第三类装死"加了全库扫描
+`scripts/audit-exit-codes.mjs`：扫 `scripts/*.mjs`，**打印了 FAIL 却没返回非 0** 的一律报出来。
+验证方式：把 `audit-promises.mjs` 里两处 `process.exitCode = 1` 全换成 `void 0` → 立刻红；
+还原后 PASS。已接进 `preflight` 第 36 项。
+
+## 是否已落地
+✅ 0.9.111。
+
+## 还没做的
+- 只清"暂停/恢复"这一条路径；**禁用后长期不轮询**的其它字段（如 `cursor`）仍会显示旧值；
+- 面板没有"这条信息是几小时前的"时间标注（只有 `pool` 时间）。

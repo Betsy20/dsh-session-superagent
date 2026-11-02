@@ -2,6 +2,26 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.111] - 2026-11-03 —— 暂停后旧错误永远挂着；再给"退出码"加一道全库扫描
+
+### 从截图那条误报想到的
+304 误报修好之后，还有个遗留问题：**暂停的守不再轮询，旧的 `lastError` 就永远挂在面板上**
+—— 客户看到的红点与「异常」计数，其实是几小时前的旧记录。
+
+### 改法
+1. 暂停 / 恢复时清掉瞬时状态：`lastError` / `deferReason` / `lastDeferred` / `consecutiveFailures` / `nextAt`；
+2. 新增全库扫描 `scripts/audit-exit-codes.mjs`：**打印了 FAIL 却没返回非 0** 的脚本一律报出来
+   （这是本轮之前的同类"第三类装死"，现在有门禁守着）；
+3. 接进 `preflight`（第 36 项「退出码一致」）。
+
+### 验证
+- 暂停用例：造一个 `lastError` → 面板点暂停 → 状态里 `lastError` 与 `deferReason` 都为 null；
+- 退出码扫描：把 `audit-promises.mjs` 里两处 `process.exitCode = 1` 都换成 `void 0` →
+  `FAIL 这些脚本打印了 FAIL 却不返回失败：scripts/audit-promises.mjs`（exit=1）；还原后 PASS。
+
+### 测试
+合计 **218 例**。
+
 ## [0.9.110] - 2026-11-02 —— 截图里的「gh: HTTP 304（没归类的错误）」是误报
 
 ### 客户看到的
