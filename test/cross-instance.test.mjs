@@ -35,15 +35,15 @@ test('重新 import 出来的第二个实例，会摘掉第一个实例注册的
 
   const first = await import('../lib/index.js?instance=1')
   first.apply(makeCtx(firstRegistered))
-  assert.equal(firstRegistered.length, 6, '第一个实例注册 6 条')
+  assert.equal(firstRegistered.length, 7, '第一个实例注册 7 条')
 
   // 关键：query 不同 -> 模块重新求值 -> 模块级变量全新，但 globalThis 是同一个
   const second = await import('../lib/index.js?instance=2')
   second.apply(makeCtx(secondRegistered))
 
   const disposed = firstRegistered.filter((x) => String(x).startsWith('disposed:'))
-  assert.equal(disposed.length, 6, '第二个实例必须先把第一个实例的 6 条摘掉')
-  assert.equal(secondRegistered.filter((x) => !String(x).startsWith('disposed:')).length, 6)
+  assert.equal(disposed.length, 7, '第二个实例必须先把第一个实例的 7 条摘掉')
+  assert.equal(secondRegistered.filter((x) => !String(x).startsWith('disposed:')).length, 7)
 
   rmSync(STATE_DIR, { recursive: true, force: true })
 })

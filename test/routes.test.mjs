@@ -213,14 +213,14 @@ test('watch_doctor 会报告挂载状态（面板接口死没死）', async () =
   assert.ok(tool, '没注册 watch_doctor')
   const text = String(await tool.execute({ repo: 'no-such-owner/no-such-repo-xyz' }))
   assert.match(text, /面板接口挂载/, '必须有一行讲挂载状态')
-  assert.match(text, /6 条，无失败|部分失败|挂载：/, '挂载行要给出具体结论')
+  assert.match(text, /7 条，无失败|部分失败|挂载：/, '挂载行要给出具体结论')
 })
 
 test('cleanup', () => {
   rmSync(STATE_DIR, { recursive: true, force: true })
 })
 
-test('路由面收敛：只保留 6 条（/config 与 /client-hello 已下线）', () => {
+test('路由面收敛：只保留 7 条（/config 与 /client-hello 已下线，新增 /update）', () => {
   const expected = [
     '/session-superagent/state',
     '/session-superagent/client-note',
@@ -228,8 +228,19 @@ test('路由面收敛：只保留 6 条（/config 与 /client-hello 已下线）
     '/session-superagent/watch',
     '/session-superagent/credentials',
     '/session-superagent/goal',
+    '/session-superagent/update',
   ].sort()
   assert.deepEqual([...routes.keys()].sort(), expected)
+})
+
+test('/update 只读地报告版本（离线/在线都必须给出 current）', async () => {
+  const res = await call('GET', '/session-superagent/update')
+  assert.equal(res.statusCode, 200)
+  const body = JSON.parse(res.body)
+  assert.equal(typeof body.current, 'string', '必须给出当前版本')
+  assert.equal(typeof body.hasUpdate, 'boolean', 'hasUpdate 必须是布尔值')
+  // 命令模板里必须带包名，客户复制出去就能跑
+  assert.ok(String(body.command).includes('dsh-session-superagent'), 'command 要含包名：' + body.command)
 })
 
 test('面板可设限流：batchLimit / maxWakesPerHour 会被夹紧并回传', async () => {

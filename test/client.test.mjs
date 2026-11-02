@@ -102,7 +102,8 @@ function walk(node, out = []) {
 /** 主理鱼面板的 useState 队列：snap / tab / notice / form / token / goalDraft / goalTouched / toast / editing / draft */
 const deskForm = { repo: '', intervalSec: '60', goal: '', labels: '', onlyAssigned: false, activeHours: '', isolated: false, workdir: '' }
 const deskQueue = (snapshot, editing = null, draft = {}, tab = 'overview', search = '', glossary = false) =>
-  [snapshot, tab, null, deskForm, '', '', false, [], editing, draft, search, glossary]
+  // 末尾两个是 0.8.38 新增的 update / checking 槽位（版本检查），顺序必须跟组件里的 useState 一致
+  [snapshot, tab, null, deskForm, '', '', false, [], editing, draft, search, glossary, null, false]
 
 const watcher = (repo, extra = {}) => ({
   repo,

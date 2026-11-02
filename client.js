@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.37'
+    const CLIENT_VERSION = '0.8.38'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -693,6 +693,9 @@ window.__ModuleLoader__.load({
       const [draft, setDraft] = useState({})
       const [search, setSearch] = useState('')
       const [glossary, setGlossary] = useState(false)
+      // 版本检查结果（只读）：面板里直接告诉客户「有没有新版本、该跑什么命令」
+      const [update, setUpdate] = useState(null)
+      const [checking, setChecking] = useState(false)
 
       const load = useCallback(async () => {
         try {
@@ -975,6 +978,21 @@ window.__ModuleLoader__.load({
           field('Token', h(Input, { type: 'password', value: token, placeholder: 'ghp_… / github_pat_…（留空不改）', onChange: (e) => setToken(e.target.value) })),
           h('div', { className: 'dt-actions' }, h(Btn, { variant: 'primary', onClick: saveCredentials }, '保存凭证')),
           h(Hint, null, '不填也能用：插件直接复用已登录的 gh CLI。')),
+        h(Section, { key: 'update', title: '版本与更新' },
+          h(KeyValues, { rows: [
+            ['当前版本', (update && update.current) || CLIENT_VERSION],
+            ['npm 最新', !update ? '检测中…' : update.error ? '检测失败 · ' + update.error : (update.latest || '未知')],
+            ['状态', !update ? '…' : update.hasUpdate ? '有新版本，可以升级' : '已是最新'],
+          ] }),
+          update && update.hasUpdate
+            ? h('div', null,
+                h('code', { className: 'dt-code' }, update.command),
+                h('div', { className: 'dt-actions' },
+                  h(Btn, { size: 'sm', onClick: () => { try { navigator.clipboard.writeText(update.command) } catch {} } }, '复制命令')))
+            : null,
+          h('div', { className: 'dt-actions' },
+            h(Btn, { size: 'sm', variant: 'ghost', onClick: () => checkUpdate(true), disabled: checking }, checking ? '检查中…' : '重新检查')),
+          h(Hint, null, '升级要改 profile，装完需要重载一次宿主才会用上新版本 —— 所以这里只给命令，不替你执行。')),
         h(Section, { key: 'goal', title: '会话 goal' },
           h('textarea', {
             className: 'dt-textarea', rows: 3, value: goalDraft,
@@ -983,6 +1001,28 @@ window.__ModuleLoader__.load({
           }),
           h('div', { className: 'dt-actions' }, h(Btn, { variant: 'primary', onClick: saveGoal, disabled: !sessionId }, '保存 goal'))),
       ]
+
+      const checkUpdate = useCallback(async (force) => {
+        setChecking(true)
+        try {
+          const value = await call('/update' + (force ? '?refresh=1' : ''))
+          setUpdate(value)
+        } catch (error) {
+          setUpdate({ current: CLIENT_VERSION, latest: null, hasUpdate: false, error: String(error && error.message || error) })
+        } finally {
+          setChecking(false)
+        }
+      }, [])
+
+      useEffect(() => {
+        let alive = true
+        try {
+          Promise.resolve(call('/update'))
+            .then((value) => { if (alive) setUpdate(value) })
+            .catch(() => {})
+        } catch { /* 宿主早期渲染时 fetch 可能还不存在，忽略即可 */ }
+        return () => { alive = false }
+      }, [])
 
       function field(label, control) {
         return h('label', { className: 'dt-field', key: label }, h('span', { className: 'dt-field-head' }, label), control)

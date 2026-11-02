@@ -2,6 +2,31 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.38] - 2026-11-02 —— 面板里就能看到「有没有新版本」
+
+### 为什么
+客户在自己电脑上用发布版。我这边修完、发到 npm，**客户不升级就一直跑旧版** ——
+而他并不会主动去 `npm view`。所以「有没有新版本、该跑什么命令」应该长在面板里。
+
+### 做法（只读，不替你安装）
+新增 `GET /session-superagent/update`：
+
+```json
+{ "current": "0.8.38", "latest": "0.8.38", "hasUpdate": false,
+  "command": "dsh plugin --profile <你的 profile> add dsh-session-superagent@0.8.38" }
+```
+
+- 问 `registry.npmjs.org/<pkg>/latest`，5 秒超时，**内存缓存 10 分钟**（`?refresh=1` 强制刷新）；
+- 面板「设置 → 版本与更新」显示：当前版本 / npm 最新 / 状态，有新版本时给出命令 + 复制按钮；
+- **不自动安装**：装要改 profile，而且装完必须重载宿主才生效 —— 这一步交给客户自己决定，面板里写明了。
+
+### 顺带
+- 路由面 6 → 7 条，测试与 preflight 里的断言同步更新；
+- 客户端 hook 顺序变了（多两个 state），测试里的 `deskQueue` 同步补槽位。
+
+### 测试
+- 合计 **98 例**。
+
 ## [0.8.37] - 2026-11-02 —— 状态文件不再丢 watcher
 
 ### 真机现象（本机复现）
