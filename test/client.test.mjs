@@ -103,7 +103,7 @@ function walk(node, out = []) {
 const deskForm = { repo: '', intervalSec: '60', goal: '', labels: '', onlyAssigned: false, activeHours: '', isolated: false, workdir: '' }
 const deskQueue = (snapshot, editing = null, draft = {}, tab = 'overview', search = '', glossary = false, update = null) =>
   // 末尾两个是 0.8.38 新增的 update / checking 槽位（版本检查），顺序必须跟组件里的 useState 一致
-  [snapshot, tab, null, deskForm, '', '', false, [], editing, draft, search, glossary, update, false, 'source']
+  [snapshot, tab, null, deskForm, '', '', false, [], editing, draft, search, glossary, update, false, 'source', null]
 
 const watcher = (repo, extra = {}) => ({
   repo,
@@ -610,4 +610,31 @@ test('空态不是白屏：三步引导 + 一个能直接开始的动作', () =>
   const labels = nodes.filter((n) => n.type === 'button')
     .map((b) => (b.props.children || []).filter((c) => typeof c === 'string').join(''))
   assert.ok(labels.some((l) => l.includes('去添加第一条')), '要有一个直接开始的按钮：' + labels.join('|'))
+})
+
+test('判定页：点跳过原因标签可只看这一类（知识库里的"还没做"补上）', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snapshot = {
+    loading: false, error: null,
+    body: {
+      sessionGoal: null, sessionTitle: '会话',
+      credentials: { token: 'none', sshKeyPath: 'none' },
+      watchers: [watcher('a/b', {
+        id: 'a/b#s1',
+        filterCounts: { '不在标签白名单: ai-fix': 7, '机器人': 0 },
+        filteredLog: [{ at: '2026-11-02T08:00:00.000Z', number: 42, title: '一个被刷掉的 issue', reason: '不在标签白名单: ai-fix' }],
+      })],
+    },
+  }
+  const nodes = walk(render(desk, deskQueue(snapshot, null, {}, 'judge')))
+  const pills = nodes.filter((n) => String(n.props && n.props.className || '').includes('dt-pill'))
+  assert.ok(pills.length >= 1, '原因应该渲染成可点的 Pill')
+  const labels = pills.map((p) => (p.props.children || []).filter((c) => typeof c === 'string').join(''))
+  assert.ok(labels.some((l) => l.includes('不在标签白名单') && l.includes('7')), labels.join('|'))
+
+  // 选中某个原因后，列表里应出现该类条目
+  const filtered = walk(render(desk, deskQueue(snapshot, null, {}, 'judge').map((v, i) => (i === 15 ? '不在标签白名单: ai-fix' : v))))
+  const text = filtered.filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(text.includes('#42'), '筛选后要列出该类条目：' + text.slice(0, 200))
 })

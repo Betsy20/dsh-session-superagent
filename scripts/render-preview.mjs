@@ -166,7 +166,7 @@ const PORTED_CSS = JSON.parse('"' + clientSrc.slice(head, i) + '"')
 // glossary, update, checking, settingsSection
 const blankForm = { repo: '', intervalSec: '60', goal: '', labels: '', onlyAssigned: false, activeHours: '', isolated: false, workdir: '' }
 const deskHooks = ({ tab = 'overview', notice = null, glossary = false, update = null, settingsSection = 'source' } = {}) => [
-  snapshot, tab, notice, blankForm, '', '', false, [], null, {}, '', glossary, update, false, settingsSection,
+  snapshot, tab, notice, blankForm, '', '', false, [], null, {}, '', glossary, update, false, settingsSection, null,
 ]
 
 const scenarios = [

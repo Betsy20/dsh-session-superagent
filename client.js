@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.55'
+    const CLIENT_VERSION = '0.8.56'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -840,6 +840,8 @@ window.__ModuleLoader__.load({
       const [checking, setChecking] = useState(false)
       // 设置页用官方的「左栏 + 内容」结构（dt-settings），所以要记当前分区
       const [settingsSection, setSettingsSection] = useState('source')
+      // 判定页：点「跳过原因」标签就只看这一类（知识库里记的"还没做"，本轮补上）
+      const [reasonFilter, setReasonFilter] = useState(null)
 
       const load = useCallback(async () => {
         try {
@@ -1105,7 +1107,19 @@ window.__ModuleLoader__.load({
         reasonTotals.length > 0
           ? h('div', { className: 'dt-row-meta', key: 'reason-totals' },
             h('span', null, '跳过原因累计：'),
-            reasonTotals.map(([reason, n]) => h(Tag, { key: reason, tone: 'quiet' }, reason + ' × ' + n)))
+            reasonTotals.map(([reason, n]) => h(Pill, {
+              key: reason,
+              active: reasonFilter === reason,
+              onClick: () => setReasonFilter(reasonFilter === reason ? null : reason),
+            }, reason + ' × ' + n)),
+            reasonFilter ? h(Pill, { key: 'clear', onClick: () => setReasonFilter(null) }, '清除筛选') : null)
+          : null,
+        reasonFilter
+          ? h('ul', { className: 'dt-plain-list', key: 'reason-entries' },
+            watchers.flatMap((w) => (w.filteredLog || [])
+              .filter((entry) => entry.reason === reasonFilter)
+              .map((entry) => h('li', { key: w.repo + '#' + entry.number + entry.at },
+                w.repo + ' #' + entry.number + ' ' + String(entry.title || '').slice(0, 60)))))
           : null,
         watchers.length === 0
           ? h(Hint, null, '还没有主理鱼。')
