@@ -4,7 +4,8 @@ import { readdirSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-const PREFIX = /^(superagent-|zhuli-)/
+// 前缀来自各个脚本的 mkdtemp 命名；漏一个就会在 tmpdir 里越攒越多
+const PREFIX = /^(superagent-|zhuli-|preflight-)/
 const dry = process.argv.includes('--dry')
 const root = tmpdir()
 const names = readdirSync(root).filter((name) => PREFIX.test(name))

@@ -15,9 +15,23 @@ for (const name of readdirSync(testDir)) {
   if (text.includes('mkdtempSync(join(tmpdir()')) bad.push(name)
 }
 
-if (bad.length === 0 && existsSync(helper)) {
-  console.log('PASS 临时目录收口  全部走 tempDir()，退出时自动清理')
+// scripts/ 下的临时文件也要收口：只 mkdtemp/tmpdir 却不删的脚本，会一点点把 tmpdir 撑满
+const scriptDir = join(ROOT, 'scripts')
+const leaky = []
+for (const name of readdirSync(scriptDir)) {
+  if (!name.endsWith('.mjs')) continue
+  const text = readFileSync(join(scriptDir, name), 'utf8')
+  if (!text.includes('tmpdir()')) continue
+  if (!text.includes('rmSync') && !text.includes('unlinkSync')) leaky.push(name)
+}
+
+if (bad.length === 0 && existsSync(helper) && leaky.length === 0) {
+  console.log('PASS 临时目录收口  测试全走 tempDir()；脚本里 tmpdir 都配了清理' + (leaky.length ? '（漏：' + leaky.join(',') + '）' : ''))
 } else {
-  console.log('FAIL 临时目录收口  ' + (bad.length > 0 ? '这些测试还在自己建临时目录：' + bad.join(', ') : '缺少 test/fixtures/tmpdir.mjs'))
+  console.log('FAIL 临时目录收口  ' + [
+    bad.length > 0 ? '这些测试还在自己建临时目录：' + bad.join(', ') : '',
+    !existsSync(helper) ? '缺少 test/fixtures/tmpdir.mjs' : '',
+    leaky.length > 0 ? '这些脚本只建不删：' + leaky.join(', ') : '',
+  ].filter(Boolean).join('；'))
   process.exitCode = 1
 }

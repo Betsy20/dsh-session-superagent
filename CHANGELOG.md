@@ -2,6 +2,22 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.81] - 2026-11-02 —— scripts/ 的临时文件也纳入收口（并且这次判据是真的生效）
+
+### 做了什么
+1. `clean-tmp.mjs` 的前缀补上 `preflight-`（之前只清 `superagent-` / `zhuli-`，preflight 自己的临时目录永远清不掉）；
+2. `audit-tmp-dirs.mjs` 增加一条：**`scripts/*.mjs` 里用了 `tmpdir()` 就必须有 `rmSync`/`unlinkSync`**。
+
+### 自己抓到的两个问题
+1. 第一次写这条检查时，`leaky` 只出现在提示文字里、**没参与判定** → 注入后仍 `PASS`；
+   把 `leaky.length === 0` 加进条件后才真的会红；
+2. 注入验证（把 `rmSync` 改成 `noopSync`）当场证明：修前 exit=0（假通过）、修后 exit=1（真红）。
+
+### 现状
+```
+PASS 临时目录收口  测试全走 tempDir()；脚本里 tmpdir 都配了清理
+```
+
 ## [0.9.80] - 2026-11-02 —— 试过给"✅ 已落地"加内容校验，结论是**不能当门禁**
 
 ### 想做什么

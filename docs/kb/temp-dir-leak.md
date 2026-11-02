@@ -45,3 +45,18 @@ $ node -e "…统计 tmpdir 里 superagent-*/zhuli-* 目录…"
 ## 还没做的
 - 只覆盖 `test/`，`scripts/` 里的临时目录（如 `render-preview` 的输出）没纳入；
 - `process.on('exit')` 在 `SIGKILL` 下不会执行，那种情况仍会漏（`clean-tmp` 兜底）。
+
+## 0.9.81 追加：scripts/ 也要收口，而且判据必须真的参与判定
+两件事：
+
+1. **前缀漏了**：`clean-tmp` 原本只清 `superagent-` / `zhuli-`，
+   而 `preflight.mjs` 建的临时目录叫 `preflight-…` —— **永远清不到**；
+2. **判据没生效**：给学习笔记加了"脚本里 `tmpdir()` 必须有 `rmSync`"这条检查，
+   但第一次写时只把结果放进**提示文字**、没放进 `if` 条件 → 注入后仍然 `PASS`。
+   把 `leaky.length === 0` 加进判定后：修前 exit=0（假通过）、修后 exit=1（真红）。
+
+```js
+if (bad.length === 0 && existsSync(helper) && leaky.length === 0) { …PASS… }
+```
+
+> 这与 [条件断言等于永远通过](fake-pass.md) 是同一个病：**判据写在提示里 = 没写**。
