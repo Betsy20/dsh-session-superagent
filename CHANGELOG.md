@@ -2,6 +2,30 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.62] - 2026-11-02 —— Windows 上 `chmod 0600` 是假的，改用 ACL
+
+### 学到的（知识库第 11 条，安全问题）
+Node 文档 `fs.chmod` Caveats 原文：*"on Windows only the write permission can be changed,
+and the distinction among the permissions of group, owner, or others is not implemented."*
+
+我们把 GitHub token 写在 `<state>/secrets.json`，一直用 `{ mode: 0o600 }` —— **Windows 上约等于没保护**。
+
+### 改了什么
+写完立刻收紧：
+- POSIX → `chmod 0600`；
+- Windows → `icacls <file> /inheritance:r /grant:r <当前用户>:F`（断开继承，只留本人）。
+结果记进 `secretsHardened`，`/diagnose` 显示「凭证保护: win32-acl」。
+
+### 本机实测
+```
+收紧前： SYSTEM:(I)(F) / BUILTIN\Administrators:(I)(F) / OWNER RIGHTS:(I)(F)
+收紧后： <用户>:(F)
+```
+
+### 测试
+- 新增 `test/secrets-acl.test.mjs`（Windows 专用）：调 `hardenSecretsFile` 后用 `icacls` 回读，
+  断言当前用户有 `(F)`、且没有残留 Users 组。合计 **116 例**。
+
 ## [0.8.61] - 2026-11-02 —— 状态文件写坏了，也别把客户的守当"空"
 
 ### 学到的（知识库第 10 条）
