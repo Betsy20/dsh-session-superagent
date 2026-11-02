@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import { decodeBody } from '../lib/body.js'
 import * as watchModule from '../lib/watch.js'
 import {
+  TRIAGE_SIGNALS,
   assignmentNote,
   priorityScore,
   classifyGhError,
@@ -670,4 +671,24 @@ test('认领状态：无人认领如实标注，加权默认关闭', () => {
   assert.equal(priorityScore(item, { unassigned: true }), 3)
   // 已认领的不受 unassigned 影响
   assert.equal(priorityScore({ assignees: [{ login: 'a' }] }, { unassigned: true }), 0)
+})
+
+test('分诊信号表：每条都要说清"事实还是判断""默认开不开"', () => {
+  assert.ok(Array.isArray(TRIAGE_SIGNALS) && TRIAGE_SIGNALS.length >= 4)
+  for (const sig of TRIAGE_SIGNALS) {
+    for (const field of ['key', 'label', 'kind', 'weight', 'default', 'why']) {
+      assert.ok(sig[field] !== undefined, sig.key + ' 缺字段 ' + field)
+    }
+    assert.ok(['fact', 'judgment'].includes(sig.kind), sig.key + ' 的 kind 只能是 fact/judgment')
+    assert.equal(typeof sig.default, 'boolean')
+  }
+  // 判断类的默认必须是关的：我们的判断不该默认生效
+  for (const sig of TRIAGE_SIGNALS.filter((item) => item.kind === 'judgment')) {
+    assert.equal(sig.default, false, sig.key + ' 是判断类，默认必须关')
+  }
+  // 表里的权重必须和实际打分一致（防止文档与代码走偏）
+  const reopened = { state_reason: 'reopened' }
+  assert.equal(priorityScore(reopened), TRIAGE_SIGNALS.find((s) => s.key === 'reopened').weight)
+  const commented = { comments: 1 }
+  assert.equal(priorityScore(commented), TRIAGE_SIGNALS.find((s) => s.key === 'comments').weight)
 })

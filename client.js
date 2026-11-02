@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.77'
+    const CLIENT_VERSION = '0.8.78'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1249,6 +1249,16 @@ window.__ModuleLoader__.load({
           h('div', { className: 'dt-actions' },
             h(Btn, { size: 'sm', variant: 'ghost', onClick: () => checkUpdate(true), disabled: checking }, checking ? '检查中…' : '重新检查')),
           h(Hint, null, '升级要改 profile，装完需要重载一次宿主才会用上新版本 —— 所以这里只给命令，不替你执行。')),
+        h(Section, { key: 'diagnose', title: '分诊信号与取舍' },
+          h(Hint, null, '一次只处理 N 条时，这些信号的加权决定先后。事实默认展示，判断默认关闭。'),
+          h('div', { className: 'dt-rows' }, (body.triageSignals || []).map((sig) => h('div', { key: sig.key, className: 'dt-row' },
+            h('div', { className: 'dt-row-main' },
+              h('div', { className: 'dt-row-title' },
+                h('span', { className: 'dt-row-name' }, sig.label),
+                h(Tag, { tone: sig.kind === 'fact' ? 'success' : 'warning' }, sig.kind === 'fact' ? '事实' : '判断'),
+                h(Tag, { tone: sig.default ? 'outline' : 'quiet' }, sig.default ? '默认开' : '默认关'),
+                h('span', { className: 'dt-row-meta' }, '+' + sig.weight + ' 分')),
+              h('div', { className: 'dt-hint' }, sig.why)))))),
         h(Section, { key: 'diagnose', title: '诊断' },
           h(Hint, null, '反馈问题时把这段贴给对方：里面有版本、挂载状态和每条值守的最近错误（凭证已脱敏）。'),
           h('div', { className: 'dt-actions' },
