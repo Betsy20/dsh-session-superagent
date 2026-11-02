@@ -11,6 +11,19 @@
 - 客户端探测到前缀并**发生切换**时，写一条 `client-base` 探针（服务端 `CLIENT_NOTE_KEYS` 放行该键）。
 - 于是 `watchers.json → client['note:client-base']` 能直接回答「这个浏览器现在跟的是哪一代」。
 
+### 真机闭环（2026-11-02 10:48:40）
+用户打开一次「主理鱼」页之后：
+
+```
+note:client-base = /session-superagent/r5     ← 客户端自称在跟 r5
+/session-superagent        → routeBase=None（旧 handler，宿主留着）
+/session-superagent/r5     → routeBase=/r5, serverVersion=0.8.35
+```
+
+时间线正好证明 0.8.34 的重探逻辑在真实环境里工作：
+`02:41` 客户端加载（当时在 r4）→ `02:44:50` 服务端换到 r5 并释放 r4 →
+`02:48:40` 面板首次轮询命中 404 → 重探 → 切到 r5 → 写探针。
+
 ### 测试
 - 合计 **94 例**（探针属于运行时行为，靠真机确认）。
 
