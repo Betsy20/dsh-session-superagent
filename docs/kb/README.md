@@ -64,3 +64,4 @@
 | 可观测性 | [噪声会淹没信号：连续同类事件合并](event-noise-reduction.md) | ✅ 0.9.9 |
 | 可观测性 | [合并了次数，还要能说出持续多久](event-duration.md) | ✅ 0.9.10 |
 | 可靠性 | [投递成功 ≠ 有人动手](wake-without-ack.md) | ✅ 0.9.11 |
+| 交互 | [提示之后要有下一步动作，但别替客户改仓库](close-the-loop-with-action.md) | ✅ 0.9.12 |

@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.11'
+    const CLIENT_VERSION = '0.9.12'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -855,6 +855,7 @@ window.__ModuleLoader__.load({
       const [reasonFilter, setReasonFilter] = useState(null)
       // 行内徽章可点：点「只读」就只看只读的守（与跳过原因筛选同一套交互）
       const [badgeFilter, setBadgeFilter] = useState(null)
+      // 建议规则弹层：给"叫醒了没回音"一个下一步动作（只提供可复制的规则，不替客户写仓库文件）
 
       const load = useCallback(async () => {
         try {
@@ -1114,6 +1115,7 @@ window.__ModuleLoader__.load({
           problems.push({
             key: 'silent-' + watcher.repo,
             text: watcher.repo + ' 已连续 ' + watcher.silentWakes + ' 次唤醒后没有回音（没看到 watch_ack）—— 检查这个仓库的 AGENTS.md 有没有给出处理规则',
+            action: { label: '看建议规则', onClick: () => setGlossary('rules:' + watcher.repo) },
           })
         }
         // 被反复重开的条目：说明"之前判过不做"可能有问题，值得人看一眼
@@ -1408,6 +1410,16 @@ window.__ModuleLoader__.load({
         return raw
       }
 
+      /** 建议追加到仓库 AGENTS.md 的处理规则（只给文本，绝不代写文件）。 */
+      const AGENTS_SNIPPET = [
+        '## 主理鱼（dsh-session-superagent）处理规则',
+        '',
+        '- 收到「【主理鱼】<owner/name> 有 N 条新动态」时，先读完整条目再决定做不做。',
+        '- 做：按【完成标准】三件事写清（改了什么 / 怎么验证 / 回写到哪），改完推分支开 PR。',
+        '- 不做：也要说明理由（例如"已有 PR 在做"），然后照样 ack。',
+        '- **无论做还是不做，最后都要 watch_ack 打标签**，否则下一轮会被再次唤醒。',
+      ].join(String.fromCharCode(10))
+
       /** 持续时长（与服务端 watch.js:durationText 同语义）。 */
       function durationText(sinceIso, untilIso) {
         const from = Date.parse(String(sinceIso || ''))
@@ -1500,7 +1512,28 @@ window.__ModuleLoader__.load({
         tab === 'judge' ? timeline : null,
         tab === 'trigger' ? trigger : null,
         tab === 'settings' ? settings : null,
-        h(Modal, { open: glossary, title: '主理鱼术语表', onClose: () => setGlossary(false) },
+        typeof glossary === 'string' ? h(Modal, {
+          open: true,
+          title: '建议追加到 ' + String(glossary).replace('rules:', '') + ' 的 AGENTS.md',
+          onClose: () => setGlossary(false),
+        },
+          h('p', { className: 'dt-hint' }, '问题通常不是"没叫醒"，而是"叫醒了但没动手"。这段规则会明确要求：无论做不做，最后都要 ack。'),
+          h('pre', { className: 'dt-pre' }, AGENTS_SNIPPET),
+          h('div', { className: 'dt-actions' },
+            h(Btn, {
+              size: 'sm',
+              variant: 'primary',
+              onClick: async () => {
+                try {
+                  await navigator.clipboard.writeText(AGENTS_SNIPPET)
+                  notify('规则已复制，粘贴到 AGENTS.md 末尾即可', 'info')
+                } catch {
+                  notify('复制失败：请手动选中上面的文本', 'error')
+                }
+              },
+            }, '复制这段规则'),
+            h(Btn, { size: 'sm', variant: 'ghost', onClick: () => setGlossary(false) }, '关闭'))) : null,
+        h(Modal, { open: glossary === true, title: '主理鱼术语表', onClose: () => setGlossary(false) },
           h(KeyValues, { rows: [
             ['主理鱼', '一条「盯办」绑定：某个仓库 → 某个会话'],
             ['盯', '轮询 issue/PR、按水位去重、冷却期吸收自己的操作'],

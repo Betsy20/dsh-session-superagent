@@ -737,3 +737,24 @@ test('判定页要能看见时间线（"为什么没叫醒我"要有据可查）
   assert.ok(text.includes('cap-session'), '要显示事件类型')
   assert.ok(text.includes('已被唤醒 12 次'), '要显示人话内容')
 })
+
+test('"叫醒了没回音"要给出下一步动作：建议规则可以复制（不代写仓库文件）', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = {
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: 'x', credentials: {}, watchers: [
+      watcher('a/b', { id: 'a/b#s1', silentWakes: 3 }),
+    ] },
+  }
+  // 1) 默认不渲染弹层内容（不该占版面）
+  const closed = walk(render(desk, deskQueue(snap))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(!closed.includes('主理鱼（dsh-session-superagent）处理规则'), '没点开时不该渲染规则文本')
+  assert.ok(closed.includes('没有回音'), '要有那条提示')
+
+  // 2) 点开后能看到规则，并且明确"不代写文件"
+  const opened = walk(render(desk, deskQueue(snap, null, {}, 'overview', '', 'rules:a/b'))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(opened.includes('主理鱼（dsh-session-superagent）处理规则'), '要给出可复制的规则：' + opened.slice(0, 200))
+  assert.ok(opened.includes('watch_ack'), '规则里要强调 ack')
+  assert.ok(opened.includes('复制这段规则'), '要有复制动作')
+})
