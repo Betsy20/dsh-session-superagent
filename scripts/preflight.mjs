@@ -14,10 +14,16 @@ import { fileURLToPath } from 'node:url'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const FAST = process.argv.includes('--fast')
 const rows = []
-const record = (name, ok, detail = '') => {
-  rows.push({ name, ok, detail })
-  console.log((ok ? 'PASS ' : 'FAIL ') + name.padEnd(34) + detail)
+// 记一项检查；耗时用「距上一项记录」的差值算出来 —— 不用改任何调用点
+let lastMark = Date.now()
+const record = (name, ok, detail = '', ms = null) => {
+  const now = Date.now()
+  if (ms === null) ms = now - lastMark
+  lastMark = now
+  rows.push({ name, ok, detail, ms })
+  console.log((ok ? 'PASS ' : 'FAIL ') + name.padEnd(34) + detail + (ms === null ? '' : '  (' + (ms / 1000).toFixed(1) + 's)'))
 }
+
 const CHILD_ENV = { ...process.env }
 delete CHILD_ENV.DSH_SUPERAGENT_STATE      // 本脚本自己的临时目录，不能污染子进程
 delete CHILD_ENV.DSH_SUPERAGENT_NO_POLL    // 路由检查用的开关，冒烟必须真轮询
@@ -34,8 +40,9 @@ const tryRun = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: ROOT, encod
   record('单测 node --test', res.status === 0 && fail === '0', `${pass}/${tests} 通过，失败 ${fail}`)
   // README 里写着“N 项单测”：这个数最容易悄悄过期（本轮从 136 掉到 181 才发现）
   const claimed = (readFileSync(join(ROOT, 'README.md'), 'utf8').match(/(\d+) 项单测/) || [])[1]
-  record('README 单测数', Boolean(claimed) && claimed === String(tests),
-    claimed ? (claimed === String(tests) ? 'README 写 ' + claimed + '，实际 ' + tests : 'README 写 ' + claimed + '，实际 ' + tests + '（改 README）') : 'README 没写单测数')
+  const res2 = tryRun('node', ['scripts/audit-readme-tests.mjs', String(tests)], { timeout: 60000 })
+  const line2 = (String(res2.stdout || '').trim().split(String.fromCharCode(10)).pop() || '无输出')
+  record('README 单测数', res2.status === 0, line2.replace(/^(PASS|FAIL) README 单测数\s*/, ''))
 }
 
 // ①.45 跳过必须可见（skip 要带原因；用例体内不许静默 return）
@@ -74,11 +81,11 @@ if (!FAST) {
     summary.length > 0 ? summary[1] + '/' + summary[2] + ' 项注入都被检测到（' + (String(res.stdout || '').match(/注入覆盖：(\d+)\/(\d+)/) || ['', '?', '?'])[1] + '/' + (String(res.stdout || '').match(/注入覆盖：(\d+)\/(\d+)/) || ['', '?', '?'])[2] + ' 项有注入）' : (out.split(String.fromCharCode(10)).filter((l) => l.startsWith('FAIL'))[0] || '无输出').replace(/^FAIL /, ''))
 }
 
-// ② 语法
+// ② 语法（独立脚本：注入验证直接跑它，不必跑整套 preflight）
 {
-  const files = ['client.js', 'lib/index.js', 'lib/watch.js', 'lib/gh-format.js', 'lib/redact.js', 'lib/body.js']
-  const bad = files.filter((f) => tryRun('node', ['--check', f]).status !== 0)
-  record('语法 node --check', bad.length === 0, bad.length ? '失败：' + bad.join(', ') : `${files.length} 个文件`)
+  const res = tryRun('node', ['scripts/audit-syntax.mjs'], { timeout: 60000 })
+  const line = (String(res.stdout || '').trim().split(String.fromCharCode(10)).pop() || '无输出')
+  record('语法 node --check', res.status === 0, line.replace(/^(PASS|FAIL) 语法 node --check\s*/, ''))
 }
 
 // ③ profile 一致性（CI 上没有 profile，自动 SKIP）
@@ -336,6 +343,13 @@ if (FAST) {
 }
 
 const failures = rows.filter((r) => !r.ok)
+// 最慢的 3 项：下次优化先从这里挑
+{
+  const slowest = rows.filter((row) => typeof row.ms === 'number').sort((a, b) => b.ms - a.ms).slice(0, 3)
+  if (slowest.length > 0) {
+    console.log('最慢：' + slowest.map((row) => row.name + ' ' + (row.ms / 1000).toFixed(1) + 's').join(' / '))
+  }
+}
 console.log('---')
 console.log(failures.length === 0 ? `全部通过（${rows.length} 项检查）` : `${failures.length} 项失败`)
 if (failures.length > 0) process.exit(1)

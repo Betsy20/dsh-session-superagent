@@ -13,11 +13,16 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const coverage = JSON.parse(readFileSync(join(root, 'test', 'fixtures', 'gate-coverage.json'), 'utf8'))
 const preflightSrc = readFileSync(join(root, 'scripts', 'preflight.mjs'), 'utf8')
 const allChecks = [...new Set([...preflightSrc.matchAll(/record\('([^']+)'/g)].map((m) => m[1]))]
+// 计时：注入验证最怕"某一项突然变慢"，没有耗时就看不出是谁
+const timings = []
 const run = (args) => {
+  const started = Date.now()
   try {
     const out = execFileSync('node', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+    timings.push({ args: args.join(' '), ms: Date.now() - started })
     return { code: 0, out }
   } catch (error) {
+    timings.push({ args: args.join(' '), ms: Date.now() - started })
     return { code: error.status ?? 1, out: String(error.stdout || '') + String(error.stderr || '') }
   }
 }
@@ -34,8 +39,9 @@ const record = (name, detected, detail) => {
   const original = readFileSync(path, 'utf8')
   try {
     writeFileSync(path, original.replace(/(\d+) 项单测/, '9999 项单测'))
-    const res = run(['scripts/preflight.mjs', '--fast'])
-    record('README 单测数（注入错数字）', res.code !== 0 && /README 单测数\s+README 写 9999/.test(res.out))
+    // 只跑这一条检查（把真实用例数传进去），不必跑整套 preflight
+    const res = run(['scripts/audit-readme-tests.mjs', '215'])
+    record('README 单测数（注入错数字）', res.code !== 0 && /9999/.test(res.out))
   } finally {
     writeFileSync(path, original)
   }
@@ -101,7 +107,8 @@ const record = (name, detected, detail) => {
   try {
     const mutated = original.replace("path: '/session-superagent/trace'", "path: '/session-superagent/zzz'")
     writeFileSync(path, mutated)
-    const res = run(['--test', 'test/routes.test.mjs'])
+    // 只跑路由面那一例（node --test 支持 --test-name-pattern），别让整文件 40 例陪跑
+    const res = run(['--test', '--test-name-pattern=路由面收敛', 'test/routes.test.mjs'])
     record('路由面（注入改路径）', res.code !== 0)
   } finally {
     writeFileSync(path, original)
@@ -189,8 +196,8 @@ const record = (name, detected, detail) => {
   const original = readFileSync(path, 'utf8')
   try {
     writeFileSync(path, original + String.fromCharCode(10) + 'const broken = (' + String.fromCharCode(10))
-    const res = run(['scripts/preflight.mjs', '--fast'])
-    record('语法（注入非法语法）', res.code !== 0 && /语法/.test(res.out))
+    const res = run(['scripts/audit-syntax.mjs'])
+    record('语法（注入非法语法）', res.code !== 0)
   } finally {
     writeFileSync(path, original)
   }
@@ -319,6 +326,13 @@ const record = (name, detected, detail) => {
   } finally {
     writeFileSync(path, original)
   }
+}
+
+// 最慢的 5 项（帮下一轮决定该优化谁）
+{
+  const slowest = timings.slice().sort((a, b) => b.ms - a.ms).slice(0, 5)
+  console.log('---')
+  console.log('最慢的注入：' + slowest.map((item) => item.ms + 'ms ' + item.args.split(' ').pop()).join(' / '))
 }
 
 // 覆盖率报告：明确列出"还没被注入验证过"的检查，别让人以为全验过了
