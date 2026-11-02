@@ -39,6 +39,15 @@ test('结构化输出的每个字段都在稳定性清单里（新增字段必�
   const byName = (name) => tools.find((tool) => tool.name === name)
 
   await byName('watch_start').execute({ repo: 'o/stab', format: 'json' })
+  // 造一条"有痕迹"的条目，让 watch_trace 真的返回 results[]（否则这段断言永远被跳过）
+  const mod0 = await import('../lib/index.js')
+  const st = mod0.__test.readState()
+  const key = Object.keys(st.watchers)[0]
+  st.watchers[key].seen = { 1: new Date().toISOString() }
+  st.watchers[key].lastReported = { 1: new Date().toISOString() }
+  st.watchers[key].filteredLog = [{ at: new Date().toISOString(), number: 2, title: 'x', reason: '已关闭' }]
+  st.watchers[key].history = [{ at: new Date().toISOString(), numbers: [1], ok: true, reason: null }]
+  mod0.__test.writeState(st)
   const status = JSON.parse(await byName('watch_status').execute({ format: 'json' }))
   const doctor = JSON.parse(await byName('watch_doctor').execute({ format: 'json' }))
   const trace = JSON.parse(await byName('watch_trace').execute({ number: 1, format: 'json' }))
@@ -52,6 +61,11 @@ test('结构化输出的每个字段都在稳定性清单里（新增字段必�
   assert.ok(sameSet(Object.keys(doctor), Object.keys(manifest.watch_doctor.root)), 'watch_doctor 根字段变了')
   assert.ok(sameSet(Object.keys(doctor.checks[0]), Object.keys(manifest.watch_doctor.check)), 'check 字段变了')
   assert.ok(sameSet(Object.keys(trace), Object.keys(manifest.watch_trace.root)), 'watch_trace 根字段变了')
+  // results[] 里每条的字段也要被登记（这是消费方真正解析的部分）
+  assert.ok(Array.isArray(trace.results) && trace.results.length > 0,
+    '这条断言需要非空 results —— 上面已造过痕迹，为空说明 trace 的筛选逻辑变了：' + JSON.stringify(trace).slice(0, 160))
+  assert.ok(sameSet(Object.keys(trace.results[0]), Object.keys(manifest.watch_trace.result)),
+    'results[] 字段变了：' + Object.keys(trace.results[0]).join(','))
   assert.ok(sameSet(Object.keys(start), Object.keys(manifest.watch_start.root)), 'watch_start 根字段变了：' + Object.keys(start).join(','))
   assert.ok(sameSet(Object.keys(stop), Object.keys(manifest.watch_stop.root)), 'watch_stop 根字段变了')
   // ack 会真的调 gh；调用失败时字段是 {schemaVersion, ok, error} —— 两种情况都允许

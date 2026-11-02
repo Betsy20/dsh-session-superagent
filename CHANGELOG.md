@@ -2,6 +2,24 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.48] - 2026-11-02 —— 契约从测试目录搬进文档：`docs/json-契约.md`
+
+### 学到的（延续知识库第 93 条）
+契约要出现在**客户看得见的地方**，不能只躺在 `test/fixtures/` 里。
+
+### 做了什么
+1. 清单补上 `watch_trace.results[]` 的结构（含 `filtered[]` / `wakes[]` 的子字段）；
+2. `scripts/render-contract.mjs` 把清单渲染成 `docs/json-契约.md`（149 行，含每个字段的稳定性）；
+3. `--write` / `--check` 两种模式；`--check` 进 preflight 第 20 项 —— 清单改了没重新生成就红；
+4. README「工具输出」小节指向这份文档。
+
+### 一个"假通过"被自己抓住
+`results[]` 的断言原本写成 `if (results.length > 0) {...}` —— 空数组时整段被跳过，
+**等于永远通过**。改成先断言"必须非空"（并在测试里造痕迹），断到真的执行。
+
+### 测试
+- 契约用例仍 2 例，但 `results[]` 分支现在真的跑；preflight 20 项全绿。
+
 ## [0.9.47] - 2026-11-02 —— 字段稳定性清单：哪个字段可以被依赖
 
 ### 学到的（知识库第 93 条）

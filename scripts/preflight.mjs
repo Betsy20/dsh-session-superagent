@@ -162,6 +162,13 @@ const tryRun = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: ROOT, encod
   record('文案快照', res.status === 0, res.status === 0 ? (out[0] || '').replace(/^PASS /, '') : '文案变了：跑 node scripts/first-run.mjs --write 再看 diff')
 }
 
+// ⑥.459 JSON 契约文档与字段清单一致（契约要出现在客户看得见的地方）
+{
+  const res = tryRun('node', ['scripts/render-contract.mjs', '--check'], { timeout: 60000 })
+  const out = String(res.stdout || '').trim()
+  record('JSON 契约', res.status === 0, out.replace(/^PASS /, '') || '无输出')
+}
+
 // ⑥.458 全 docs/ 一致性（老文档最容易把人带到不存在的工具/路由/文件）
 {
   const res = tryRun('node', ['scripts/audit-docs-all.mjs'], { timeout: 60000 })

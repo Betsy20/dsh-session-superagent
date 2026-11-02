@@ -3,7 +3,7 @@
 <img src="assets/icon-180.png" width="88" height="88" alt="">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.9.47-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
+[![Version](https://img.shields.io/badge/version-0.9.48-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
 [![npm](https://img.shields.io/npm/v/dsh-session-superagent.svg)](https://www.npmjs.com/package/dsh-session-superagent)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-plugin-orange.svg)](https://github.com/topics/dsh-plugin)
 
@@ -136,6 +136,8 @@ node --test          # 184 项单测
 | `watch_start` / `watch_stop` / `watch_ack` | 一句话结果 | `{ schemaVersion, ok, … }` —— 成功/失败都靠 `ok` 判断，不用读中文 |
 
 `schemaVersion` 现在是 `1`；**字段语义一变就会加这个数**，程序可以据此决定要不要重新解析。
+
+每个字段的稳定性（可依赖 / 实验性）见 [docs/json-契约.md](docs/json-契约.md) —— 它由 `test/fixtures/contract-stability.json` 生成，改字段时两边会互相校验收。
 
 版本与发布流程见 [UPDATING.md](UPDATING.md)，交付门见 [CHECKLIST.md](CHECKLIST.md)，接手台账见 [MAINTENANCE.md](MAINTENANCE.md)。
 

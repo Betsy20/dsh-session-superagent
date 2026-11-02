@@ -47,6 +47,25 @@
       "schemaVersion": "stable",
       "number": "stable",
       "results": "stable"
+    },
+    "result": {
+      "number": "stable",
+      "repo": "stable",
+      "seen": "stable",
+      "reported": "stable",
+      "filtered": "stable",
+      "wakes": "stable",
+      "verdict": "stable"
+    },
+    "filteredItem": {
+      "at": "stable",
+      "reason": "stable",
+      "title": "experimental"
+    },
+    "wakeItem": {
+      "at": "stable",
+      "ok": "stable",
+      "reason": "stable"
     }
   },
   "watch_start": {
