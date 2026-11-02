@@ -562,6 +562,8 @@ test('watch_doctor 能发现"定时器丢了"和"隔离目录不可写"', async 
   const state = mod.__test.readState()
   const key = Object.keys(state.watchers)[0]
   state.watchers[key].lastPoll = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+  // 进程也跑了很久（否则会被判成「刚重启」，见下一条用例）
+  state.server = { ...(state.server || {}), startedAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString() }
   mod.__test.writeState(state)
 
   const text = String(await doctor.execute({}))
@@ -816,4 +818,39 @@ test('/state 回传 otherSessions：同仓库的其它会话', async () => {
   const theirs = parsed.watchers.find((w) => w.sessionId === 'session-b')
   assert.deepEqual(mine.otherSessions, ['session-b'], '我方要看到对方')
   assert.deepEqual(theirs.otherSessions, ['session-a'], '对方也要看到我方')
+})
+
+test('刚重启不该被当成「定时器丢了」', async () => {
+  const tools = []
+  const dir = tempDir('zhuli-restart-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: () => () => {} },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-restart' }) },
+    get: () => null, on() {}, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?restart=' + Date.now())
+  mod.apply(ctx)
+  const doctor = tools.find((t) => t.name === 'watch_doctor')
+  await tools.find((t) => t.name === 'watch_start').execute({ repo: 'acme/old' })
+
+  // 上次轮询是 2 小时前，但进程是刚启动的（startedAt = 现在）
+  const state = mod.__test.readState()
+  const key = Object.keys(state.watchers)[0]
+  state.watchers[key].lastPoll = new Date(Date.now() - 2 * 3600 * 1000).toISOString()
+  state.server = { ...(state.server || {}), startedAt: new Date().toISOString() }
+  mod.__test.writeState(state)
+
+  const fresh = String(await doctor.execute({}))
+  assert.ok(fresh.includes('刚重启'), '刚重启要如实说明：' + fresh.slice(0, 300))
+  assert.ok(!fresh.includes('定时器可能丢了'), '刚重启不该报故障')
+
+  // 进程已经跑够久（uptime 3 小时）时，同样的陈旧就要报故障
+  const state2 = mod.__test.readState()
+  state2.server = { ...(state2.server || {}), startedAt: new Date(Date.now() - 3 * 3600 * 1000).toISOString() }
+  mod.__test.writeState(state2)
+  const stale = String(await doctor.execute({}))
+  assert.ok(stale.includes('没轮询过'), '跑久了还陈旧才算故障：' + stale.slice(0, 300))
 })
