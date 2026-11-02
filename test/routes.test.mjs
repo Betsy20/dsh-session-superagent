@@ -354,3 +354,14 @@ test('/state 带 ETag：同一份内容再问一次回 304（面板轮询省流�
   assert.equal(third.statusCode, 200)
   assert.ok(JSON.parse(third.body).watchers.length > 0)
 })
+
+test('/state 带 sessionUsage（近一小时用了几次、上限多少、几条守被上限挡住）', async () => {
+  await call('POST', '/session-superagent/watch', { repo: 'o/usage', sessionId: 'session-usage', intervalSec: 60 })
+  const res = await call('GET', '/session-superagent/state')
+  const body = JSON.parse(res.body)
+  assert.ok(body.sessionUsage, '要有 sessionUsage')
+  assert.equal(typeof body.sessionUsage.used, 'number')
+  assert.equal(typeof body.sessionUsage.cap, 'number')
+  assert.ok(body.sessionUsage.cap >= 1, '上限要有值：' + JSON.stringify(body.sessionUsage))
+  assert.equal(typeof body.sessionUsage.capped, 'number')
+})

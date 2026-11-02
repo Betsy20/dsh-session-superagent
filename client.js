@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.19'
+    const CLIENT_VERSION = '0.9.20'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1272,6 +1272,16 @@ window.__ModuleLoader__.load({
         h('div', { className: 'dt-row-meta' },
           h(Pill, { active: problemsOnly, onClick: () => setProblemsOnly(!problemsOnly) }, '只看有问题的' + (problemCount > 0 ? ' (' + problemCount + ')' : '')),
           problemsOnly ? h(Pill, { onClick: () => setProblemsOnly(false) }, '全部') : null),
+        body.sessionUsage
+          ? h('div', { className: 'dt-row-meta' },
+            h('span', null, '本会话近一小时唤醒 ' + body.sessionUsage.used + '/' + body.sessionUsage.cap),
+            body.sessionUsage.used >= body.sessionUsage.cap
+              ? h('span', { className: 'dt-error-text' }, '已到上限：新条目会攒到下一小时，可以把「这条会话每小时最多被唤醒」调大')
+              : null,
+            body.sessionUsage.capped > 0
+              ? h('span', { className: 'dt-error-text' }, body.sessionUsage.capped + ' 条守正因上限暂停')
+              : null)
+          : null,
         visible.length === 0 ? h(Hint, null, '没有符合条件的主理鱼。点上面「全部」看所有守。') : null,
         h('div', { className: 'dt-rows' }, ...summarizeByRepo(visible).map((group) => h('div', { key: 'repo-' + group.repo, className: 'dt-row' },
           h('div', { className: 'dt-row-main' },

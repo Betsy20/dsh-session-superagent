@@ -855,3 +855,20 @@ test('归档 / 禁用仓库也要在「需要关注」里说清（客户端之�
   assert.ok(text.includes('已被禁用'), '禁用要说')
   assert.ok(text.includes('只能看、不能回写'), '归档要说明后果')
 })
+
+test('面板显示本会话用量，到上限时给出可执行的建议', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const base = { sessionGoal: null, sessionTitle: 'x', credentials: {}, watchers: [watcher('a/b', { id: 'a/b#s1' })] }
+
+  const half = walk(render(desk, deskQueue({ loading: false, error: null, body: { ...base, sessionUsage: { used: 3, cap: 12, capped: 0 } } })))
+    .filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(half.includes('唤醒 3/12'), '要有用量：' + half.slice(0, 200))
+  assert.ok(!half.includes('已到上限'), '没用满时不该报警')
+
+  const full = walk(render(desk, deskQueue({ loading: false, error: null, body: { ...base, sessionUsage: { used: 12, cap: 12, capped: 2 } } })))
+    .filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(full.includes('已到上限'), '到上限要提示')
+  assert.ok(full.includes('调大'), '要给出可执行的建议：' + full.slice(0, 260))
+  assert.ok(full.includes('2 条守正因上限暂停'), '要说清影响')
+})
