@@ -948,3 +948,29 @@ test('/state 的 304 真的会命中：60 秒 12 次拉取，只有变化那几�
   assert.equal(not304, 2, '12 次里只有 2 次 200（首次 + 改状态那次），实际：' + budget.statuses.join(','))
   assert.ok(budget.bytes < 8 * 1024, '省下来的正文要明显（实际收到 ' + budget.bytes + ' 字节）')
 })
+
+test('watch_start 能设 ackLabel：两个会话可各用各的标签，互不挡', async () => {
+  const tools = []
+  const dir = tempDir('zhuli-acklabel-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: () => () => {} },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-a' }) },
+    get: () => null, on() {}, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?acklabel=' + Date.now())
+  mod.apply(ctx)
+  const start = tools.find((t) => t.name === 'watch_start')
+  await start.execute({ repo: 'acme/shared', ackLabel: '团队A:已处理' })
+  const state = mod.__test.readState()
+  const entry = Object.values(state.watchers)[0]
+  assert.equal(entry.ackLabel, '团队A:已处理', '自定义标签要写进状态')
+
+  // 不传时保持默认
+  await start.execute({ repo: 'acme/other' })
+  const after = mod.__test.readState()
+  const other = Object.values(after.watchers).find((w) => w.repo === 'acme/other')
+  assert.equal(other.ackLabel, '主理鱼:已处理', '不传就用默认标签')
+})

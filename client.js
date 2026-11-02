@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.105'
+    const CLIENT_VERSION = '0.9.106'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1090,7 +1090,7 @@ window.__ModuleLoader__.load({
             ].filter(Boolean).join(' · ')),
           watcher.lastDeferred ? h('div', { className: 'dt-ticket-note' }, watcher.lastDeferred) : null,
           (watcher.otherSessions && watcher.otherSessions.length > 0)
-            ? h('div', { className: 'dt-ticket-note' }, '还有 ' + watcher.otherSessions.length + ' 个会话也在守这个仓库：' + watcher.otherSessions.join('、') + '（各自独立唤醒，互不影响）')
+            ? h('div', { className: 'dt-ticket-note' }, '还有 ' + watcher.otherSessions.length + ' 个会话也在守这个仓库：' + watcher.otherSessions.join('、') + '（各自独立唤醒；但 ack 标签是仓库级的 —— 任一方 ack 后两边都会跳过，想让两边各处理各的就给对方设不同标签）')
             : null,
           watcher.lastError ? (() => {
             const parts = splitErrorText(watcher.lastError)

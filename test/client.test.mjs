@@ -985,7 +985,7 @@ test('同一仓库被多个会话守着时，面板要说清"还有谁在守"', 
   }
   const text = walk(render(desk, deskQueue(snap))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
   assert.ok(text.includes('还有 2 个会话也在守这个仓库'), '总览行要说清还有谁：' + text.slice(0, 300))
-  assert.ok(text.includes('互不影响'), '要说明会不会互相抢')
+  assert.ok(text.includes('ack 标签是仓库级的'), '要说清 ack 标签是共享的：' + text.slice(0, 400))
 
   // 没有别的会话时不显示
   const solo = { ...snap, body: { ...snap.body, watchers: [watcher('a/b', { id: 'a/b#s1', lastWake: '2026-11-02T09:00:00.000Z', otherSessions: [] })] } }
