@@ -29,6 +29,8 @@ const CHILD_ENV = { ...process.env }
 delete CHILD_ENV.DSH_SUPERAGENT_STATE      // 本脚本自己的临时目录，不能污染子进程
 delete CHILD_ENV.DSH_SUPERAGENT_NO_POLL    // 路由检查用的开关，冒烟必须真轮询
 delete CHILD_ENV.DSH_SUPERAGENT_TRIGGER
+// 单测/门禁不该依赖真实 GitHub：没有有效凭证时每次 gh 调用要等到超时（实测单文件 100 秒）
+CHILD_ENV.DSH_SUPERAGENT_OFFLINE = '1'
 const tryRun = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: ROOT, encoding: 'utf8', env: CHILD_ENV, ...opts })
 
 // ① 单测

@@ -2,6 +2,65 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.118] - 2026-11-03 —— 单测从 101 秒降到 1.6 秒：它们一直在等一个不可能的 gh 响应
+
+### 现场
+真机重启后跑 `node --test`，**101 秒**才结束（之前 9 秒）。逐文件计时立刻定位：
+
+```
+103571 ms  test/routes.test.mjs
+ 42290 ms  test/contract-stability.test.mjs
+```
+
+根因不是用例写错，而是**环境**：`gh auth status` 显示
+
+```
+X Failed to log in to github.com account MYCF711 (keyring)
+  - The token in keyring is invalid.
+```
+
+于是每个调用 `gh api` 的用例都要等到超时（`watch_start` 的仓库体检、`watch_ack` 打标签）。
+
+### 改法
+加一个**离线模式** `DSH_SUPERAGENT_OFFLINE=1`：`run()` 遇到 `gh` 直接返回固定内容，不 spawn。
+`preflight` 在跑子进程时开启它（生产不会设这个变量）。
+
+### 证据
+```
+改前：node --test → 101.4 秒
+改后：DSH_SUPERAGENT_OFFLINE=1 node --test → 1.65 秒（225/225 通过）
+```
+
+### 顺带
+README「已知限制」补一条：凭证失效时的表现与"不会自己恢复、需要重新登录"。
+
+## [0.9.117] - 2026-11-03 —— 真机重启后发现：时段外那条「异常」永远不会自己好
+
+### 现场（重启后实测）
+```
+插件版本: 0.9.116
+值守: 1 条 | 启用 | 间隔 120s | 失败 4 | 错误: gh: HTTP 304（没归类的错误…）
+上次轮询: 2026-11-02T14:30:50.655Z（5.4 小时前）
+lastDeferred: 不在活跃时段（09:00-23:00），597 分钟后开始
+nextAt: 2026-11-03T01:00:00.114Z（= 本地 09:00）
+```
+
+问题很清楚：这条守的活跃时段是 **09:00–23:00**，此刻 03:53 —— **不在时段内，不会轮询**，
+所以那条旧错误（`gh: HTTP 304`）就永远挂着，面板上的红点和「异常」计数也一直在。
+而它其实**不是"现在"的事实**：这 5 小时里根本没有请求发生过。
+
+### 改法
+抽出 `enterActiveHoursDefer()`，时段外进入等待时顺手清掉瞬时状态：
+`lastError` / `lastErrorAt` / `consecutiveFailures` 归零（`nextAt` / `lastDeferred` 照常写）。
+
+### 为什么不是"面板上忽略它"
+因为 `watch_doctor`、`watch_status`、`/state` 三个出口都会读 `lastError`。
+**在数据源头清掉，比在每个出口各写一遍"如果是时段外就别显示"可靠得多。**
+
+### 测试
+新增 1 例：进入时段外等待后，错误与失败计数都归零、`nextAt` 指向未来、`lastDeferred` 写明多久后开始。
+合计 **224 例**。
+
 ## [0.9.116] - 2026-11-03 —— 404 不等于"不存在"；顺便修掉一个"凌晨才红"的用例
 
 ### 学到什么（出处）

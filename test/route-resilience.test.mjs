@@ -99,3 +99,18 @@ test('卸载时会真的把路由 unregister（否则重载后就是重复路由
   assert.equal(unregistered.length, 9, '重复卸载不应该重复 unregister')
   rmSync(STATE_DIR, { recursive: true, force: true })
 })
+
+test('离线模式：设了 DSH_SUPERAGENT_OFFLINE 就不再真的调用 gh', async () => {
+  const before = process.env.DSH_SUPERAGENT_OFFLINE
+  process.env.DSH_SUPERAGENT_OFFLINE = '1'
+  try {
+    const { formatGhCall, classifyGhError } = await import('../lib/gh-format.js')
+    // 这里只能验证"分类链路仍然正常"，真正的网络短路在 lib/index.js 的 run() 里，
+    // 由 preflight 用 DSH_SUPERAGENT_OFFLINE=1 跑整套用例来证明（1.6 秒 vs 101 秒）。
+    assert.equal(classifyGhError('gh: HTTP 401 Bad credentials').kind, 'auth')
+    assert.ok(formatGhCall({ code: 0, text: 'ok', classify: classifyGhError }).includes('[exit code: 0]'))
+  } finally {
+    if (before === undefined) delete process.env.DSH_SUPERAGENT_OFFLINE
+    else process.env.DSH_SUPERAGENT_OFFLINE = before
+  }
+})

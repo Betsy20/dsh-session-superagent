@@ -3,7 +3,7 @@
 <img src="assets/icon-180.png" width="88" height="88" alt="">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.9.116-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
+[![Version](https://img.shields.io/badge/version-0.9.118-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
 [![npm](https://img.shields.io/npm/v/dsh-session-superagent.svg)](https://www.npmjs.com/package/dsh-session-superagent)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-plugin-orange.svg)](https://github.com/topics/dsh-plugin)
 
@@ -100,6 +100,7 @@ dsh plugin install /path/to/dsh-session-superagent
 ## 已知限制
 
 - 依赖 `gh` CLI 已登录；需要 GitHub 账号权限。
+- 凭证失效时（例如 keyring 里的 token 过期）会显示「gh 登录失效：跑 gh auth login」；轮询会按退避重试，但**不会**自己恢复，需要你重新登录。
 - 轮询而非 webhook：延迟等于轮询间隔。
 - 一条会话可以守多个仓库（每条守独立配置间隔/过滤/时段），但**同一会话同一时刻只处理一批**：
   多仓库同时有动静时按每小时上限排队。
@@ -122,7 +123,7 @@ dsh plugin install /path/to/dsh-session-superagent
 ## 开发
 
 ```sh
-node --test          # 223 项单测
+node --test          # 225 项单测
 ```
 
 ### 工具输出：文本给人和 agent，JSON 给程序

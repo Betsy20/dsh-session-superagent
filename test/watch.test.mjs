@@ -1250,3 +1250,19 @@ test('永久性错误（404 / 改名）至少等半小时再试 —— 别反复
   // 配置的间隔更长时取配置
   assert.equal(watchModule.permanentBackoffMs('notfound', 45 * 60 * 1000), 45 * 60 * 1000)
 })
+
+test('进入时段外等待时清掉旧错误（否则面板会一直显示「异常」）', () => {
+  const entry = {
+    activeHours: '09:00-23:00',
+    lastError: 'gh: HTTP 304（没归类的错误）',
+    lastErrorAt: '2026-11-02T14:30:50.655Z',
+    consecutiveFailures: 4,
+  }
+  watchModule.enterActiveHoursDefer(entry, 597 * 60000, '09:00-23:00')
+  assert.equal(entry.deferReason, 'active-hours')
+  assert.equal(entry.lastError, null, '旧错误要清掉')
+  assert.equal(entry.lastErrorAt, null)
+  assert.equal(entry.consecutiveFailures, 0, '失败计数也要归零')
+  assert.ok(entry.lastDeferred.includes('597 分钟'), '要说清多久后开始：' + entry.lastDeferred)
+  assert.ok(Date.parse(entry.nextAt) > Date.now(), 'nextAt 要指向未来')
+})
