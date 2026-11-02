@@ -1179,3 +1179,20 @@ test('每一类错误都要给出"下一步"（客户看到错误时最怕不知
   assert.equal(fallback.kind, 'other')
   assert.match(fallback.hint, /watch_doctor|重试/)
 })
+
+test('只有一条变化时不再解释「为什么是这几条」（那是噪音）', () => {
+  const one = [{ number: 7, title: 'x', state: 'open', html_url: 'https://x/7', user: { login: 'u' }, labels: [], assignees: [] }]
+  const single = formatWatchText('o/r', one, { changedTotal: 1, batchLimit: 5 })
+  assert.ok(!single.includes('【为什么是这几条】'), '单条不该解释排序：' + single.slice(0, 120))
+  assert.ok(single.includes('#7'), '条目本身还要在')
+
+  // 多条时解释必须保留（客户要知道为什么没铺开）
+  const many = [one[0], { ...one[0], number: 8 }]
+  const multi = formatWatchText('o/r', many, { changedTotal: 9, batchLimit: 5 })
+  assert.ok(multi.includes('【为什么是这几条】'), '多条要有解释')
+  assert.ok(multi.includes('本轮共 9 条变化'), '解释里要带总数')
+
+  // 单条但有跳过时，跳过信息仍要说（那不是排序解释，是"我还看过别的"）
+  const withSkip = formatWatchText('o/r', one, { changedTotal: 1, batchLimit: 5, skippedReasons: { '已关闭': 2 } })
+  assert.ok(withSkip.includes('本轮跳过 2 条'), '跳过信息不能丢')
+})
