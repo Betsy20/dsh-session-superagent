@@ -247,10 +247,25 @@ const record = (name, detected, detail) => {
       "import { join } from 'node:path'",
       "test('x', () => { mkdtempSync(join(tmpdir(), 'zhuli-zz-')) })",
     ].join(String.fromCharCode(10)) + String.fromCharCode(10))
-    const res = run(['scripts/preflight.mjs', '--fast'])
-    record('临时目录收口（注入违规测试）', res.code !== 0 && /临时目录收口/.test(res.out))
+    const res = run(['scripts/audit-tmp-dirs.mjs'])
+    record('临时目录收口（注入违规测试）', res.code !== 0)
   } finally {
     if (existsSync(path)) unlinkSync(path)
+  }
+}
+
+// ⑰ npm pack 内容：把 test/ 临时加进 files，打包清单会带出测试目录 -> 检查必须红
+{
+  const path = join(root, 'package.json')
+  const original = readFileSync(path, 'utf8')
+  try {
+    const data = JSON.parse(original)
+    data.files = [...(data.files || []), 'test']
+    writeFileSync(path, JSON.stringify(data, null, 2) + String.fromCharCode(10))
+    const res = run(['scripts/audit-pack.mjs'])
+    record('npm pack 内容（注入 test/ 打包）', res.code !== 0)
+  } finally {
+    writeFileSync(path, original)
   }
 }
 

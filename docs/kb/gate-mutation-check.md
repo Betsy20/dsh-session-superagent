@@ -101,3 +101,20 @@ preflight 认这个 `SKIP`。
 ```
 
 **"覆盖率"只有配上"为什么这几项不算"，才不是自我安慰。**
+
+## 0.9.71 追加：固定字符串 needle 是第二类"装死"
+`npm pack 内容` 的泄漏判断写的是 `'npm notice test/'`，而真实输出是：
+
+```
+npm notice 2.7kB test/agents-context.test.mjs
+```
+
+尺寸前缀一插进来，needle 永远匹配不到 —— **这条检查只对 `.tgz` 有效，其余五条全是摆设**。
+
+改法：改成模式匹配（`/npm notice .*\stest\//` 这类 6 条），并抽成 `scripts/audit-pack.mjs`。
+注入验证：把 `test` 加进 `files` → 修前 PASS（漏报）、修后 FAIL（含：test/）。
+
+顺带把「临时目录收口」也抽成独立脚本，注入验证从跑整套 preflight 变成跑单脚本：
+**34 秒 → 22.6 秒**，注入覆盖 **22/26**。
+
+> 两次"装死"都出在同一类写法上：**用固定字符串去匹配会变的输出**。

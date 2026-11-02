@@ -38,17 +38,11 @@ const tryRun = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: ROOT, encod
     claimed ? (claimed === String(tests) ? 'README 写 ' + claimed + '，实际 ' + tests : 'README 写 ' + claimed + '，实际 ' + tests + '（改 README）') : 'README 没写单测数')
 }
 
-// ①.5 临时目录收口（历史教训：一次测试跑漏 8 个，本机攒到 1654 个）
+// ①.5 临时目录收口（独立脚本，注入验证也能单独跑）
 {
-  const bad = []
-  for (const name of readdirSync(join(ROOT, 'test'))) {
-    if (!name.endsWith('.test.mjs')) continue
-    const text = readFileSync(join(ROOT, 'test', name), 'utf8')
-    if (text.includes('mkdtempSync(join(tmpdir()')) bad.push(name)
-  }
-  const helper = existsSync(join(ROOT, 'test', 'fixtures', 'tmpdir.mjs'))
-  record('临时目录收口', bad.length === 0 && helper,
-    bad.length > 0 ? '这些测试还在自己建临时目录：' + bad.join(', ') : (helper ? '全部走 tempDir()，退出时自动清理' : '缺少 test/fixtures/tmpdir.mjs'))
+  const res = tryRun('node', ['scripts/audit-tmp-dirs.mjs'], { timeout: 60000 })
+  const line = (String(res.stdout || '').trim().split(String.fromCharCode(10))[0] || '无输出')
+  record('临时目录收口', res.status === 0, line.replace(/^(PASS|FAIL) 临时目录收口\s*/, ''))
 }
 
 // ①.6 错误建议体检（每条建议要短、要能做 —— 文字会随版本漂移）
@@ -129,20 +123,11 @@ if (!FAST) {
   rmSync(stateDir, { recursive: true, force: true })
 }
 
-// ⑥ 打包内容
+// ⑥ 打包内容（脚本独立，注入验证也能单独跑它）
 {
-  // Windows 上 npm 是 .cmd：用 cmd /c 调它（比 shell:true 安全，也不触发 DEP0190）
-  const res = process.platform === 'win32'
-    ? tryRun('cmd.exe', ['/c', 'npm', 'pack', '--dry-run'])
-    : tryRun('npm', ['pack', '--dry-run'])
-  const out = String(res.stdout || '') + String(res.stderr || '')
-  const files = (out.match(/total files:\s+(\d+)/) || [])[1]
-  const leaked = []
-  for (const needle of ['npm notice test/', 'npm notice .tmp-', 'preview-panel.html', 'release/', 'node_modules/']) {
-    if (out.includes(needle)) leaked.push(needle.trim())
-  }
-  if (/npm notice \d+(\.\d+)?[kM]?B \S+\.tgz/.test(out)) leaked.push('.tgz')
-  record('npm pack 内容', res.status === 0 && leaked.length === 0, `${files} 个文件` + (leaked.length ? '（含：' + leaked.join(', ') + '）' : ''))
+  const res = tryRun('node', ['scripts/audit-pack.mjs'], { timeout: 120000 })
+  const line = (String(res.stdout || '').trim().split(String.fromCharCode(10))[0] || '无输出')
+  record('npm pack 内容', res.status === 0, line.replace(/^(PASS|FAIL) npm pack 内容\s*/, ''))
 }
 
 // ⑥.4 离线挂载冒烟（真机服务端一改就是几十个版本一起跳，挂不上去等于整块功能消失）

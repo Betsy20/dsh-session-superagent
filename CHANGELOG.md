@@ -2,6 +2,30 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.71] - 2026-11-02 —— 又一个装死的检查：打包泄漏检测的字符串写错了
+
+### 发现（注入验证翻出来的）
+`npm pack 内容` 的泄漏判断写的是固定字符串 `'npm notice test/'`，
+而 `npm pack --dry-run` 的实际输出是：
+
+```
+npm notice 2.7kB test/agents-context.test.mjs
+```
+
+**中间夹着文件尺寸**，所以那几条 needle 永远匹配不到 —— 这条检查等于只检查了 `.tgz`。
+
+### 改法
+- 泄漏判断改成**模式匹配**（`/npm notice .*\stest\//` 等 6 条规则）；
+- 抽成独立脚本 `scripts/audit-pack.mjs`（preflight 与注入验证共用）；
+- 顺带把「临时目录收口」也抽成 `scripts/audit-tmp-dirs.mjs`。
+
+### 效果
+```
+注入 test/ 进 files：修前 PASS（漏报）→ 修后 FAIL（含：test/）✅
+verify-gates 运行时间：34 秒 → 22.6 秒（注入不再跑整套 preflight）
+注入覆盖：20/26 → 22/26；17/17 注入都被检测到
+```
+
 ## [0.9.70] - 2026-11-02 —— 覆盖率从 15 涨到 20/26，并把"不该注入"的项说清楚
 
 ### 做了什么
