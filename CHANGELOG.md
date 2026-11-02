@@ -2,6 +2,36 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.102] - 2026-11-02 —— npm 包里少了文件会"装上但不工作"，现在会红
+
+### 查了什么
+`npm pack` 一共 14 个文件，其中 **7 个是运行必需的**（插件不挂载、或面板空白都可能是漏了某个文件）：
+
+```
+lib/index.js  lib/watch.js  lib/gh-format.js  lib/redact.js  lib/body.js
+client.js  cordis.patch.yml
+```
+
+历史上真踩过一次：`lib/body.js` 没进 profile 的链路，插件整体不挂载。
+
+### 改法
+`scripts/audit-pack.mjs` 除了查"不该进包的东西"，现在也查"**该进包的**"：
+```
+REQUIRED = ['lib/index.js', 'lib/watch.js', 'lib/gh-format.js', 'lib/redact.js', 'lib/body.js',
+            'client.js', 'cordis.patch.yml', 'package.json', 'README.md', 'LICENSE']
+```
+缺任何一个就 `FAIL …（缺：lib/body.js）`。
+
+### 验证
+把 `lib` 目录改成逐个列、故意漏掉 `lib/body.js`：
+```
+FAIL npm pack 内容  13 个文件（缺：lib/body.js）   exit=1
+```
+还原后 `PASS … 14 个文件  exit=0`。
+
+（顺带发现：`LICENSE` / `README` / `package.json` 是 npm **强制包含**的，`files` 里删了也还在 ——
+所以注入验证只能用 `lib/body.js` 这类文件。）
+
 ## [0.9.101] - 2026-11-02 —— README 的说法接进门禁（8 组对照）
 
 ### 为什么

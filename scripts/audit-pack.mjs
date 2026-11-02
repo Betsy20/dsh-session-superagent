@@ -20,6 +20,16 @@ const out = String(res.stdout || '') + String(res.stderr || '')
 const files = (out.match(/total files:\s+(\d+)/) || [])[1]
 // 之前写成固定字符串 'npm notice test/'，而实际每行是 `npm notice 2.7kB test/x.mjs`
 // —— 尺寸前缀一插进来，这条检查就永远匹配不到（等于没检查）。
+// 必需文件：装了但缺任何一个，插件要么不挂载、要么面板空白
+const REQUIRED = [
+  'lib/index.js', 'lib/watch.js', 'lib/gh-format.js', 'lib/redact.js', 'lib/body.js',
+  'client.js', 'cordis.patch.yml', 'package.json', 'README.md', 'LICENSE',
+]
+// 从 npm notice 行里取文件名（最后一段），再逐条比对
+const listed = out.split(String.fromCharCode(10))
+  .filter((line) => line.startsWith('npm notice ') && /\s\S+$/.test(line))
+  .map((line) => line.trim().split(/\s+/).pop())
+const missingRequired = REQUIRED.filter((rel) => !listed.includes(rel))
 const LEAK_PATTERNS = [
   ['test/', /npm notice .*\s(test\/)/],
   ['.tmp-', /npm notice .*\.tmp-/],
@@ -33,9 +43,11 @@ for (const [name, pattern] of LEAK_PATTERNS) {
   if (pattern.test(out)) leaked.push(name)
 }
 
-if (res.status === 0 && leaked.length === 0) {
+if (res.status === 0 && leaked.length === 0 && missingRequired.length === 0) {
   console.log('PASS npm pack 内容  ' + files + ' 个文件')
 } else {
-  console.log('FAIL npm pack 内容  ' + files + ' 个文件' + (leaked.length ? '（含：' + leaked.join(', ') + '）' : ''))
+  console.log('FAIL npm pack 内容  ' + files + ' 个文件'
+    + (leaked.length ? '（含：' + leaked.join(', ') + '）' : '')
+    + (missingRequired.length ? '（缺：' + missingRequired.join(', ') + '）' : ''))
   process.exitCode = 1
 }
