@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.60'
+    const CLIENT_VERSION = '0.9.61'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1099,7 +1099,7 @@ window.__ModuleLoader__.load({
               h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: draft.priorityUnassigned === true, onChange: (v) => setDraft({ ...draft, priorityUnassigned: v }), label: '未认领优先' }), '没人认领的靠前（默认关：这是我们的判断，不是规则）'),
               h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: draft.priorityStale === true, onChange: (v) => setDraft({ ...draft, priorityStale: v }), label: '积压优先' }), '躺了 30 天以上的靠前（默认关，只展示）')), '全部关掉时按 GitHub 的「最近更新」顺序处理'),
             h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.observe, onChange: (v) => setDraft({ ...draft, observe: v }), label: '仅观察' }), '仅观察（只记录不唤醒）'),
-            h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.isolated, onChange: (v) => setDraft({ ...draft, isolated: v }), label: '隔离执行' }), '隔离执行（每次唤醒开一次性 worktree；在副本里改，用完会自动回收）'),
+            h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.isolated, onChange: (v) => setDraft({ ...draft, isolated: v }), label: '隔离执行' }), '隔离执行（每次唤醒开一个临时副本；在副本里改，用完自动回收）'),
             draft.isolated ? field('隔离工作目录', h(Input, { value: draft.workdir || '', placeholder: '绝对路径，留空 = 当前工作目录', onChange: (e) => setDraft({ ...draft, workdir: e.target.value }) })) : null,
             draft.isolated ? field('隔离区保留天数', h(Input, { value: draft.isolateKeepDays || '', placeholder: '3（1-30）', onChange: (e) => setDraft({ ...draft, isolateKeepDays: e.target.value }) }), '每次唤醒前回收这个天数之前的一次性工作区；留空用默认 3 天') : null,
             draft.isolated ? field('最多保留几个隔离区', h(Input, { value: draft.maxIsolated || '', placeholder: '5（1-50）', onChange: (e) => setDraft({ ...draft, maxIsolated: e.target.value }) }), '天数之外的第二道线：超出就回收最旧的（不影响正在用的那个）') : null,
@@ -1135,7 +1135,7 @@ window.__ModuleLoader__.load({
         if (Number(watcher.silentWakes) >= 2) {
           problems.push({
             key: 'silent-' + watcher.repo,
-            text: watcher.repo + ' 连续 ' + watcher.silentWakes + ' 次被叫醒后没有回音（没看到 watch_ack）—— 会话可能没按规则处理',
+            text: watcher.repo + ' 连续 ' + watcher.silentWakes + ' 次被叫醒后没有动作（没看到 watch_ack 标签）—— 会话可能没按规则处理',
             action: { label: '看建议规则', onClick: () => setGlossary('rules:' + watcher.repo) },
           })
         }
@@ -1381,7 +1381,7 @@ window.__ModuleLoader__.load({
           field('目标/规则', h(Input, { value: form.goal || '', placeholder: '可选，会附在唤醒消息里', onChange: (e) => setForm({ ...form, goal: e.target.value }) })),
           h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: form.onlyAssigned, onChange: (v) => setForm({ ...form, onlyAssigned: v }), label: '只看已指派' }), '只处理已指派给人的条目'),
           h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!form.observe, onChange: (v) => setForm({ ...form, observe: v }), label: '仅观察' }), '仅观察（只记录本会唤醒哪几条，不真唤醒）'),
-          h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: form.isolated, onChange: (v) => setForm({ ...form, isolated: v }), label: '隔离执行' }), '隔离执行（每次唤醒开一次性 worktree；在副本里改，用完会自动回收）'),
+          h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: form.isolated, onChange: (v) => setForm({ ...form, isolated: v }), label: '隔离执行' }), '隔离执行（每次唤醒开一个临时副本；在副本里改，用完自动回收）'),
           form.isolated ? field('隔离工作目录', h(Input, { value: form.workdir, placeholder: '绝对路径，留空 = 当前工作目录', onChange: (e) => setForm({ ...form, workdir: e.target.value }) })) : null,
           h('div', { className: 'dt-actions' },
             h(Btn, { variant: 'primary', icon: h(Icon, { name: 'plus' }), onClick: addWatcher, disabled: !sessionId || !form.repo.trim() },
@@ -1701,6 +1701,9 @@ window.__ModuleLoader__.load({
             ['ack', '处理完给条目打「主理鱼:已处理」标签，轮询直接跳过'],
             ['goal', '会话目标（ctx.goals），和 /goal 命令同一份状态'],
             ['凭证', 'token 存在服务端 secrets.json，面板只显示是否已配置'],
+            ['上限', '两种：单条守每小时最多 6 次、整条会话 12 次（面板里可调）；和 GitHub 的限流不是一回事'],
+            ['没有动作', '叫醒后会话没有调用 watch_ack（既没改也没回），连续 2 次就会在「需要关注」里提示'],
+            ['临时副本', '隔离执行开的一次性 git worktree：只在这里改，用完回收，不碰主工作区'],
           ] })))
     }
 

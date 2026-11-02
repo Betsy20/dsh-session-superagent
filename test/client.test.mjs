@@ -641,7 +641,7 @@ test('"叫醒了没回音"要给出下一步动作：建议规则可以复制（
   // 1) 默认不渲染弹层内容（不该占版面）
   const closed = walk(render(desk, deskQueue(snap))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
   assert.ok(!closed.includes('主理鱼（dsh-session-superagent）处理规则'), '没点开时不该渲染规则文本')
-  assert.ok(closed.includes('没有回音'), '要有那条提示')
+  assert.ok(closed.includes('没有动作'), '要有那条提示（措辞已从“回音”改成“动作”，更具体）')
 
   // 2) 点开后能看到规则，并且明确"不代写文件"
   const opened = walk(render(desk, deskQueue(snap, null, {}, 'overview', '', 'rules:a/b'))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
@@ -858,4 +858,19 @@ test('只读提示必须说出仓库名（不能是"你对 这个仓库 只有�
   const text = walk(render(desk, deskQueue(snap))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
   assert.ok(text.includes('你对 acme/widgets 只有读权限'), '要带上仓库名：' + text.slice(0, 240))
   assert.ok(!text.includes('你对 这个仓库'), '不该出现占位文案')
+})
+
+test('术语表覆盖客户会在面板上遇到的词（含"上限"这种歧义词）', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = {
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: 'x', credentials: {}, watchers: [watcher('a/b', { id: 'a/b#s1' })] },
+  }
+  const text = walk(render(desk, deskQueue(snap, null, {}, 'overview', '', true))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  for (const term of ['主理鱼', '唤醒', '隔离', 'ack', '上限', '没有动作', '临时副本']) {
+    assert.ok(text.includes(term), '术语表缺「' + term + '」')
+  }
+  // "上限"必须有歧义澄清：会话上限 vs GitHub 限流
+  assert.ok(text.includes('GitHub 的限流'), '要说清"上限"和 GitHub 限流不是一回事')
 })
