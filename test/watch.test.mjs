@@ -22,6 +22,7 @@ import {
   repoBadges,
   stalenessNote,
   sessionWakesLastHour,
+  silentStreak,
   shouldRunCleanup,
   stateReasonNote,
   repoStructureNote,
@@ -952,4 +953,20 @@ test('合并事件要能回答"持续了多久"（at 是最新、since 是首次
   assert.equal(durationText(t0, t0), '不到 1 分钟')
   assert.equal(durationText(null, t1), '', '缺输入给空')
   assert.equal(durationText(t1, t0), '', '反向时间给空')
+})
+
+test('叫醒了但没回音：ack 出现过就清零，没有就累加', () => {
+  const wake = '2026-11-02T10:00:00.000Z'
+  // 还没唤醒过：保持原状
+  assert.equal(silentStreak({ previousWakeAt: null, lastAckedAt: null, previousStreak: 0 }), 0)
+  // 唤醒过、没有 ack -> 累加
+  assert.equal(silentStreak({ previousWakeAt: wake, lastAckedAt: null, previousStreak: 0 }), 1)
+  assert.equal(silentStreak({ previousWakeAt: wake, lastAckedAt: null, previousStreak: 2 }), 3)
+  // 唤醒后出现了 ack -> 清零
+  assert.equal(silentStreak({ previousWakeAt: wake, lastAckedAt: '2026-11-02T10:05:00.000Z', previousStreak: 4 }), 0)
+  // ack 在唤醒之前（上一轮的 ack）-> 不算这次的回音
+  assert.equal(silentStreak({ previousWakeAt: wake, lastAckedAt: '2026-11-02T09:00:00.000Z', previousStreak: 1 }), 2)
+  // 坏数据不崩
+  assert.equal(silentStreak({ previousWakeAt: '乱写', previousStreak: 2 }), 2)
+  assert.equal(typeof silentStreak(), 'number')
 })

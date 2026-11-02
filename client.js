@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.10'
+    const CLIENT_VERSION = '0.9.11'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1109,6 +1109,13 @@ window.__ModuleLoader__.load({
       for (const watcher of watchers) {
         // 仓库结构问题（关闭 Issues / 是 fork）比轮询失败更早该说：它注定收不到条目
         const structure = repoStructureNote(watcher.repoAccess)
+        // 叫醒了但没回音：守在工作、消息也进去了，但会话没动手（规则缺失或被忽略）
+        if (Number(watcher.silentWakes) >= 2) {
+          problems.push({
+            key: 'silent-' + watcher.repo,
+            text: watcher.repo + ' 已连续 ' + watcher.silentWakes + ' 次唤醒后没有回音（没看到 watch_ack）—— 检查这个仓库的 AGENTS.md 有没有给出处理规则',
+          })
+        }
         // 被反复重开的条目：说明"之前判过不做"可能有问题，值得人看一眼
         if (watcher.lastReopened) {
           problems.push({ key: 'r-' + watcher.repo, text: watcher.repo + ' #' + watcher.lastReopened + ' 被重新打开过 —— 之前判"不做"可能不对' })

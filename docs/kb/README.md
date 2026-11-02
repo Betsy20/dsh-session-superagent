@@ -63,3 +63,4 @@
 | 可观测性 | ["为什么没叫醒我"要有据可查](bounded-event-timeline.md) | ✅ 0.9.8 |
 | 可观测性 | [噪声会淹没信号：连续同类事件合并](event-noise-reduction.md) | ✅ 0.9.9 |
 | 可观测性 | [合并了次数，还要能说出持续多久](event-duration.md) | ✅ 0.9.10 |
+| 可靠性 | [投递成功 ≠ 有人动手](wake-without-ack.md) | ✅ 0.9.11 |
