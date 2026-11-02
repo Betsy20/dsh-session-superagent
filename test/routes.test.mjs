@@ -1025,3 +1025,25 @@ test('暂停一条守时会清掉旧的错误（否则暂停后永远显示"异�
   assert.equal(entry.lastError, null, '旧错误要清掉')
   assert.equal(entry.deferReason, null, '旧的暂停原因也要清掉')
 })
+
+test('非错误状态码聚一遍：200/204/304 都不该被当成失败', async () => {
+  const { classifyGhError, parseGhInclude } = await import('../lib/gh-format.js')
+  const CRLF = String.fromCharCode(13, 10)
+
+  // 解析层：能从 gh --include 输出里认出状态码
+  const notModified = parseGhInclude('HTTP/2.0 304 Not Modified' + CRLF + 'ETag: "abc"' + CRLF + CRLF)
+  assert.equal(notModified.status, 304)
+  assert.equal(notModified.etag, '"abc"')
+
+  const ok = parseGhInclude('HTTP/2.0 200 OK' + CRLF + 'ETag: "def"' + CRLF + CRLF + '[{"number":1}]')
+  assert.equal(ok.status, 200)
+  assert.ok(ok.body.includes('number'))
+
+  const noContent = parseGhInclude('HTTP/2.0 204 No Content' + CRLF + CRLF)
+  assert.equal(noContent.status, 204)
+
+  // 分类层：304 归 notmodified，且提示要说清「不是错误」
+  const why = classifyGhError('gh: HTTP 304')
+  assert.equal(why.kind, 'notmodified')
+  assert.ok(why.hint.includes('不是错误'), '提示要直说不是错误：' + why.hint)
+})
