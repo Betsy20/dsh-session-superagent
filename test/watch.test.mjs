@@ -402,7 +402,13 @@ test('classifyGhError：把 gh 的原始报错变成人话（真机踩过 EOF）
   for (const [input, kind, hintPart] of cases) {
     const got = classifyGhError(input)
     assert.equal(got.kind, kind, input)
-    if (hintPart) assert.ok(got.hint.includes(hintPart), `${input} -> ${got.hint}`)
+    assert.equal(typeof got.hint, 'string', input + ' 的 hint 必须是字符串')
+    if (hintPart) {
+      assert.ok(got.hint.includes(hintPart), `${input} -> ${got.hint}`)
+    } else {
+      // 没有提示也要是一条断言：否则这条用例在 hint 为空时等于没检查
+      assert.equal(got.hint, '', `${input} 不该给提示，实际给了：${got.hint}`)
+    }
   }
   // 长 URL 必须被压缩，否则面板会被一整条 API 地址占满
   const short = classifyGhError('Get "https://api.github.com/repos/a/b/issues?state=all&per_page=20": EOF').short
