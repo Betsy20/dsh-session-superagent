@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.58'
+    const CLIENT_VERSION = '0.8.59'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1164,6 +1164,10 @@ window.__ModuleLoader__.load({
             ['仓库', watchers.length === 0 ? '未绑定' : watchers.map((w) => w.repo).join(', ')],
             ['gh CLI', !body.gh ? '检测中…' : body.gh.ok ? '可用 · ' + (body.gh.version || '') : '不可用 · ' + (body.gh.error || '')],
             ['凭证', credentials.token === 'none' ? '回退到 gh CLI 登录态' : '使用面板配置的 token'],
+            ['隔离占用', !body.isolation || (body.isolation.roots || []).length === 0
+              ? '没有开隔离执行'
+              : (body.isolation.roots || []).map((r) => r.count + ' 个 · ' + bytesText(r.bytes)).join('；')
+                + '（合计 ' + bytesText(body.isolation.totalBytes) + '）'],
           ] })),
         h(Section, { key: 'creds', title: '凭证' },
           h(KeyValues, { rows: [['GitHub token', credentials.token === 'none' ? '未配置（回退到已登录的 gh CLI）' : '已配置'], ['SSH 私钥', credentials.sshKeyPath === 'none' ? '未配置（当前版本不使用）' : '已配置']] }),
@@ -1252,6 +1256,15 @@ window.__ModuleLoader__.load({
         } catch { /* 宿主早期渲染时 fetch 可能还不存在，忽略即可 */ }
         return () => { alive = false }
       }, [])
+
+      /** 人话字节数：客户看的是"3.2 MB"，不是 3355443。 */
+      function bytesText(n) {
+        const value = Number(n) || 0
+        if (value < 1024) return value + ' B'
+        if (value < 1024 * 1024) return (value / 1024).toFixed(1) + ' KB'
+        if (value < 1024 * 1024 * 1024) return (value / 1024 / 1024).toFixed(1) + ' MB'
+        return (value / 1024 / 1024 / 1024).toFixed(2) + ' GB'
+      }
 
       // 官方 settings-kit.tsx 的 Field：label + hint(InfoTip) + 控件 + note(small)。
       // 我们之前只有 label，说明只能塞进 placeholder —— 用户看不到「这个字段到底什么意思」。

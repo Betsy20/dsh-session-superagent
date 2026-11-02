@@ -2,6 +2,25 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.59] - 2026-11-02 —— 孤儿 worktree 删了目录还得 prune；占用看得见
+
+### 学到的（知识库第 8 条）
+`git worktree remove` 会同时删目录和 `.git/worktrees/<id>/` 的管理记录；但**目录是被外部删掉**时，
+记录会留下 —— `git worktree list` 就一直显示一个不存在的路径。
+
+我们的清理有两条路径：`worktree remove --force` 成功走第一条（没问题），
+失败时走 `rmSync` 兜底删目录 —— **没人清记录**，长期运行会攒 ghost worktree。
+
+### 改了什么
+1. 孤儿分支删完目录后补一条 `git worktree prune`；
+2. `/state` 新增 `isolation`：每个 worktree 根下的**个数与总字节**，
+   面板「设置 → 来源」显示「隔离占用 3 个 · 3.2 MB（合计 9.8 MB）」——客户能看见磁盘在涨。
+
+### 测试
+- 新增 `test/worktree-prune.test.mjs`：用**真 git 仓库**复现现象（建 worktree → 手删目录 →
+  `list` 仍显示 → `prune` 后干净），不靠 mock。
+- 合计 **113 例**。
+
 ## [0.8.58] - 2026-11-02 —— 完成标准从"一大句"改成可逐条核对的三条
 
 ### 学到的（知识库第 7 条）
