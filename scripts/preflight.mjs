@@ -158,6 +158,16 @@ const tryRun = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: ROOT, encod
   record('文案快照', res.status === 0, res.status === 0 ? (out[0] || '').replace(/^PASS /, '') : '文案变了：跑 node scripts/first-run.mjs --write 再看 diff')
 }
 
+// ⑥.456 信息密度（默认展开的区块不该太多；判据写死在脚本里）
+{
+  const res = tryRun('node', ['scripts/audit-density.mjs'], { timeout: 60000 })
+  const out = String(res.stdout || '')
+  const worst = out.match(/最密集的一页有 (\d+) 个区块/)
+  const bad = out.split(String.fromCharCode(10)).filter((line) => line.startsWith('FAIL'))
+  record('信息密度', res.status === 0 && bad.length === 0,
+    bad.length > 0 ? bad[0].replace(/^FAIL /, '') : (worst ? '最密集一页 ' + worst[1] + ' 个区块（上限 6）' : '无输出'))
+}
+
 // ⑥.455 文档里提到的工具名/路由必须真实存在（重构改名后文档不会自己报错）
 {
   const res = tryRun('node', ['scripts/audit-claims-consistency.mjs'], { timeout: 60000 })

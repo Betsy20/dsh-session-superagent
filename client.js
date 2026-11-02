@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.35'
+    const CLIENT_VERSION = '0.9.36'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1231,27 +1231,25 @@ window.__ModuleLoader__.load({
         (() => {
           const needle = search.trim()
           const asNumber = /^#?[0-9]+$/.test(needle) ? needle.replace('#', '') : ''
-          if (!asNumber) {
-            return h(Section, { key: 'trace', title: '追溯一条', hint: '在右上角搜索框输入编号（如 42），这里就能查它经历了什么' },
-              h(Hint, null, '追溯会告诉你：它被过滤了、已经唤醒过、还是根本没轮到。'))
-          }
           const onlyRepo = watchers.length === 1 ? watchers[0].repo : ''
-          return h(Section, { key: 'trace', title: '追溯一条' },
-            h('div', { className: 'dt-row-meta' },
-              h('button', {
-                className: 'dt-textlink',
-                type: 'button',
-                onClick: async () => {
-                  try {
-                    const query = '/trace?number=' + encodeURIComponent(asNumber) + (onlyRepo ? '&repo=' + encodeURIComponent(onlyRepo) : '')
-                    const payload = await call(query)
-                    notify(String((payload && payload.text) || '没有结果').split(String.fromCharCode(10)).join(' · '), 'info')
-                  } catch (error) {
-                    notify('追溯失败：' + String((error && error.message) || error), 'error')
-                  }
-                },
-              }, '追溯 #' + asNumber),
-              h('span', { className: 'dt-row-meta' }, onlyRepo ? '（在 ' + onlyRepo + ' 里查）' : '（在所有守里查）')))
+          return h(Section, { key: 'trace', title: '追溯一条', hint: '在右上角搜索框输入编号（如 42），这里就能查它经历了什么' },
+            asNumber
+              ? h('div', { className: 'dt-row-meta' },
+                h('button', {
+                  className: 'dt-textlink',
+                  type: 'button',
+                  onClick: async () => {
+                    try {
+                      const query = '/trace?number=' + encodeURIComponent(asNumber) + (onlyRepo ? '&repo=' + encodeURIComponent(onlyRepo) : '')
+                      const payload = await call(query)
+                      notify(String((payload && payload.text) || '没有结果').split(String.fromCharCode(10)).join(' · '), 'info')
+                    } catch (error) {
+                      notify('追溯失败：' + String((error && error.message) || error), 'error')
+                    }
+                  },
+                }, '追溯 #' + asNumber),
+                h('span', { className: 'dt-row-meta' }, onlyRepo ? '（在 ' + onlyRepo + ' 里查）' : '（在所有守里查）'))
+              : h(Hint, null, '追溯会告诉你：它被过滤了、已经唤醒过、还是根本没轮到。'))
         })(),
         (() => {
           const counts = new Map()
@@ -1431,22 +1429,12 @@ window.__ModuleLoader__.load({
             : null,
           h('div', { className: 'dt-actions' },
             h(Btn, { size: 'sm', variant: 'ghost', onClick: () => checkUpdate(true), disabled: checking }, checking ? '检查中…' : '重新检查')),
-          h(Hint, null, '升级要改 profile，装完需要重载一次宿主才会用上新版本 —— 所以这里只给命令，不替你执行。')),
-        h(Section, { key: 'diagnose', title: '分诊信号与取舍' },
-          h(Hint, null, '一次只处理 N 条时，这些信号的加权决定先后。事实默认展示，判断默认关闭。'),
-          h('div', { className: 'dt-rows' }, (body.triageSignals || []).map((sig) => h('div', { key: sig.key, className: 'dt-row' },
-            h('div', { className: 'dt-row-main' },
-              h('div', { className: 'dt-row-title' },
-                h('span', { className: 'dt-row-name' }, sig.label),
-                h(Tag, { tone: sig.kind === 'fact' ? 'success' : 'warning' }, sig.kind === 'fact' ? '事实' : '判断'),
-                h(Tag, { tone: sig.default ? 'outline' : 'quiet' }, sig.default ? '默认开' : '默认关'),
-                h('span', { className: 'dt-row-meta' }, '+' + sig.weight + ' 分')),
-              h('div', { className: 'dt-hint' }, sig.why)))))),
-        h(Section, { key: 'diagnose', title: '诊断' },
-          h(Hint, null, '反馈问题时把这段贴给对方：里面有版本、挂载状态和每条值守的最近错误（凭证已脱敏）。'),
+          h(Hint, null, '升级要改 profile，装完需要重载一次宿主才会用上新版本 —— 所以这里只给命令，不替你执行。'),
+          h(Hint, null, '反馈问题时把下面这份诊断贴给对方：里面有版本、挂载状态和每条守的最近错误（凭证已脱敏）。'),
           h('div', { className: 'dt-actions' },
             h(Btn, {
-              size: 'sm', variant: 'outline',
+              size: 'sm',
+              variant: 'outline',
               onClick: async () => {
                 try {
                   const payload = await call('/diagnose')
@@ -1458,6 +1446,17 @@ window.__ModuleLoader__.load({
                 }
               },
             }, '复制诊断信息'))),
+        h(Section, { key: 'diagnose', title: '分诊信号与取舍' },
+          h(Hint, null, '一次只处理 N 条时，这些信号的加权决定先后。事实默认展示，判断默认关闭。'),
+          h('div', { className: 'dt-rows' }, (body.triageSignals || []).map((sig) => h('div', { key: sig.key, className: 'dt-row' },
+            h('div', { className: 'dt-row-main' },
+              h('div', { className: 'dt-row-title' },
+                h('span', { className: 'dt-row-name' }, sig.label),
+                h(Tag, { tone: sig.kind === 'fact' ? 'success' : 'warning' }, sig.kind === 'fact' ? '事实' : '判断'),
+                h(Tag, { tone: sig.default ? 'outline' : 'quiet' }, sig.default ? '默认开' : '默认关'),
+                h('span', { className: 'dt-row-meta' }, '+' + sig.weight + ' 分')),
+              h('div', { className: 'dt-hint' }, sig.why)))))),
+
         h(Section, { key: 'goal', title: '会话 goal' },
           h('textarea', {
             className: 'dt-textarea', rows: 3, value: goalDraft,
