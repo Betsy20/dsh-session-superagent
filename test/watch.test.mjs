@@ -24,6 +24,7 @@ import {
   sessionWakesLastHour,
   silentStreak,
   shouldRunCleanup,
+  summarizeByRepo,
   stateReasonNote,
   repoStructureNote,
   buildCommentBatchQuery,
@@ -969,4 +970,26 @@ test('叫醒了但没回音：ack 出现过就清零，没有就累加', () => {
   // 坏数据不崩
   assert.equal(silentStreak({ previousWakeAt: '乱写', previousStreak: 2 }), 2)
   assert.equal(typeof silentStreak(), 'number')
+})
+
+test('按仓库汇总：同仓库合并、有问题的排前面、徽章去重', () => {
+  const list = [
+    { repo: 'ok/one', enabled: true, lastWake: '2026-11-02T09:00:00Z', silentWakes: 0 },
+    { repo: 'bad/two', enabled: false, lastWake: '2026-11-02T10:00:00Z', silentWakes: 0, lastError: 'boom' },
+    { repo: 'silent/three', enabled: true, lastWake: null, silentWakes: 3 },
+    { repo: 'ok/one', enabled: true, lastWake: '2026-11-02T11:00:00Z', silentWakes: 1, repoAccess: { repo: 'ok/one', push: false } },
+    { repo: 'ok/one', enabled: true, silentWakes: 0, repoAccess: { repo: 'ok/one', push: false } },
+  ]
+  const groups = summarizeByRepo(list)
+  assert.deepEqual(groups.map((g) => g.repo), ['bad/two', 'silent/three', 'ok/one'], '错误优先、其次未回音、最后正常')
+  const one = groups.find((g) => g.repo === 'ok/one')
+  assert.equal(one.count, 3, '三条守合成一组')
+  assert.equal(one.enabled, 3)
+  assert.equal(one.lastWake, '2026-11-02T11:00:00Z', '取最近的唤醒时间')
+  assert.equal(one.silentWakes, 1, '取最大的未回音次数')
+  assert.equal(one.badges.length, 1, '同样的徽章只留一枚：' + JSON.stringify(one.badges))
+  const bad = groups.find((g) => g.repo === 'bad/two')
+  assert.equal(bad.errors, 1)
+  assert.deepEqual(summarizeByRepo(null), [])
+  assert.deepEqual(summarizeByRepo([null, {}]), [])
 })

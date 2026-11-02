@@ -2,6 +2,28 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.13] - 2026-11-02 —— 总览加「按仓库」汇总
+
+### 学到的（知识库第 62 条）
+NN/g《Progressive Disclosure》：把细节推迟到第二层，先给概览。
+<https://www.nngroup.com/articles/progressive-disclosure/>
+
+### 问题
+总览把所有守平铺，守 5 个仓库时客户要一行行读才知道"哪个健康/哪个一直跳过"。仓库越多越像日志。
+
+### 改法
+`summarizeByRepo()` 按仓库聚合，总览顶部多一个「按仓库」小节：
+状态点 + 仓库名 + 徽章（去重）+ `N 条守（启用 M）` + 最近唤醒 + 未回音 + 报错数。
+排序：**报错 > 未回音≥2 > 其它**。
+
+### 两个实现坑（都被用例抓到）
+1. **必须跟随筛选**：用 `visible` 而不是 `watchers`，否则"只看只读"时下面的列表空了、上面还列着别的仓库；
+2. `repoBadges` 在拆分后的 `gh-format.js` 里，`watch.js` 之前只做了 re-export 没 import ——
+   运行时 `repoBadges is not defined`。
+
+### 测试
+- 新增 1 例。合计 **157 例**。
+
 ## [0.9.12] - 2026-11-02 —— "叫醒了没回音"现在有下一步动作
 
 ### 学到的（知识库第 61 条）

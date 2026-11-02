@@ -65,3 +65,4 @@
 | 可观测性 | [合并了次数，还要能说出持续多久](event-duration.md) | ✅ 0.9.10 |
 | 可靠性 | [投递成功 ≠ 有人动手](wake-without-ack.md) | ✅ 0.9.11 |
 | 交互 | [提示之后要有下一步动作，但别替客户改仓库](close-the-loop-with-action.md) | ✅ 0.9.12 |
+| 交互 | [守多个仓库时先给"哪个仓库有问题"](repo-level-summary.md) | ✅ 0.9.13 |

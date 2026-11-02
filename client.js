@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.12'
+    const CLIENT_VERSION = '0.9.13'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1253,6 +1253,20 @@ window.__ModuleLoader__.load({
                 h('span', { className: 'dt-row-meta' }, ageText(event.at))),
               h('div', { className: 'dt-hint' }, watcher.repo + ' · ' + event.text)))))))
 
+      // 按仓库汇总：守多个仓库时先看哪个健康，再看明细（渐进披露）
+      const repoSummary = visible.length === 0 ? null : h(Section, { key: 'repo-summary', title: '按仓库' },
+        h('div', { className: 'dt-rows' }, ...summarizeByRepo(visible).map((group) => h('div', { key: 'repo-' + group.repo, className: 'dt-row' },
+          h('div', { className: 'dt-row-main' },
+            h('div', { className: 'dt-row-title' },
+              h(StateDot, { state: group.errors > 0 ? 'error' : group.silentWakes >= 2 ? 'warning' : 'done' }),
+              h('span', { className: 'dt-row-name' }, group.repo),
+              ...group.badges.map((badge) => h(Tag, { key: 'rb-' + badge.text, tone: badge.tone }, badge.text))),
+            h('div', { className: 'dt-row-meta' },
+              h('span', null, group.count + ' 条守（启用 ' + group.enabled + '）'),
+              h('span', null, group.lastWake ? '最近唤醒 ' + ageText(group.lastWake) : '还没唤醒过'),
+              group.silentWakes > 0 ? h('span', { className: 'dt-error-text' }, '未回音 ' + group.silentWakes + ' 次') : null,
+              group.errors > 0 ? h('span', { className: 'dt-error-text' }, group.errors + ' 条报错') : null))))))
+
       const trigger = h(Section, { title: '新增主理鱼' },
         h('div', { className: 'dt-form' },
           field('仓库', h(Input, { value: form.repo, placeholder: 'owner/name', onChange: (e) => setForm({ ...form, repo: e.target.value }) })),
@@ -1420,6 +1434,27 @@ window.__ModuleLoader__.load({
         '- **无论做还是不做，最后都要 watch_ack 打标签**，否则下一轮会被再次唤醒。',
       ].join(String.fromCharCode(10))
 
+      /** 按仓库汇总（与服务端 watch.js:summarizeByRepo 同语义）。 */
+      function summarizeByRepo(list) {
+        const groups = new Map()
+        for (const watcher of Array.isArray(list) ? list : []) {
+          if (!watcher || !watcher.repo) continue
+          const repo = String(watcher.repo)
+          const group = groups.get(repo) || { repo, count: 0, lastWake: null, silentWakes: 0, errors: 0, enabled: 0, badges: [] }
+          group.count += 1
+          if (watcher.enabled !== false) group.enabled += 1
+          if (watcher.lastWake && (!group.lastWake || String(watcher.lastWake) > String(group.lastWake))) group.lastWake = watcher.lastWake
+          group.silentWakes = Math.max(group.silentWakes, Number(watcher.silentWakes) || 0)
+          if (watcher.lastError) group.errors += 1
+          for (const badge of repoBadges(watcher.repoAccess) || []) {
+            if (!group.badges.some((b) => b.text === badge.text)) group.badges.push(badge)
+          }
+          groups.set(repo, group)
+        }
+        const weight = (g) => (g.errors > 0 ? 0 : g.silentWakes >= 2 ? 1 : 2)
+        return [...groups.values()].sort((a, b) => (weight(a) - weight(b)) || a.repo.localeCompare(b.repo))
+      }
+
       /** 持续时长（与服务端 watch.js:durationText 同语义）。 */
       function durationText(sinceIso, untilIso) {
         const from = Date.parse(String(sinceIso || ''))
@@ -1508,6 +1543,7 @@ window.__ModuleLoader__.load({
         snap.error ? h('div', { className: 'dt-banner dt-danger' }, '读取失败：' + humanizeError(snap.error)) : null,
         snap.loading && !snap.body ? h(Hint, null, '正在读取…') : null,
         tab === 'overview' ? overview : null,
+        tab === 'overview' ? repoSummary : null,
         tab === 'judge' ? judge : null,
         tab === 'judge' ? timeline : null,
         tab === 'trigger' ? trigger : null,
