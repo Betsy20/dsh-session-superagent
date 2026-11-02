@@ -16,3 +16,4 @@
 | 状态可靠性 | [状态文件被写坏时别当空状态](state-crash-safety.md) | ✅ 0.8.61 |
 | 安全 | [Windows 上 chmod 0600 保护不了 token](windows-secrets-perms.md) | ✅ 0.8.62 |
 | 安全 | [token 权限要看得见、也要够窄](token-scopes.md) | ✅ 0.8.63 |
+| 可靠性 | [先查写权限再让它跑](repo-permissions.md) | ✅ 0.8.64 |

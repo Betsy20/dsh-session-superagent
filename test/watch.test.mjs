@@ -7,6 +7,7 @@ import * as watchModule from '../lib/watch.js'
 import {
   classifyGhError,
   parseGhInclude,
+  accessNote,
   countReasons,
   jitterMs,
   retryAfterMs,
@@ -498,4 +499,17 @@ test('唤醒消息的完成标准是可观测的三条（Given-When-Then 思路�
   const plain = formatWatchText('o/r', items, {})
   assert.ok(!plain.includes('【完成标准】'))
   assert.ok(plain.includes('完成标准 = 有测试结果'))
+})
+
+test('只读仓库要在任务书里直说（否则会话会去试写然后吃 403）', () => {
+  assert.equal(accessNote({ push: true }), '', '有写权限就不该提示')
+  assert.equal(accessNote(null), '')
+  assert.equal(accessNote({}), '', '未知时不猜')
+  const note = accessNote({ repo: 'o/r', push: false })
+  assert.ok(note.includes('只有读权限'), note)
+  assert.ok(note.includes('没法回写'), note)
+
+  const items = [{ number: 1, title: 'x', state: 'open', html_url: 'https://x/1', user: { login: 'u' }, labels: [], assignees: [] }]
+  const text = formatWatchText('o/r', items, { access: note })
+  assert.ok(text.includes('【权限提示】'), '要单独成行，别混在正文里')
 })

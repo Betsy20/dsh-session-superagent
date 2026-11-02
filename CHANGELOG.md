@@ -2,6 +2,21 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.64] - 2026-11-02 —— 只读仓库提前说清楚，别等它吃 403
+
+### 学到的（知识库第 13 条）
+`GET /repos/{owner}/{repo}` 返回 `permissions: { admin, push, pull … }` ——
+「你对这个仓库能做什么」的权威答案，读之前就知道，不用试一次拿 403。
+<https://docs.github.com/en/rest/repos/repos#get-a-repository>
+
+### 改了什么
+- 新增守时**后台**查一次仓库权限（不阻塞创建），存 `entry.repoAccess`；
+- `push === false` 时唤醒消息多一行 `【权限提示】… 只有读权限 …`；
+- 还没探测到（未知）时**不猜、不提示**。
+
+### 测试
+- 新增 1 例：有写权限不提示 / null 与空对象不提示 / 只读给人话 / 消息里单独成行。合计 **117 例**。
+
 ## [0.8.63] - 2026-11-02 —— 面板显示 token 权限范围，宽 scope 会提醒
 
 ### 学到的（知识库第 12 条）
