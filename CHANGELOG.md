@@ -2,6 +2,29 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.82] - 2026-11-02 —— 关联 PR 要说清"卡在哪"
+
+### 学到的（知识库第 31 条）
+`reviewDecision`（REVIEW_REQUIRED / APPROVED / CHANGES_REQUESTED）+ `mergeable`（MERGEABLE / CONFLICTING）。
+本机实测 `cli/cli` 前 3 个 open PR：2 个 `CONFLICTING`、全部 `REVIEW_REQUIRED`、全部草稿。
+<https://docs.github.com/en/graphql/reference/objects#pullrequest>
+
+### 为什么值得
+「已有 PR」还不足以判断**该不该接管**：
+- 有冲突 → 可能该接手；
+- 等 review → 通常不该插手；
+- 被要求修改 → 作者要动，别抢。
+
+### 改了什么
+状态**叠加**（不是互斥，一个 PR 可以又草稿又有冲突还等 review）：
+```
+已有 PR #25（进行中·草稿·有冲突·等 review）
+```
+只在 `state === 'OPEN'` 时附加这些后缀。
+
+### 测试
+- 用例扩充（单个状态 / 三状态叠加 / merged 不加后缀）。合计 **132 例**。
+
 ## [0.8.81] - 2026-11-02 —— 草稿 PR 要标出来，别当成"有人在推进"
 
 ### 学到的（知识库第 30 条）

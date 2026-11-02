@@ -728,6 +728,14 @@ test('关联 PR：open 优先、去重、消息里提醒"已有 PR 在做"', () 
   assert.equal(linkedPrNote([{ number: 20, state: 'OPEN' }]), '已有 PR #20（进行中）')
   assert.equal(linkedPrNote([{ number: 20, state: 'OPEN', draft: true }]), '已有 PR #20（进行中·草稿）', '草稿要说清楚')
   assert.equal(linkedPrNote([{ number: 21, state: 'MERGED', draft: true }]), '已有 PR #21（已合并）', '合并不可能是草稿，不加后缀')
+  assert.equal(linkedPrNote([{ number: 22, state: 'OPEN', mergeable: 'CONFLICTING' }]), '已有 PR #22（进行中·有冲突）', '冲突要说')
+  assert.equal(linkedPrNote([{ number: 23, state: 'OPEN', review: 'REVIEW_REQUIRED' }]), '已有 PR #23（进行中·等 review）')
+  assert.equal(linkedPrNote([{ number: 24, state: 'OPEN', review: 'CHANGES_REQUESTED' }]), '已有 PR #24（进行中·被要求修改）')
+  assert.equal(
+    linkedPrNote([{ number: 25, state: 'OPEN', mergeable: 'CONFLICTING', review: 'REVIEW_REQUIRED', draft: true }]),
+    '已有 PR #25（进行中·草稿·有冲突·等 review）',
+    '多个状态可叠加',
+  )
   assert.equal(linkedPrNote([{ number: 21, state: 'MERGED' }]), '已有 PR #21（已合并）')
   assert.match(linkedPrNote([{ number: 20, state: 'OPEN' }, { number: 21, state: 'CLOSED' }]), /等 2 个/)
 
