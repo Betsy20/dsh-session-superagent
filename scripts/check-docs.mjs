@@ -100,4 +100,20 @@ if (countMismatch.length > 0) {
   console.log('PASS 索引板块篇数与实际条目一致')
 }
 
-if (problems.length > 0 || orphans.length > 0 || countMismatch.length > 0) process.exitCode = 1
+// ④ 阅读路径：一百多篇的索引要有一条「第一次读」的入口，否则新人无从下手
+const entry = readFileSync(join(kbDir, 'README.md'), 'utf8')
+const pathStart = entry.indexOf('**第一次读')
+const pathEnd = pathStart >= 0 ? entry.indexOf('其余按板块检索') : -1
+const pathBlock = pathStart >= 0 && pathEnd > pathStart ? entry.slice(pathStart, pathEnd) : ''
+const pathLinks = [...pathBlock.matchAll(/\]\(([^)]+\.md)\)/g)].map((m) => m[1])
+const pathMissing = pathLinks.filter((link) => !existsSync(join(kbDir, link)))
+if (pathLinks.length < 3) {
+  console.log('FAIL 知识库索引缺「第一次读」的阅读路径（至少 3 篇）')
+} else if (pathMissing.length > 0) {
+  console.log('FAIL 阅读路径里这些文件不存在：' + pathMissing.join(', '))
+} else {
+  console.log('PASS 索引有「第一次读」路径（' + pathLinks.length + ' 篇，文件都存在）')
+}
+
+const pathBad = pathLinks.length < 3 || pathMissing.length > 0
+if (problems.length > 0 || orphans.length > 0 || countMismatch.length > 0 || pathBad) process.exitCode = 1
