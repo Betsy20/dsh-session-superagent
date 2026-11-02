@@ -82,7 +82,7 @@ for (const file of files) {
   for (const line of lines) {
     if (externalDoc) break
     if (/官方|prototype|上游|upstream/.test(line)) continue
-    for (const match of line.matchAll(/(?:^|[^\w/])((?:scripts|lib|test|src)\/[\w./-]+\.(?:mjs|js))/g)) {
+    for (const match of line.matchAll(/(?:^|[^\w/])((?:scripts|lib|test|src)\/[\w./-]+\.(?:mjs|js|json|md))(?!\w)/g)) {
       problems.paths.push({ rel, id: match[1] })
     }
   }

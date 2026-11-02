@@ -56,7 +56,7 @@ if (noClaim.length > 0) {
 const pathClaims = []
 for (const name of files) {
   const text = readFileSync(join(kbDir, name), 'utf8')
-  for (const match of text.matchAll(/(?:^|[^\w/])((?:scripts|lib|test|src|docs)\/[\w./-]+\.(?:mjs|js|md|yml|json))/g)) {
+  for (const match of text.matchAll(/(?:^|[^\w/])((?:scripts|lib|test|src|docs)\/[\w./-]+\.(?:mjs|js|md|yml|json))(?!\w)/g)) {
     pathClaims.push({ name, path: match[1] })
   }
 }

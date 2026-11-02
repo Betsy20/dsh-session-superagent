@@ -2,6 +2,24 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.47] - 2026-11-02 —— 字段稳定性清单：哪个字段可以被依赖
+
+### 学到的（知识库第 93 条）
+`schemaVersion` 只说"什么时候算破坏性变更"，不回答**哪个字段**是承诺。
+参考 Kubernetes 的 stable / beta / alpha，我们缩成 `stable` / `experimental` 两档。
+
+### 做法
+`test/fixtures/contract-stability.json` 作为唯一口径；配套用例：
+1. 实测 JSON 的字段集合必须与清单**完全一致**（新增字段不登记就红）；
+2. 级别只能是 stable / experimental，且至少一个 stable（防清单自我腐烂）。
+
+### 第一次跑就红两次（都是"我以为我记得返回值"）
+- `watch_stop` 实际返回 `{schemaVersion, ok, id, repo}` —— 漏登记 `repo`；
+- `watch_ack` 失败时形状不同（`{schemaVersion, ok, repo, acked, failed}`）—— 用例改成两种都接受。
+
+### 测试
+- 新增 2 例；合计 **184 例**。
+
 ## [0.9.46] - 2026-11-02 —— 写工具也给 JSON：成功与否不再靠读中文
 
 ### 学到的（延续知识库第 91 条）

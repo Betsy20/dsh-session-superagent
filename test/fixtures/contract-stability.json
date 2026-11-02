@@ -1,0 +1,86 @@
+{
+  "_comment": "JSON 输出字段的稳定性清单。stable = 不会无故改名/删除；experimental = 可能变。新增字段必须在这里登记，否则用例会红。",
+  "watch_status": {
+    "root": {
+      "schemaVersion": "stable",
+      "session": "stable",
+      "watchers": "stable"
+    },
+    "session": {
+      "id": "stable",
+      "used": "stable",
+      "cap": "stable",
+      "capped": "stable",
+      "suggest": "stable"
+    },
+    "watcher": {
+      "repo": "stable",
+      "sessionId": "stable",
+      "enabled": "stable",
+      "intervalSec": "stable",
+      "observe": "stable",
+      "isolated": "stable",
+      "activeHours": "stable",
+      "labels": "stable",
+      "onlyAssigned": "stable",
+      "deferReason": "stable",
+      "lastDeferred": "experimental",
+      "silentWakes": "stable",
+      "cursor": "experimental",
+      "lastPoll": "stable",
+      "lastWake": "stable",
+      "lastError": "stable"
+    }
+  },
+  "watch_doctor": {
+    "root": {
+      "schemaVersion": "stable",
+      "checks": "stable"
+    },
+    "check": {
+      "status": "stable",
+      "text": "stable"
+    }
+  },
+  "watch_trace": {
+    "root": {
+      "schemaVersion": "stable",
+      "number": "stable",
+      "results": "stable"
+    }
+  },
+  "watch_start": {
+    "root": {
+      "schemaVersion": "stable",
+      "ok": "stable",
+      "repo": "stable",
+      "sessionId": "stable",
+      "id": "stable",
+      "intervalSec": "stable",
+      "flags": "stable",
+      "filters": "stable",
+      "updated": "stable",
+      "observe": "stable",
+      "isolated": "stable",
+      "activeHours": "stable"
+    }
+  },
+  "watch_stop": {
+    "root": {
+      "schemaVersion": "stable",
+      "ok": "stable",
+      "id": "stable",
+      "repo": "stable"
+    }
+  },
+  "watch_ack": {
+    "root": {
+      "schemaVersion": "stable",
+      "ok": "stable",
+      "repo": "stable",
+      "label": "stable",
+      "acked": "stable",
+      "at": "stable"
+    }
+  }
+}
