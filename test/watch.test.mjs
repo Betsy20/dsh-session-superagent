@@ -565,3 +565,17 @@ test('「最后是谁在说话」：有就给一行，没就给空（不许瞎�
   const text = formatWatchText('o/r', items, {})
   assert.ok(text.includes('最后评论: @helper'), text.slice(0, 200))
 })
+
+test('最后评论是"我自己发的"要说清楚（那不是有人在处理，是上一轮的痕迹）', () => {
+  assert.equal(commentSummaryLine({ login: 'helper', at: 't' }, 'me'), '@helper t')
+  assert.equal(commentSummaryLine({ login: 'ME', at: 't' }, 'me'), '我（上一轮留的） t', '大小写不敏感')
+  assert.equal(commentSummaryLine({ login: 'helper', at: 't' }, null), '@helper t', '不知道我是谁时照常显示')
+
+  const items = [{
+    number: 6, title: '上一轮我评论过', state: 'open', html_url: 'https://x/6',
+    user: { login: 'author' }, labels: [], assignees: [], comments: 1,
+    lastComment: { login: 'me', at: '2026-11-02T06:00:00Z', self: true },
+  }]
+  const text = formatWatchText('o/r', items, {})
+  assert.ok(text.includes('我（上一轮留的）'), text.slice(0, 200))
+})
