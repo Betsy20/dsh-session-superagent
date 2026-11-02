@@ -8,6 +8,7 @@ import {
   classifyGhError,
   parseGhInclude,
   jitterMs,
+  throttleDelayMs,
   advanceSeen, applyWatcherAction, batchFresh, decideWake, formatWatchText, newestUpdatedAt,
   hasAckLabel, nextDelayMs, normalizeFilters, partitionItems, passesFilters, pruneSeen, pruneWakeTimes,
   inActiveHours, mergePollResult, filterReason, pushFiltered, recordReported, splitFresh,
@@ -409,4 +410,36 @@ test('jitterMs：同一条守永远同一个偏移，且在窗口内', () => {
   const offsets = new Set(Array.from({ length: 20 }, (_, i) => jitterMs('repo#' + i, 5000)))
   assert.ok(offsets.size > 8, '20 条守应该散开，实际只用了 ' + offsets.size + ' 个偏移')
   assert.equal(jitterMs('x', 0), 0, '窗口为 0 时不出抖动')
+})
+
+test('parseGhInclude 读得出限流头（真实 gh 输出格式）', () => {
+  const LF = String.fromCharCode(10)
+  const sample = [
+    'HTTP/2.0 200 OK',
+    'ETag: W/"e1"',
+    'X-Ratelimit-Limit: 5000',
+    'X-Ratelimit-Remaining: 120',
+    'X-Ratelimit-Reset: 1793608466',
+    '',
+    '[]',
+  ].join(LF)
+  const parsed = parseGhInclude(sample)
+  assert.equal(parsed.remaining, 120)
+  assert.equal(parsed.limit, 5000)
+  assert.equal(parsed.resetAt, new Date(1793608466 * 1000).toISOString())
+})
+
+test('throttleDelayMs：额度充足不动，紧张时推到重置（最多 1 小时）', () => {
+  const now = Date.parse('2026-11-02T08:00:00.000Z')
+  // 充足：不推迟
+  assert.equal(throttleDelayMs({ remaining: 4000, resetAt: '2026-11-02T09:00:00.000Z', now }), 0)
+  // 没拿到头：不推迟
+  assert.equal(throttleDelayMs({ remaining: null, now }), 0)
+  // 紧张：等到重置（+1 秒缓冲）
+  const wait = throttleDelayMs({ remaining: 10, resetAt: '2026-11-02T08:10:00.000Z', now })
+  assert.equal(wait, 10 * 60 * 1000 + 1000)
+  // 重置时间超过 1 小时：封顶 1 小时
+  assert.equal(throttleDelayMs({ remaining: 10, resetAt: '2026-11-02T12:00:00.000Z', now }), 3600 * 1000)
+  // 重置时间已过：不推迟
+  assert.equal(throttleDelayMs({ remaining: 10, resetAt: '2026-11-02T07:00:00.000Z', now }), 0)
 })

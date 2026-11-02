@@ -6,3 +6,4 @@
 |---|---|---|
 | GitHub API 性能 | [条件请求（ETag / 304）](github-conditional-requests.md) | ✅ 0.8.51 |
 | 轮询调度 | [抖动去同步（jitter）](polling-jitter.md) | ✅ 0.8.52 |
+| 轮询调度 | [按剩余额度自适应降频](rate-limit-adaptive.md) | ✅ 0.8.53 |
