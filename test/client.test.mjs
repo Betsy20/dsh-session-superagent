@@ -866,10 +866,10 @@ test('面板显示本会话用量，到上限时给出可执行的建议', () =>
   assert.ok(half.includes('唤醒 3/12'), '要有用量：' + half.slice(0, 200))
   assert.ok(!half.includes('已到上限'), '没用满时不该报警')
 
-  const full = walk(render(desk, deskQueue({ loading: false, error: null, body: { ...base, sessionUsage: { used: 12, cap: 12, capped: 2 } } })))
+  const full = walk(render(desk, deskQueue({ loading: false, error: null, body: { ...base, sessionUsage: { used: 12, cap: 12, capped: 2, suggest: 24 } } })))
     .filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
   assert.ok(full.includes('已到上限'), '到上限要提示')
-  assert.ok(full.includes('调大'), '要给出可执行的建议：' + full.slice(0, 260))
+  assert.ok(full.includes('调到 24'), '要给出具体数字而不是只说“调大”：' + full.slice(0, 260))
   assert.ok(full.includes('2 条守正因上限暂停'), '要说清影响')
 })
 

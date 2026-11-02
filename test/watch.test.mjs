@@ -26,6 +26,7 @@ import {
   splitBatch,
   silentStreak,
   shouldRunCleanup,
+  suggestSessionCap,
   summarizeByRepo,
   stateReasonNote,
   repoStructureNote,
@@ -1056,4 +1057,19 @@ test('单条追溯：把"为什么没叫醒"拼成一条结论', () => {
   assert.match(unknown.verdict, /还没轮到它/)
   assert.equal(itemTrace(watcher, null), null)
   assert.equal(itemTrace(null, 1), null)
+})
+
+test('用满了要给具体数字建议（别让客户自己算）', () => {
+  // 没用满 -> 不给建议
+  assert.equal(suggestSessionCap({ used: 3, cap: 12, capped: 0 }), null)
+  // 用满但没守着被挡 -> 温和上调（1.5 倍）
+  assert.equal(suggestSessionCap({ used: 12, cap: 12, capped: 0 }), 18)
+  // 用满且有守被挡 -> 翻倍
+  assert.equal(suggestSessionCap({ used: 12, cap: 12, capped: 3 }), 24)
+  // 封顶 60
+  assert.equal(suggestSessionCap({ used: 40, cap: 40, capped: 2 }), 60)
+  // 坏数据不崩，且不低于 1
+  const weird = suggestSessionCap({ used: 'x', cap: 'y', capped: 'z' })
+  assert.equal(weird, null)
+  assert.ok(suggestSessionCap({ used: 99, cap: 1, capped: 1 }) >= 1)
 })
