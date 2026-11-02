@@ -2,6 +2,28 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.8] - 2026-11-02 —— 时间线：回答"为什么这一轮没叫醒我"
+
+### 学到的（知识库第 57 条）
+OTel 把一条日志定义成「时间戳 + 主体 + 结构化属性」；日志系统普遍**只留最近 N 条**——
+"记录一切"本身会变成新的故障源。
+<https://opentelemetry.io/docs/concepts/signals/logs/>
+
+### 问题
+原来只有一个 `lastDeferred` 字符串，只描述最后一次，看不出因果。
+客户问"我加了标签为什么没叫醒"，我们只能看到屏幕上一句 + 累计计数。
+
+### 改法
+`pushEvent(events, {kind, text}, 20)`：有界 20 条，kind 截 24、text 截 160（防脏数据撑大状态）。
+打点全在**既有分支**里，不新增逻辑：
+`defer`（时段外）/ `ratelimit` / `unchanged`（304）/ `observe` /
+`cap-session` / `cap-watcher` / `wake`（带条号）/ `wake-failed`。
+
+面板「判定」页新增「时间线（最近 20 条）」，按类型着色。
+
+### 测试
+- 新增 2 例（纯函数有界与裁剪；判定页必须出现时间线与事件内容）。合计 **152 例**。
+
 ## [0.9.7] - 2026-11-02 —— 隔离区回收节流：没超额就不必每次唤醒都跑 git
 
 ### 学到的（知识库第 56 条）

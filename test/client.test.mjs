@@ -718,3 +718,22 @@ test('面板自己的错误也要说人话（Failed to fetch 客户看不懂）'
   assert.ok(text.includes('连不上宿主'), '要说明发生了什么：' + text.slice(0, 200))
   assert.ok(text.includes('诊断'), '要给出下一步动作')
 })
+
+test('判定页要能看见时间线（"为什么没叫醒我"要有据可查）', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = {
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: 'x', credentials: {}, watchers: [
+      watcher('a/b', { id: 'a/b#s1', events: [
+        { at: new Date().toISOString(), kind: 'cap-session', text: '这条会话一小时内已被唤醒 12 次（上限 12），已攒 3 条待处理' },
+        { at: new Date().toISOString(), kind: 'wake', text: '唤醒了 2 条：#1 #2' },
+      ] }),
+    ] },
+  }
+  // 时间线在「判定」页：切 tab 再渲染
+  const text = walk(render(desk, deskQueue(snap, null, {}, 'judge'))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(text.includes('时间线'), '要有时间线区块：' + text.slice(0, 160))
+  assert.ok(text.includes('cap-session'), '要显示事件类型')
+  assert.ok(text.includes('已被唤醒 12 次'), '要显示人话内容')
+})

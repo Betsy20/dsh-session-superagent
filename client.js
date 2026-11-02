@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.7'
+    const CLIENT_VERSION = '0.9.8'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1226,6 +1226,20 @@ window.__ModuleLoader__.load({
                   h('span', null, (watcher.title || '未命名会话') + ' · ' + sessionTag(watcher.sessionId))))
             }))))
 
+      // 迷你时间线：回答"为什么这一轮没叫醒我"
+      const timeline = h(Section, { key: 'timeline', title: '时间线（最近 20 条）' },
+        watchers.length === 0
+          ? h(Hint, null, '还没有守。添加一条之后，这里会记录每次唤醒、攒着、限流、回收。')
+          : h('div', { className: 'dt-rows' }, watchers.flatMap((watcher) => (watcher.events || []).slice().reverse().map((event, index) => h('div', {
+            key: watcher.repo + '-ev' + index,
+            className: 'dt-row',
+          },
+            h('div', { className: 'dt-row-main' },
+              h('div', { className: 'dt-row-title' },
+                h(Tag, { tone: event.kind === 'wake' ? 'success' : event.kind === 'wake-failed' ? 'danger' : 'outline' }, event.kind),
+                h('span', { className: 'dt-row-meta' }, ageText(event.at))),
+              h('div', { className: 'dt-hint' }, watcher.repo + ' · ' + event.text)))))))
+
       const trigger = h(Section, { title: '新增主理鱼' },
         h('div', { className: 'dt-form' },
           field('仓库', h(Input, { value: form.repo, placeholder: 'owner/name', onChange: (e) => setForm({ ...form, repo: e.target.value }) })),
@@ -1459,6 +1473,7 @@ window.__ModuleLoader__.load({
         snap.loading && !snap.body ? h(Hint, null, '正在读取…') : null,
         tab === 'overview' ? overview : null,
         tab === 'judge' ? judge : null,
+        tab === 'judge' ? timeline : null,
         tab === 'trigger' ? trigger : null,
         tab === 'settings' ? settings : null,
         h(Modal, { open: glossary, title: '主理鱼术语表', onClose: () => setGlossary(false) },

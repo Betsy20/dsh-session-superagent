@@ -17,6 +17,7 @@ import {
   mergeWakeTexts,
   msUntilActiveWindow,
   nextWaketimeAt,
+  pushEvent,
   repoBadges,
   stalenessNote,
   sessionWakesLastHour,
@@ -895,4 +896,18 @@ test('回收节流：没超额且刚跑过就跳过；超额必须立刻跑', ()
   // 坏数据不崩
   assert.equal(typeof shouldRunCleanup({}).run, 'boolean')
   assert.equal(typeof shouldRunCleanup().run, 'boolean')
+})
+
+test('迷你时间线：有界、只留最近 N 条、坏数据不崩', () => {
+  assert.deepEqual(pushEvent(null, { kind: 'wake', text: 'x' }).length, 1)
+  assert.deepEqual(pushEvent([], null), [], '没有 kind 的事件丢掉')
+  let events = []
+  for (let i = 0; i < 30; i += 1) events = pushEvent(events, { kind: 'wake', text: 'e' + i }, 20)
+  assert.equal(events.length, 20, '必须有界')
+  assert.ok(events[19].text === 'e29', '保留最近的：' + events[19].text)
+  assert.ok(!events.some((e) => e.text === 'e0'), '最早的被挤掉')
+  // 字段会被裁剪，避免脏数据撑大状态文件
+  const long = pushEvent([], { kind: 'x'.repeat(80), text: 'y'.repeat(400) })
+  assert.ok(long[0].kind.length <= 24 && long[0].text.length <= 160)
+  assert.ok(/T/.test(long[0].at), '要带时间戳')
 })
