@@ -2,6 +2,22 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.43] - 2026-11-02 —— `watch_status` 支持 `format=json`（同一份数据两种渲染）
+
+### 学到的（知识库第 91 条）
+CLI 的通用形态：**默认给人看，`--json` 给机器**（gh / kubectl -o json 都这样）。
+
+### 之前的风险
+`watch_status` 只返回拼接字符串，agent 靠子串解析 —— **我们改一次措辞，agent 的解析就静默失效**。
+
+### 改法
+1. 纯函数 `statusView(entries)` 产出结构（session + watchers 全字段）；
+2. 工具加 `format` 参数：`text`（默认）/ `json`；
+3. **文本由结构渲染**，所以两者永远一致（不是两份实现）。
+
+### 测试
+- 新增 2 例（结构 7 项断言 + 空输入；工具 json 可解析、默认仍是文本）。合计 **180 例**。
+
 ## [0.9.42] - 2026-11-02 —— `watch_status` 带上诊断字段，agent 能自诊
 
 ### 学到的（知识库第 90 条）

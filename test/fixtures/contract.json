@@ -63,7 +63,9 @@
     },
     {
       "name": "watch_status",
-      "params": [],
+      "params": [
+        "format"
+      ],
       "required": []
     },
     {

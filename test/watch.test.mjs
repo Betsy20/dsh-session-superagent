@@ -27,6 +27,7 @@ import {
   stalenessNote,
   sessionWakesLastHour,
   splitBatch,
+  statusView,
   silentStreak,
   shouldRunCleanup,
   suggestSessionCap,
@@ -1111,4 +1112,25 @@ test('"今天明显比平时忙"要保守：历史不足或高得不多都不提
   // 坏输入不崩
   assert.equal(busierThanUsual(null), false)
   assert.equal(busierThanUsual({}), false)
+})
+
+test('结构化状态视图：文本与 JSON 出自同一份数据', () => {
+  const entries = [
+    { repo: 'a/x', sessionId: 's1', intervalSec: 60, enabled: true, deferReason: 'cap-session', silentWakes: 2, wakeTimes: [], sessionMaxWakes: 12 },
+    { repo: 'b/y', sessionId: 's1', intervalSec: 120, enabled: false, observe: true, filters: { labels: ['bug'], onlyAssigned: true }, wakeTimes: [] },
+  ]
+  const view = statusView(entries)
+  assert.equal(view.watchers.length, 2)
+  assert.equal(view.session.id, 's1')
+  assert.equal(view.session.cap, 12)
+  assert.equal(view.watchers[0].deferReason, 'cap-session')
+  assert.equal(view.watchers[0].silentWakes, 2)
+  assert.equal(view.watchers[1].enabled, false, '暂停要如实反映')
+  assert.equal(view.watchers[1].observe, true)
+  assert.deepEqual(view.watchers[1].labels, ['bug'])
+  assert.equal(view.watchers[1].onlyAssigned, true)
+  // 空输入不崩
+  const empty = statusView([])
+  assert.equal(empty.watchers.length, 0)
+  assert.equal(empty.session.used, 0)
 })

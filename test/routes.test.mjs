@@ -434,3 +434,28 @@ test('watch_status 带诊断：暂停原因、未回音、会话用量（agent �
   assert.ok(text.includes('silent=3'), '要带未回音次数')
   assert.match(text, /session:\s*\d+\/12 wakes last hour/, '要有会话用量行')
 })
+
+test('watch_status 支持 format=json（同一份数据的机器可读形式）', async () => {
+  const tools = []
+  const dir = (await import('node:fs')).mkdtempSync((await import('node:path')).join((await import('node:os')).tmpdir(), 'zhuli-json-'))
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: () => () => {} },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-json' }) },
+    get: () => null, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?json=' + Date.now())
+  mod.apply(ctx)
+  await tools.find((t) => t.name === 'watch_start').execute({ repo: 'o/js', sessionMaxWakes: 12 })
+  const status = tools.find((t) => t.name === 'watch_status')
+  const json = JSON.parse(await status.execute({ format: 'json' }))
+  assert.equal(json.watchers.length, 1)
+  assert.equal(json.watchers[0].repo, 'o/js')
+  assert.equal(json.session.cap, 12)
+  assert.equal(typeof json.session.used, 'number')
+  // 默认仍是文本（老调用方不受影响）
+  const text = String(await status.execute({}))
+  assert.ok(text.includes('session:'), '默认输出要保持文本：' + text.slice(0, 80))
+})
