@@ -377,3 +377,33 @@ test('/state 每条守都带 deferReason（面板按字段统计，不再匹配�
   // 新加的守还没被暂停过 —— 应当是 null 而不是 undefined
   assert.equal(list[0].deferReason, null)
 })
+
+test('watch_start 能设面板里的三项（会话上限 / 隔离保留天数 / 最多几个隔离区）', async () => {
+  const tools = []
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: () => () => {} },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-parity' }) },
+    get: () => null,
+    effect: (fn) => fn(),
+    inject: () => {},
+  }
+  const mod = await import('../lib/index.js?parity=' + Date.now())
+  mod.apply(ctx)
+  const start = tools.find((tool) => tool.name === 'watch_start')
+  assert.ok(start, '要有 watch_start')
+  // 面板里能改的三项，工具参数里必须也有（否则 agent 无从下手）
+  for (const key of ['sessionMaxWakes', 'isolateKeepDays', 'maxIsolated']) {
+    assert.ok(start.parameters.properties[key], '缺参数 ' + key)
+  }
+  const res = await start.execute({
+    repo: 'o/parity', sessionMaxWakes: 24, isolateKeepDays: 7, maxIsolated: 3,
+  })
+  assert.equal(typeof res, 'string')
+  const state = JSON.parse(JSON.stringify(mod.__test.readState()))
+  const entry = Object.values(state.watchers || {}).find((w) => w.repo === 'o/parity')
+  assert.ok(entry, '应该登记成功：' + res)
+  assert.equal(entry.sessionMaxWakes, 24)
+  assert.equal(entry.isolateKeepDays, 7)
+  assert.equal(entry.maxIsolated, 3)
+})

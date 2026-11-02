@@ -48,12 +48,15 @@
         "goal",
         "ignoreLabels",
         "intervalSec",
+        "isolateKeepDays",
         "isolated",
         "labels",
+        "maxIsolated",
         "maxWakesPerHour",
         "observe",
         "onlyAssigned",
         "repo",
+        "sessionMaxWakes",
         "workdir"
       ],
       "required": []
