@@ -101,7 +101,7 @@ const rows = cases.map(([label, list]) => {
       <td class="real">${svg}</td></tr>`
 }).join('\n')
 
-const OUT = process.argv[2] || 'E:/Documents/deepseek-harness/default-workspace/orbit-preview.html'
+const OUT = process.argv[2] || 'E:/workspace/orbit-preview.html'
 writeFileSync(OUT, `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><title>轨道环预览 · dsh-session-superagent</title>
 <style>

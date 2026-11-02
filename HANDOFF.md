@@ -95,7 +95,7 @@ profile 同步   = 相对 import 全部可解析
 2. **工具转义**：通过 shell 传给 python 的 `\\` 会被工具吃掉一层，写 `\n` / Windows 路径时用 `chr(92)` 拼，或先把代码块写文件再 splice。
 3. **`bash` 工具可能整个消失**：插件层热重载失败时工具注册表会只剩插件工具；`pwsh`/`bash` 全无。重启宿主可恢复。
 4. **`taskkill` / `schtasks` 的 `/run` 被 MSYS 改写** → `MSYS2_ARG_CONV_EXCL='*'`。
-5. **`web_search` 工具在本机不可用**（magpie 端点不返回 search blocks）→ 用 `curl` + `gh api`；脚本在 `E:\Documents\deepseek-harness\default-workspace\research\web.py`。
+5. **`web_search` 工具在本机不可用**（magpie 端点不返回 search blocks）→ 用 `curl` + `gh api`；脚本在 `<WORKSPACE>\research\web.py`。
 
 ## 四、验证与审核台账
 
