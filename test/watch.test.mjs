@@ -406,8 +406,9 @@ test('classifyGhError：把 gh 的原始报错变成人话（真机踩过 EOF）
     if (hintPart) {
       assert.ok(got.hint.includes(hintPart), `${input} -> ${got.hint}`)
     } else {
-      // 没有提示也要是一条断言：否则这条用例在 hint 为空时等于没检查
-      assert.equal(got.hint, '', `${input} 不该给提示，实际给了：${got.hint}`)
+      // 'other' 现在也有兜底提示：必须有"下一步"，只是不针对具体原因
+      assert.ok(got.hint.length > 0, `${input} 的兜底提示不能为空`)
+      assert.ok(got.hint.includes('watch_doctor') || got.hint.includes('重试'), `${input} 的兜底要给出下一步：${got.hint}`)
     }
   }
   // 长 URL 必须被压缩，否则面板会被一整条 API 地址占满
@@ -1156,4 +1157,25 @@ test('跳过行要说总数（只说前三个原因会让人以为只有这些�
   // 没有跳过时不该出现这一行
   const none = formatWatchText('o/r', items, { changedTotal: 1, batchLimit: 1, skippedReasons: {} })
   assert.ok(!none.includes('本轮跳过'), '没有跳过就不要提')
+})
+
+test('每一类错误都要给出"下一步"（客户看到错误时最怕不知道做什么）', () => {
+  const samples = [
+    'HTTP 401: Bad credentials',
+    'HTTP 403: API rate limit exceeded',
+    'HTTP 502: Bad Gateway',
+    'gh: command not found',
+    'HTTP 404: Not Found',
+    'Get "https://api.github.com/x": EOF',
+    'something totally unexpected',
+  ]
+  for (const raw of samples) {
+    const got = classifyGhError(raw)
+    assert.ok(got.hint && got.hint.length > 0, got.kind + ' 缺下一步：' + raw)
+    assert.ok(got.short.length > 0, got.kind + ' 缺可读描述')
+  }
+  // 兜底类必须指向一个可执行动作
+  const fallback = classifyGhError('something totally unexpected')
+  assert.equal(fallback.kind, 'other')
+  assert.match(fallback.hint, /watch_doctor|重试/)
 })

@@ -2,6 +2,23 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.62] - 2026-11-02 —— 每一类错误都必须给出"下一步"
+
+### 发现
+`classifyGhError` 有 6 类，其中 **`other` 的 hint 是空字符串** ——
+客户碰到一条没归类的错误，面板上只有一句看不懂的原文，**没有任何下一步**。
+另外两条内部错误更糟：直接写 `bad json` / `unexpected payload`（内部术语，无动作）。
+
+### 改法
+| 位置 | 原 | 现 |
+|---|---|---|
+| `classifyGhError` 兜底 | hint 为空 | 「已按退避自动重试；持续出现就跑 watch_doctor 看检查清单，或把这行贴给对方」 |
+| 解析失败 | `bad json` | 「返回内容不是合法 JSON（可能是代理干扰）—— 已自动重试；持续出现请跑 watch_doctor」 |
+| 结构不对 | `unexpected payload` | 「返回的数据结构不对（预期是数组）—— 已自动重试；持续出现请跑 watch_doctor」 |
+
+### 测试
+- 新增 1 例：7 个样本（含兜底）都必须有非空 hint 与非空 short；兜底要匹配 `watch_doctor|重试`。合计 **190 例**。
+
 ## [0.9.61] - 2026-11-02 —— 把客户不认识的行业词换掉（3 处）+ 术语表补 3 条
 
 ### 学到的（知识库第 103 条）
