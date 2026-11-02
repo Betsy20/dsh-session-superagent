@@ -3,7 +3,7 @@
 <img src="assets/icon-180.png" width="88" height="88" alt="">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.8.49-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
+[![Version](https://img.shields.io/badge/version-0.8.50-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
 [![npm](https://img.shields.io/npm/v/dsh-session-superagent.svg)](https://www.npmjs.com/package/dsh-session-superagent)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-plugin-orange.svg)](https://github.com/topics/dsh-plugin)
 
@@ -132,6 +132,18 @@ dsh plugin --profile <profile> add dsh-session-superagent@latest
 
 **本机复现不了客户的问题**：`EOF` / 超时 / 代理这类错误取决于客户的网络，本机能访问同一个仓库不代表客户能。
 遇到这种情况，先按上面的三样收集信息，再判断是环境还是代码。
+
+## 验收（不用装宿主也能跑）
+
+```bash
+node --test                 # 103 例单测
+node scripts/ui-audit.mjs   # 11 项 UI 指标（写死颜色 / 自造 token / 官方结构采用 …）
+node scripts/preflight.mjs  # 8 项门禁（含上面两条，外加 profile 一致性、路由面、包内容）
+node scripts/render-preview.mjs preview.html   # 双主题静态预览，直接浏览器打开
+```
+
+`preview.html` 里每个界面都会渲染**浅色 + 深色**两遍（9 个场景 × 2），
+用来发现「某个主题下颜色写死 / 漏 token」这类问题 —— 这类 bug 在单测里是绿的。
 
 ## 故障排查（都是真实踩过的）
 

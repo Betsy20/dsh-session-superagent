@@ -109,6 +109,27 @@ const tryRun = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: ROOT, encod
   record('npm pack 内容', res.status === 0 && leaked.length === 0, `${files} 个文件` + (leaked.length ? '（含：' + leaked.join(', ') + '）' : ''))
 }
 
+// ⑥.5 双主题预览能渲染（离线验收界面用的那条命令，坏掉就等于没有验收手段）
+{
+  const out = join(tmpdir(), 'zhuli-preview-check-' + Date.now() + '.html')
+  const res = tryRun('node', ['scripts/render-preview.mjs', out], { timeout: 120000 })
+  let ok = false
+  let detail = 'render-preview 执行失败'
+  try {
+    const html = readFileSync(out, 'utf8')
+    const hasLight = html.includes('浅色主题')
+    const hasDark = html.includes('深色主题')
+    const scenarios = (html.match(/class="preview-title"/g) || []).length
+    ok = res.status === 0 && hasLight && hasDark && scenarios >= 18
+    detail = scenarios + ' 块（浅色+深色）'
+  } catch (error) {
+    detail = String(error && error.message || error).slice(0, 120)
+  } finally {
+    try { rmSync(out, { force: true }) } catch {}
+  }
+  record('双主题预览可渲染', ok, detail)
+}
+
 // ⑦ UI 体检（不需要宿主：量的是源码里的可访问性与 token 使用）
 {
   const res = tryRun('node', ['scripts/ui-audit.mjs', '--json'])
