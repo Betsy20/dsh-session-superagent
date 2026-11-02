@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.21'
+    const CLIENT_VERSION = '0.9.22'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -831,6 +831,18 @@ window.__ModuleLoader__.load({
 
     function ZhuliPanel(props) {
       const sessionId = props && props.sessionId
+      /** 暂停原因码 → 人话（服务端 deferReason 是唯一来源）。 */
+      const DEFER_LABELS = {
+        'active-hours': '不在活跃时段',
+        ratelimit: '被 GitHub 限流',
+        quota: '额度紧张',
+        unchanged: '没有变化',
+        observe: '仅观察',
+        'cap-session': '撞会话上限',
+        'cap-watcher': '撞单守上限',
+        busy: '会话忙',
+      }
+
       const [snap, setSnap] = useState({ loading: true, error: null, body: null })
       const [tab, setTab] = useState('overview')
       const [notice, setNotice] = useState(null)
@@ -1109,7 +1121,10 @@ window.__ModuleLoader__.load({
       }
 
       const problems = []
+      // 按暂停原因筛选时，「需要关注」也一起收窄（否则列表和告警会自相矛盾）
+      const deferFilter = reasonFilter && reasonFilter.startsWith('defer:') ? reasonFilter.slice(6) : null
       for (const watcher of watchers) {
+        if (deferFilter && watcher.deferReason !== deferFilter) continue
         // 仓库结构问题（关闭 Issues / 是 fork）比轮询失败更早该说：它注定收不到条目
         const structure = repoStructureNote(watcher.repoAccess)
         if (structure) problems.push({ key: 's-' + watcher.repo, text: structure })
@@ -1150,7 +1165,9 @@ window.__ModuleLoader__.load({
         || Number(watcher.silentWakes) >= 2
         || Boolean(repoStructureNote(watcher.repoAccess))
         || repoBadges(watcher.repoAccess).some((badge) => badge.tone === 'warning' || badge.tone === 'danger')
-      const visible = watchers.filter((watcher) => matches(watcher) && matchesBadge(watcher) && (!problemsOnly || hasProblem(watcher)))
+      const visible = watchers.filter((watcher) => matches(watcher) && matchesBadge(watcher)
+        && (!problemsOnly || hasProblem(watcher))
+        && (!deferFilter || watcher.deferReason === deferFilter))
 
       const overview = [
         watchers.some((w) => (w.filteredLog || []).length > 0)
@@ -1211,6 +1228,19 @@ window.__ModuleLoader__.load({
         count: watchers.reduce((n, w) => n + (w.history || []).length, 0),
         action: h(InfoTip, { text: '每轮判定都会记一条：唤醒、仅观察，或跳过及其原因。只存最近若干条。' }),
       },
+        (() => {
+          const counts = new Map()
+          for (const w of watchers) if (w.deferReason) counts.set(w.deferReason, (counts.get(w.deferReason) || 0) + 1)
+          if (counts.size === 0) return null
+          return h('div', { className: 'dt-row-meta', key: 'defer-totals' },
+            h('span', null, '暂停原因：'),
+            [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([code, n]) => h(Pill, {
+              key: code,
+              active: deferFilter === code,
+              onClick: () => setReasonFilter(deferFilter === code ? null : 'defer:' + code),
+            }, (DEFER_LABELS[code] || code) + ' × ' + n)),
+            deferFilter ? h(Pill, { key: 'clear-defer', onClick: () => setReasonFilter(null) }, '清除') : null)
+        })(),
         reasonTotals.length > 0
           ? h('div', { className: 'dt-row-meta', key: 'reason-totals' },
             h('span', null, '跳过原因累计：'),

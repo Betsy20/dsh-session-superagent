@@ -872,3 +872,26 @@ test('面板显示本会话用量，到上限时给出可执行的建议', () =>
   assert.ok(full.includes('调大'), '要给出可执行的建议：' + full.slice(0, 260))
   assert.ok(full.includes('2 条守正因上限暂停'), '要说清影响')
 })
+
+test('暂停原因可以按原因码筛选（点 Pill 只看那一类）', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = {
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: 'x', credentials: {}, watchers: [
+      watcher('a/cap', { id: 'a/cap#s1', deferReason: 'cap-session', lastDeferred: '这条会话一小时内已被唤醒 12 次' }),
+      watcher('b/rate', { id: 'b/rate#s2', sessionId: 's2', deferReason: 'ratelimit', lastDeferred: '被 GitHub 限流' }),
+    ] },
+  }
+  // 判定页要列出原因码与人话
+  const judge = walk(render(desk, deskQueue(snap, null, {}, 'judge'))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(judge.includes('撞会话上限'), '原因码要翻成人话：' + judge.slice(0, 240))
+  assert.ok(judge.includes('被 GitHub 限流'), '另一个原因也要在')
+
+  // 选中 defer:cap-session 后，明细只剩那一类
+  const filtered = deskQueue(snap, null, {}, 'overview')
+  filtered[15] = 'defer:cap-session'
+  const text = walk(render(desk, filtered)).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(text.includes('a/cap'), '命中原因的要留下')
+  assert.ok(!text.includes('b/rate'), '别的原因不该出现：' + text.slice(0, 240))
+})
