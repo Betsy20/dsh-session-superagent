@@ -1059,3 +1059,25 @@ test('历史数据里残留的 304 不该被算成「异常」', () => {
   const counters = text.match(/(\d+)\s*\|\s*异常/) || []
   assert.ok(!/\|\s*1\s*\|\s*异常/.test(text), '304 不该算进异常：' + text.slice(0, 200))
 })
+
+test('错误要标出「多久之前」，超过一小时标「旧记录」', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const at = (mins) => new Date(Date.now() - mins * 60000).toISOString()
+  const snap = (mins) => ({
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: 'x', credentials: {}, sessionUsage: { used: 1, cap: 12, capped: 0 },
+      watchers: [watcher('a/b', {
+        id: 'a/b#s1', lastWake: at(5), lastError: 'GitHub API 请求: EOF（网络抖动）', lastErrorKind: 'network',
+        lastErrorAt: at(mins),
+      })] },
+  })
+  const text = (mins) => walk(render(desk, deskQueue(snap(mins)))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+
+  const fresh = text(3)
+  assert.ok(/\d+ 分钟前/.test(fresh), '新错误要带时间：' + fresh.slice(0, 200))
+  assert.ok(!fresh.includes('旧记录'), '刚发生的错误不该标旧记录')
+
+  const old = text(150)
+  assert.ok(old.includes('旧记录'), '150 分钟前的错误要标「旧记录」：' + old.slice(0, 200))
+})

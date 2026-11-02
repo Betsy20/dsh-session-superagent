@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.111'
+    const CLIENT_VERSION = '0.9.112'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1105,8 +1105,11 @@ window.__ModuleLoader__.load({
               gateway: { label: '立刻重试', onClick: () => act(watcher, 'poll') },
             }
             const fix = FIX[watcher.lastErrorKind] || null
+            const errAge = watcher.lastErrorAt ? ageText(watcher.lastErrorAt) : ''
+            const staleErr = watcher.lastErrorAt && (Date.now() - Date.parse(watcher.lastErrorAt)) > 3600 * 1000
             return h('div', { className: 'dt-ticket-note dt-ticket-note-error' },
-              parts.main.slice(0, 120) + (parts.main.length > 120 ? '…' : ''),
+              (errAge && errAge !== '—' ? (staleErr ? '旧记录（' + errAge + '前）：' : '(' + errAge + '前) ') : '')
+              + parts.main.slice(0, 120) + (parts.main.length > 120 ? '…' : ''),
               parts.hint ? h('div', { className: 'dt-hint' }, parts.hint) : null,
               fix ? h('div', { className: 'dt-actions' }, h(Btn, { size: 'sm', variant: 'outline', 'aria-label': fix.label, onClick: fix.onClick }, fix.label)) : null)
           })() : null,
