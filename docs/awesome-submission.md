@@ -105,6 +105,9 @@ gh pr create --repo awesome-dsh-plugin/awesome-dsh-plugin   --title "Add dsh-ses
 - 要求 `package.json` 声明 `dsh.bundle`（三条都有 `./cordis.patch.yml`）；
 - 分类不准不会被打回，维护者会直接改。
 
-CI：新加的两次提交触发了新的 run。年龄门槛 `MIN_AGE_DAYS = 1` 由**最新的那个仓库**决定
+**CI 结果（2026-11-02 11:5x 复核）**：`check` = **SUCCESS**（17m56s），`Submission gate` = NEUTRAL（跳过），
+PR `state=OPEN`、`mergeable=MERGEABLE`、0 review / 0 comment —— 已在等维护者合并。
+
+原先担心的年龄门槛 `MIN_AGE_DAYS = 1` 由**最新的那个仓库**决定
 （`dsh-session-superagent` 于 2026-11-01 创建，17h/24h），另两个仓库都是 10 月创建、已满足。
 按官方说明这条会自动重跑并在满 1 天后转绿 —— 预计 **17:53 +08**。
