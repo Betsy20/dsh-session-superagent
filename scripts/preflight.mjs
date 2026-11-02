@@ -242,6 +242,15 @@ if (!FAST) {
   record('双主题预览可渲染', res.status === 0, line.replace(/^(PASS|FAIL) 双主题预览可渲染\s*/, ''))
 }
 
+// ⑥.6 术语表双向对照（面板用了的必须解释；术语表里的不能是死词）
+{
+  const res = tryRun('node', ['scripts/audit-glossary.mjs'], { timeout: 90000 })
+  const out = String(res.stdout || '')
+  const bad = out.split(String.fromCharCode(10)).filter((line) => line.startsWith('  ') && line.trim())
+  record('术语表对照', out.includes('PASS 术语表的每个词') && out.includes('PASS 面板里的技术词'),
+    bad.length > 0 ? '待补：' + bad.map((l) => l.trim()).join(' / ') : '双向对齐（15 条术语）')
+}
+
 // ⑦ UI 体检（不需要宿主：量的是源码里的可访问性与 token 使用）
 {
   const res = tryRun('node', ['scripts/ui-audit.mjs', '--json'])

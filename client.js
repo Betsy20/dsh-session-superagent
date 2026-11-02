@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.74'
+    const CLIENT_VERSION = '0.9.75'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1729,6 +1729,8 @@ window.__ModuleLoader__.load({
             ['上限', '两种：单条守每小时最多 6 次、整条会话 12 次（面板里可调）；和 GitHub 的限流不是一回事'],
             ['没有动作', '叫醒后会话没有调用 watch_ack（既没改也没回），连续 2 次就会在「需要关注」里提示'],
             ['临时副本', '隔离执行开的一次性 git worktree：只在这里改，用完回收，不碰主工作区'],
+            ['盯办', '把「某个仓库」和「某个会话」绑在一起：仓库有动静就叫醒会话'],
+            ['轮询', '每隔一段时间问一次 GitHub「有没有新变化」（问不到会退避重试，不用管）'],
           ] })))
     }
 
