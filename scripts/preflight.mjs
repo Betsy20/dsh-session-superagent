@@ -36,7 +36,7 @@ const tryRun = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: ROOT, encod
 
 // ② 语法
 {
-  const files = ['client.js', 'lib/index.js', 'lib/watch.js', 'lib/redact.js', 'lib/body.js']
+  const files = ['client.js', 'lib/index.js', 'lib/watch.js', 'lib/gh-format.js', 'lib/redact.js', 'lib/body.js']
   const bad = files.filter((f) => tryRun('node', ['--check', f]).status !== 0)
   record('语法 node --check', bad.length === 0, bad.length ? '失败：' + bad.join(', ') : `${files.length} 个文件`)
 }

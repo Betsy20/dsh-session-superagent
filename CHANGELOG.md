@@ -2,6 +2,37 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.95] - 2026-11-02 —— 按「改动轴」拆开 watch.js（883 → 486 行）
+
+### 学到的（知识库第 44 条）
+判断该不该拆，看的是「**改一个功能要不要同时读几块不相干的地方**」，不是行数。
+`lib/watch.js` 里混着两类东西：**调度与状态**（水位/抖动/退避/时段/合并写）
+和 **GitHub 交互与措辞**（错误归类/Retry-After/徽章/提示语/GraphQL 批量），修改动机完全不同。
+
+### 先核对依赖，再动手
+脚本统计两块之间的引用：
+```
+tail 用到的 head 名字：（无）
+head 用到的 tail 名字：assignmentNote, commentSummaryLine, linkedPrNote, stalenessNote, stateReasonNote
+```
+尾部 422 行对前半**零依赖**，只被 `formatWatchText` 用到 5 个函数 —— 这种单向稀疏依赖才适合拆。
+
+### 结果
+| 文件 | 行数 | 职责 |
+|---|---|---|
+| `lib/watch.js` | 883 → **486** | 调度与状态 |
+| `lib/gh-format.js` | **430**（新） | 解析/归类/措辞，不发请求、不碰状态 |
+
+`watch.js` 转出 19 个名字，`index.js` 与 8 个测试文件**一行未改**。
+
+### 拆完必须同步的三处（都有专门门禁守着）
+1. `sync-profile.mjs` 的 `TARGETS` —— 漏了就是「新文件不进 profile → 插件整体挂不上」，这个坑踩过；
+2. `preflight.mjs` 的语法检查列表（现在 6 个文件）；
+3. `contract.mjs --update` 确认接口形状未变。
+
+### 测试
+- 138 例全过；preflight 9 项全过。
+
 ## [0.8.94] - 2026-11-02 —— 面板顶部直接告诉你「该重启了」
 
 ### 学到的（知识库第 43 条）
