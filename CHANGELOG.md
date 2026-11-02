@@ -2,6 +2,33 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.122] - 2026-11-03 —— 面板上写出「第几次失败 + 下次什么时候重试」
+
+### 学到什么（出处）
+Kubernetes Job 的重试策略把这些数字**暴露在 status 里**给人和工具看：
+
+> The `.spec.backoffLimit` is set by default to **6**. Failed Pods … are recreated by the Job controller with
+> an **exponential back-off delay (10s, 20s, 40s …) capped at ten minutes**.
+
+<https://kubernetes.io/docs/concepts/workloads/controllers/job/>
+
+两个要点：① 默认重试上限就是 **6**（和 0.9.121 的 `RETRY_BUDGET_ATTEMPTS` 一致，属于巧合但方向对）；
+② **重试进度是可读的状态**，不是藏在日志里的行为。
+
+### 改法
+面板每条守在有失败时多一行：
+```
+已连续失败 7 次 · 下次重试约 90 分钟后（已放慢到 2 小时档）
+```
+数据全部来自 `/state` 已有的 `consecutiveFailures` / `nextAt`，没有新增字段、没有额外请求。
+
+### 为什么要写
+0.9.121 让失败后的间隔放慢到 2 小时，**如果面板不写出来，客户只会看到"它不动了"** ——
+把"我们主动放慢"误读成"它坏了"。
+
+### 测试
+新增 1 例：失败 7 次 + 90 分钟后重试 → 面板出现次数、时间、以及「2 小时档」。合计 **232 例**。
+
 ## [0.9.121] - 2026-11-03 —— 重试要花预算：连续失败 6 次后放慢到 2 小时一次
 
 ### 学到什么（出处）

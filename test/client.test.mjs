@@ -1108,3 +1108,22 @@ test('凭证失效时面板要显眼提示「不会自己恢复」', () => {
   assert.ok(text.includes('不会自己恢复'), '要说清不会自愈')
   assert.ok(text.includes('gh auth login'), '要给出具体命令')
 })
+
+test('连续失败时面板要显示「第几次失败 + 下次重试」', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const at = (mins) => new Date(Date.now() - mins * 60000).toISOString()
+  const soon = (mins) => new Date(Date.now() + mins * 60000).toISOString()
+  const snap = {
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: 'x', credentials: {}, sessionUsage: { used: 1, cap: 12, capped: 0 },
+      watchers: [watcher('a/b', {
+        id: 'a/b#s1', lastWake: at(10), consecutiveFailures: 7, nextAt: soon(90),
+        lastError: 'GitHub API 请求: 401（gh 登录失效）', lastErrorKind: 'auth', lastErrorAt: at(30),
+      })] },
+  }
+  const text = walk(render(desk, deskQueue(snap))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(text.includes('已连续失败 7 次'), '要报失败次数：' + text.slice(0, 300))
+  assert.ok(/下次重试约 \d+ 分钟后/.test(text), '要说明下次重试时间：' + text.slice(0, 300))
+  assert.ok(text.includes('2 小时档'), '超过预算要说明已放慢')
+})

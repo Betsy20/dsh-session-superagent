@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.121'
+    const CLIENT_VERSION = '0.9.122'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1093,6 +1093,17 @@ window.__ModuleLoader__.load({
           (watcher.otherSessions && watcher.otherSessions.length > 0)
             ? h('div', { className: 'dt-ticket-note' }, '还有 ' + watcher.otherSessions.length + ' 个会话也在守这个仓库：' + watcher.otherSessions.join('、') + '（各自独立唤醒；但 ack 标签是仓库级的 —— 任一方 ack 后两边都会跳过，想让两边各处理各的就给对方设不同标签）')
             : null,
+          (() => {
+            const fails = Number(watcher.consecutiveFailures) || 0
+            if (fails < 1 || !watcher.nextAt) return null
+            // 让「为什么很久没动」写在面板上：K8s 的 Job 也是把 backoff 状态暴露在 status 里
+            const wait = Math.max(0, Date.now() - Date.parse(watcher.nextAt))
+            const left = Date.parse(watcher.nextAt) - Date.now()
+            const mins = Math.max(0, Math.round((left > 0 ? left : wait) / 60000))
+            const slow = fails >= 6 ? '（已放慢到 2 小时档）' : ''
+            return h('div', { className: 'dt-hint' },
+              '已连续失败 ' + fails + ' 次 · ' + (left > 0 ? '下次重试约 ' + mins + ' 分钟后' : '等待重试') + slow)
+          })(),
           watcher.needsReauth ? h('div', { className: 'dt-banner dt-danger' },
             '凭证失效：跑 gh auth login 重新登录 —— 它不会自己恢复，在此之前这条守只会一直失败') : null,
           watcher.lastError ? (() => {
