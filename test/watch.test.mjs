@@ -469,3 +469,21 @@ test('countReasons：按原因累计并按次数排序（客户问「为什么�
   assert.equal(Object.keys(many).length, 5)
   assert.deepEqual(Object.keys(countReasons({}, 'x', { maxKinds: 5 })), ['x'])
 })
+
+test('唤醒消息带「为什么是这几条」（只给结果不给依据，接收方没法调过滤）', () => {
+  const items = [{ number: 7, title: '修一下登录', state: 'open', html_url: 'https://x/7', user: { login: 'a' }, labels: [], assignees: [] }]
+  const text = formatWatchText('o/r', items, {
+    changedTotal: 9,
+    batchLimit: 1,
+    skippedReasons: { '不在标签白名单: ai-fix': 5, '机器人': 3, '草稿': 0 },
+  })
+  assert.ok(text.includes('【为什么是这几条】'), text.slice(0, 120))
+  assert.ok(text.includes('本轮共 9 条变化'), '要说清总共多少变化')
+  assert.ok(text.includes('取前 1 条'), '要说清这批是怎么截的')
+  assert.ok(text.includes('不在标签白名单: ai-fix × 5') && text.includes('机器人 × 3'), '要说清跳过了什么')
+  assert.ok(!text.includes('草稿 × 0'), '次数为 0 的不要凑数')
+
+  // 没有依据信息时不要凭空加一行
+  const plain = formatWatchText('o/r', items, {})
+  assert.ok(!plain.includes('【为什么是这几条】'), '没信息就别硬编')
+})
