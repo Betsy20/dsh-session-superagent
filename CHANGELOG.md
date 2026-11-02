@@ -2,6 +2,34 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.44] - 2026-11-02 —— 判定页换官方时间线 + 补齐四个原语
+
+按 `docs/ui-inventory.md` 第 3、4 项。
+
+### 判定页：改用官方时间线结构
+官方在 `thread.tsx` / `settings-kit.tsx` 里铺「发生过什么」用的是
+`ol.dt-timeline > li.dt-event`（含 `dt-event-quiet` 静音态、`dt-event-foot` 元信息行、`dt-event-text` 正文）。
+我们之前是普通 `dt-row` 堆叠，现在换成官方结构：跳过/仅观察的条目用 `dt-event-quiet` 弱化。
+
+### 补齐四个官方原语（`controls.tsx`）
+| 原语 | 官方行为 |
+|---|---|
+| `Pill` | 可切换小胶囊（`aria-pressed`） |
+| `SegmentedControl` | 表单内互斥分段（`role=radiogroup` + `aria-checked`） |
+| `DisclosureRow` | 折叠行：Enter / 空格可切换、`aria-expanded`、展开图标切换 |
+| `InfoTip` | 点一下出气泡说明（`role=tooltip`） |
+
+同时 `Section` 补上官方的 `hint` / `action` 两个插槽；「最近被过滤」改用 `DisclosureRow` 折叠
+（默认只露第一条摘要，点开看全部）—— 原语不是摆着看的。
+
+### 顺手修掉一个假守门
+`meta.test.mjs` 里「watch.js 导出必须被 import」那条用了 `new RegExp('' + name + '')`，
+但文件里实际是**单个反斜杠**（`''` 写成了 `''`→退格符），正则永远匹配不到东西 —— 这条守门此前形同虚设。
+已改成真正的词边界，并另加一条「官方原语齐全」守门。
+
+### 测试
+- 合计 **102 例**；UI 体检 9/9 = 100 分（官方结构采用 8/8）。
+
 ## [0.8.43] - 2026-11-02 —— 行结构与设置页改用官方模板
 
 按 `docs/ui-inventory.md` 的第 1、2 项打。

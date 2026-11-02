@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.43'
+    const CLIENT_VERSION = '0.8.44'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -244,12 +244,79 @@ window.__ModuleLoader__.load({
       return h('span', { className: 'dt-dot-wrap', title: label, role: 'img', 'aria-label': label }, dot)
     }
 
-    function Section({ title, count, children }) {
+    // 官方 Section 还支持 hint（说明）与 action（右上角动作），我们之前只有 title/count。
+    function Section({ title, count, hint, action, children }) {
       return h('section', { className: 'dt-section' },
-        title ? h('div', { className: 'dt-section-title' },
-          h('span', { className: 'dt-section-name' }, title),
-          count !== undefined && count !== null ? h('span', { className: 'dt-count' }, String(count)) : null) : null,
+        title
+          ? h('div', { className: 'dt-section-title' },
+            h('span', { className: 'dt-section-name' }, title),
+            count !== undefined && count !== null ? h('span', { className: 'dt-count' }, String(count)) : null,
+            action ? h('span', { className: 'dt-subhead-actions' }, action) : null)
+          : null,
+        hint ? h(Hint, null, hint) : null,
         children)
+    }
+
+    /** 官方 DisclosureRow 的实际用法：默认收起，点开看明细。 */
+    function CollapsibleList({ title, items }) {
+      const [open, setOpen] = useState(false)
+      return h(DisclosureRow, {
+        title: title + '（' + items.length + '）',
+        open, onToggle: () => setOpen(!open),
+        icon: h(Icon, { name: 'question', size: 14 }),
+        collapsedContent: h('span', { className: 'dt-hint' }, items[0] ? String(items[0]).slice(0, 40) : ''),
+      },
+        h('ul', { className: 'dt-plain-list' },
+          items.map((text, index) => h('li', { key: index }, text))))
+    }
+
+    /** 官方 Pill：可切换的小胶囊（用于「全部 / 只看失败」这类就地过滤）。 */
+    function Pill({ active, onClick, children }) {
+      return h('button', {
+        type: 'button', className: cx('dt-pill', active && 'dt-pill-active'),
+        'aria-pressed': !!active, onClick,
+      }, children)
+    }
+
+    /** 官方 SegmentedControl：单选分段（与 SegTabs 的页签语义不同，用于表单内的互斥选择）。 */
+    function SegmentedControl({ options, value, onChange, label, disabled }) {
+      return h('div', { className: 'dt-segmented', role: 'radiogroup', 'aria-label': label },
+        options.map((option) => h('button', {
+          key: option.value, type: 'button', role: 'radio',
+          'aria-checked': value === option.value, 'aria-selected': value === option.value,
+          className: 'dt-segment', disabled: disabled || option.disabled,
+          onClick: () => onChange(option.value),
+        }, option.label)))
+    }
+
+    /** 官方 DisclosureRow：折叠行的标准写法（Enter / 空格可切换，带 aria-expanded）。 */
+    function DisclosureRow({ icon, title, open, onToggle, collapsedContent, children }) {
+      return h('div', { className: 'dt-disclosure', 'data-open': open ? 'true' : undefined },
+        h('div', {
+          className: 'dt-disclosure-row', role: 'button', tabIndex: 0, 'aria-expanded': !!open,
+          onClick: onToggle,
+          onKeyDown: (event) => {
+            if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onToggle() }
+          },
+        },
+          h('span', { className: 'dt-disclosure-lead' },
+            h('span', { className: 'dt-disclosure-icon' }, icon),
+            h('span', { className: 'dt-disclosure-chevron' }, h(Icon, { name: open ? 'chevron-up' : 'chevron-down' }))),
+          h('span', { className: 'dt-disclosure-title' }, title),
+          !open ? collapsedContent : null),
+        open ? children : null)
+    }
+
+    /** 官方 InfoTip：点一下出气泡（我们之前只有 dt-info 的样式，没有组件）。 */
+    function InfoTip({ text, icon = 'question', warn }) {
+      const [open, setOpen] = useState(false)
+      return h('span', { style: { position: 'relative', display: 'inline-flex' } },
+        h('button', {
+          type: 'button', className: cx('dt-info', warn && 'dt-info-warn'),
+          'aria-label': text, 'aria-expanded': open,
+          onClick: () => setOpen(!open), onBlur: () => setOpen(false),
+        }, h(Icon, { name: icon, size: 14 })),
+        open ? h('span', { className: 'dt-tooltip', role: 'tooltip', style: { position: 'absolute', bottom: '130%', left: 0, visibility: 'visible' } }, text) : null)
     }
 
     const Hint = ({ children }) => h('p', { className: 'dt-hint' }, children)
@@ -971,10 +1038,12 @@ window.__ModuleLoader__.load({
 
       const overview = [
         watchers.some((w) => (w.filteredLog || []).length > 0)
-          ? h(Section, { key: 'filtered', title: '最近被过滤', count: watchers.reduce((n, w) => n + (w.filteredLog || []).length, 0) },
-            h('ul', { className: 'dt-plain-list' },
-              watchers.flatMap((w) => (w.filteredLog || []).slice(-2).map((entry) => h('li', { key: w.repo + '#' + w.sessionId + entry.number + entry.at },
-                '#' + entry.number + ' ' + (entry.title || '') + ' — ' + entry.reason)))))
+          ? h(Section, { key: 'filtered', title: '最近被过滤' },
+            h(CollapsibleList, {
+              title: '看被过滤的条目',
+              items: watchers.flatMap((w) => (w.filteredLog || []).slice(-2).map((entry) =>
+                '#' + entry.number + ' ' + (entry.title || '') + ' — ' + entry.reason)),
+            }))
           : null,
         problems.length > 0
           ? h(Section, { key: 'problems', title: '需要关注', count: problems.length },
@@ -994,20 +1063,32 @@ window.__ModuleLoader__.load({
       ]
 
       // 判定日志（对应官方 eval 页）：每轮的唤醒结果、跳过原因、被过滤记录，一次看全
-      const judge = h(Section, { title: '判定日志', count: watchers.reduce((n, w) => n + (w.history || []).length, 0) },
+      // 判定页用官方的时间线结构（dt-timeline / dt-event / dt-event-foot），
+      // 官方在 thread.tsx 与 settings-kit.tsx 里就是这么铺「发生过什么」的。
+      const judge = h(Section, {
+        title: '判定日志',
+        count: watchers.reduce((n, w) => n + (w.history || []).length, 0),
+        action: h(InfoTip, { text: '每轮判定都会记一条：唤醒、仅观察，或跳过及其原因。只存最近若干条。' }),
+      },
         watchers.length === 0
           ? h(Hint, null, '还没有主理鱼。')
-          : h('div', { className: 'dt-rows' },
-            watchers.flatMap((watcher) => (watcher.history || []).slice(-6).reverse().map((entry, index) => h('div', { className: 'dt-row', key: watcher.repo + '#' + watcher.sessionId + entry.at + index },
-              h('div', { className: 'dt-row-main' },
-                h(Dot, { state: entry.ok ? 'done' : entry.reason === 'observe' ? 'idle' : 'error', label: entry.ok ? '已唤醒' : (entry.reason || '跳过') }),
-                h('div', { className: 'dt-row-title' },
-                  h('span', { className: 'dt-row-name' }, watcher.repo + ' ' + (entry.numbers || []).map((n) => '#' + n).join(' ')),
-                  h('span', { className: 'dt-row-meta' },
-                    [
-                      entry.ok ? '已唤醒' : (entry.reason === 'observe' ? '仅观察（未唤醒）' : '跳过：' + (entry.reason || '未知')),
-                      ageText(entry.at),
-                    ].filter(Boolean).join(' · ')))))))))
+          : h('ol', { className: 'dt-timeline' },
+            watchers.flatMap((watcher) => (watcher.history || []).slice(-6).reverse().map((entry, index) => {
+              const label = entry.ok ? '已唤醒' : entry.reason === 'observe' ? '仅观察（未唤醒）' : '跳过：' + (entry.reason || '未知')
+              return h('li', {
+                key: watcher.repo + '#' + watcher.sessionId + entry.at + index,
+                className: 'dt-event' + (entry.ok ? '' : ' dt-event-quiet'),
+              },
+                h('div', { className: 'dt-event-foot' },
+                  h('strong', { className: 'dt-event-actor' }, watcher.repo),
+                  h('span', null, ageText(entry.at))),
+                h('p', { className: 'dt-event-text' }, label),
+                h('div', { className: 'dt-event-foot' },
+                  (entry.numbers || []).length > 0
+                    ? h('span', null, (entry.numbers || []).map((n) => '#' + n).join(' '))
+                    : null,
+                  h('span', null, (watcher.title || '未命名会话') + ' · ' + sessionTag(watcher.sessionId))))
+            }))))
 
       const trigger = h(Section, { title: '新增主理鱼' },
         h('div', { className: 'dt-form' },

@@ -155,3 +155,10 @@ test('SERVER_VERSION = package.json 版本', () => {
   assert.ok(v, 'lib/index.js 里没有 SERVER_VERSION')
   assert.equal(v[1], pkg.version)
 })
+
+test('官方原语齐全（controls.tsx 那一套都要在）', () => {
+  const src = read('../client.js')
+  for (const name of ['Icon', 'Btn', 'Tag', 'Pill', 'SegTabs', 'SegmentedControl', 'Input', 'Toggle', 'Modal', 'DisclosureRow', 'InfoTip', 'Section']) {
+    assert.ok(src.includes('function ' + name + '('), '缺少原语 ' + name)
+  }
+})

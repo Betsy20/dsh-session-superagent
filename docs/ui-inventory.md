@@ -71,10 +71,10 @@
 
 ## 七、下一步（按 ROI 排）
 
-1. **行列表改官方 `dt-ticket` 结构**（左侧状态列 + `dt-open` 标题 + `dt-ticket-actions`）—— 总览和判定两处一起换；
-2. **设置页改成官方「左栏 + 内容」**（`dt-settings` 网格已有 CSS，只是没用上）；
-3. **判定页改用 `dt-timeline` / `dt-event`**；
-4. **补齐缺的原语**：`Pill`、`SegmentedControl`、`DisclosureRow`、`InfoTip`、`StateDot`；
+1. ✅ **行列表改官方 `dt-ticket` 结构**（0.8.43）
+2. ✅ **设置页改成官方「左栏 + 内容」**（0.8.43）
+3. ✅ **判定页改用 `dt-timeline` / `dt-event`**（0.8.44）
+4. ✅ **补齐缺的原语**：`Pill`、`SegmentedControl`、`DisclosureRow`、`InfoTip`（0.8.44；`StateDot` 已在 dock 用 `dt-state-dot`）
 5. **表单字段统一走官方 `Field`（带 hint/note）**；
 6. **Toast → Banner**：重要结果用 banner，toast 只做轻提示；
 7. 双主题实拍 + 键盘走查（需宿主，攒批）。
