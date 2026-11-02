@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.47'
+    const CLIENT_VERSION = '0.8.48'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -255,6 +255,23 @@ window.__ModuleLoader__.load({
           : null,
         hint ? h(Hint, null, hint) : null,
         children)
+    }
+
+    /**
+     * 第一次打开面板时的空态：官方那种「不是白屏，而是告诉你下一步做什么」。
+     * 三步走完就能跑起来 —— 客户不用去翻 README。
+     */
+    function Onboarding({ onStart }) {
+      return h('div', { className: 'dt-card' },
+        h('div', { className: 'dt-card-head' },
+          h('span', { className: 'dt-card-title' }, '三步让这个会话开始盯办')),
+        h('ol', { className: 'dt-plain-list' },
+          h('li', null, '① 填一个仓库（owner/name，比如 MYCF711/dsh-session-superagent）'),
+          h('li', null, '② 选间隔（默认 60 秒；建议先设 300 秒，别把 API 打满）'),
+          h('li', null, '③ 点「添加到当前会话」——之后仓库有动静，这个会话就会被叫醒')),
+        h('div', { className: 'dt-actions' },
+          h(Btn, { variant: 'primary', icon: h(Icon, { name: 'plus' }), onClick: onStart }, '去添加第一条')),
+        h(Hint, null, '想先看看效果？在「触发」页勾上「仅观察」：它只记录本会唤醒哪几条，不会真打扰你。'))
     }
 
     /** 官方 DisclosureRow 的实际用法：默认收起，点开看明细。 */
@@ -1063,7 +1080,7 @@ window.__ModuleLoader__.load({
           h('div', { className: 'dt-stat' }, h('span', { className: 'dt-stat-value' }, String(broken)), h('span', null, '异常'))),
         h(Section, { key: 'list', title: needle ? '搜索结果' : '主理鱼', count: visible.length },
           watchers.length === 0
-            ? h(Hint, null, '还没有主理鱼。切到「触发」页填一个 owner/name 添加。')
+            ? h(Onboarding, { onStart: () => setTab('trigger') })
             : visible.length === 0
               ? h(Hint, null, '没有匹配「' + search + '」的主理鱼。')
               : h('ul', { className: 'dt-list' }, visible.map(row))),

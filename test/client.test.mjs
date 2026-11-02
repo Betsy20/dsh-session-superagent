@@ -595,3 +595,19 @@ test('设置页用官方左栏导航（dt-settings + dt-settings-nav）', () => 
   const current = links.filter((n) => n.props['aria-current'] === 'page')
   assert.equal(current.length, 1, '当前分区要有 aria-current=page')
 })
+
+test('空态不是白屏：三步引导 + 一个能直接开始的动作', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snapshot = {
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: '会话', credentials: { token: 'none', sshKeyPath: 'none' }, watchers: [] },
+  }
+  const nodes = walk(render(desk, deskQueue(snapshot)))
+  const text = nodes.filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(text.includes('三步'), '空态要给出上手路径：' + text.slice(0, 160))
+  assert.ok(text.includes('①') && text.includes('③'), '三步都要在')
+  const labels = nodes.filter((n) => n.type === 'button')
+    .map((b) => (b.props.children || []).filter((c) => typeof c === 'string').join(''))
+  assert.ok(labels.some((l) => l.includes('去添加第一条')), '要有一个直接开始的按钮：' + labels.join('|'))
+})
