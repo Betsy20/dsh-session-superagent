@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.59'
+    const CLIENT_VERSION = '0.8.60'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -902,6 +902,7 @@ window.__ModuleLoader__.load({
             isolated: !!draft.isolated,
             workdir: draft.workdir || '',
             observe: !!draft.observe,
+            isolateKeepDays: Number(draft.isolateKeepDays) || undefined,
             batchLimit: Number(draft.batchLimit) || undefined,
             maxWakesPerHour: Number(draft.maxWakesPerHour) || undefined,
           }),
@@ -982,8 +983,15 @@ window.__ModuleLoader__.load({
                   intervalSec: String(watcher.intervalSec ?? 60),
                   labels: (watcher.filters && watcher.filters.labels ? watcher.filters.labels : []).join(','),
                   activeHours: watcher.activeHours || '',
-                  goal: watcher.note || '',
+                  goal: watcher.note || watcher.goal || '',
                   onlyAssigned: !!(watcher.filters && watcher.filters.onlyAssigned),
+                  // 下面这些以前没填 —— 打开一条隔离执行的守再直接保存，会把 isolated 写回 false
+                  observe: !!watcher.observe,
+                  isolated: !!watcher.isolated,
+                  workdir: watcher.workdir || '',
+                  batchLimit: watcher.batchLimit ? String(watcher.batchLimit) : '',
+                  maxWakesPerHour: watcher.maxWakesPerHour ? String(watcher.maxWakesPerHour) : '',
+                  isolateKeepDays: watcher.isolateKeepDays ? String(watcher.isolateKeepDays) : '',
                 })
               },
             }, watcher.repo)),
@@ -1029,6 +1037,7 @@ window.__ModuleLoader__.load({
             h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.observe, onChange: (v) => setDraft({ ...draft, observe: v }), label: '仅观察' }), '仅观察（只记录不唤醒）'),
             h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.isolated, onChange: (v) => setDraft({ ...draft, isolated: v }), label: '隔离执行' }), '隔离执行（每次唤醒开一次性 worktree）'),
             draft.isolated ? field('隔离工作目录', h(Input, { value: draft.workdir || '', placeholder: '绝对路径，留空 = 当前工作目录', onChange: (e) => setDraft({ ...draft, workdir: e.target.value }) })) : null,
+            draft.isolated ? field('隔离区保留天数', h(Input, { value: draft.isolateKeepDays || '', placeholder: '3（1-30）', onChange: (e) => setDraft({ ...draft, isolateKeepDays: e.target.value }) }), '每次唤醒前回收这个天数之前的一次性工作区；留空用默认 3 天') : null,
             h('div', { className: 'dt-actions' },
               h(Btn, { size: 'sm', variant: 'primary', onClick: () => saveEdit(watcher) }, '保存'),
               h(Btn, { size: 'sm', onClick: () => setEditing(null) }, '放弃')))

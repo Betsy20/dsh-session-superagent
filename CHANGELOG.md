@@ -2,6 +2,29 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.60] - 2026-11-02 —— 保留天数可配；顺手修掉一个会写坏配置的真 bug
+
+### 学到的（知识库第 9 条）
+GitHub Actions 的产物保留天数可按仓库配（默认 90 天，1–90 可选）——
+会长期增长的资源（日志/产物/缓存）应当**可调 + 有默认值 + 有上下限**。
+<https://docs.github.com/en/actions/managing-workflow-runs-and-deployments/managing-workflow-runs/removing-workflow-artifacts>
+
+我们的 `isolateKeepDays` 服务端早就支持（默认 3 天），**面板一直没有入口**。
+
+### 改了什么
+1. 编辑表单加「隔离区保留天数」（留空用默认 3），保存走 `/watch`；
+2. **修掉一个真 bug**：打开编辑态时只回填了 5 个字段（间隔/标签/时段/目标/已指派），
+   `observe / isolated / workdir / batchLimit / maxWakesPerHour` 都没填 ——
+   打开一条"隔离执行"的守、不作修改直接「保存」，会把 `isolated` 写回 `false`。
+   已补齐全部 10 个字段。
+
+### 为什么这条只能用源码级守门
+假 DOM 的 `setState` 是空实现，点标题触发 `setDraft` 后拿不到新渲染，
+所以行为测不出来。改成**静态检查**：编辑态初始化块必须包含全部 10 个字段名。
+
+### 测试
+- 合计 **114 例**（新增源码级守门）。
+
 ## [0.8.59] - 2026-11-02 —— 孤儿 worktree 删了目录还得 prune；占用看得见
 
 ### 学到的（知识库第 8 条）
