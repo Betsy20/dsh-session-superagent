@@ -66,3 +66,4 @@
 | 可靠性 | [投递成功 ≠ 有人动手](wake-without-ack.md) | ✅ 0.9.11 |
 | 交互 | [提示之后要有下一步动作，但别替客户改仓库](close-the-loop-with-action.md) | ✅ 0.9.12 |
 | 交互 | [守多个仓库时先给"哪个仓库有问题"](repo-level-summary.md) | ✅ 0.9.13 |
+| 交互 | [汇总行要么能点，要么就是装饰](summary-as-navigation.md) | ✅ 0.9.14 |

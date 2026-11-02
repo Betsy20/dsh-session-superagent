@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.13'
+    const CLIENT_VERSION = '0.9.14'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1254,12 +1254,17 @@ window.__ModuleLoader__.load({
               h('div', { className: 'dt-hint' }, watcher.repo + ' · ' + event.text)))))))
 
       // 按仓库汇总：守多个仓库时先看哪个健康，再看明细（渐进披露）
-      const repoSummary = visible.length === 0 ? null : h(Section, { key: 'repo-summary', title: '按仓库' },
+      const repoSummary = visible.length === 0 ? null : h(Section, { key: 'repo-summary', title: '按仓库', hint: '点仓库名只看它（再点取消）' },
         h('div', { className: 'dt-rows' }, ...summarizeByRepo(visible).map((group) => h('div', { key: 'repo-' + group.repo, className: 'dt-row' },
           h('div', { className: 'dt-row-main' },
             h('div', { className: 'dt-row-title' },
               h(StateDot, { state: group.errors > 0 ? 'error' : group.silentWakes >= 2 ? 'warning' : 'done' }),
-              h('span', { className: 'dt-row-name' }, group.repo),
+              h('button', {
+                className: 'dt-textlink dt-row-name',
+                type: 'button',
+                onClick: () => setSearch(search === group.repo ? '' : group.repo),
+                title: '点一下只看这个仓库（再点取消）',
+              }, group.repo),
               ...group.badges.map((badge) => h(Tag, { key: 'rb-' + badge.text, tone: badge.tone }, badge.text))),
             h('div', { className: 'dt-row-meta' },
               h('span', null, group.count + ' 条守（启用 ' + group.enabled + '）'),

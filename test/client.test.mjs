@@ -758,3 +758,23 @@ test('"叫醒了没回音"要给出下一步动作：建议规则可以复制（
   assert.ok(opened.includes('watch_ack'), '规则里要强调 ack')
   assert.ok(opened.includes('复制这段规则'), '要有复制动作')
 })
+
+test('「按仓库」汇总里的仓库名可以点（点一下只看这个仓库）', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = {
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: 'x', credentials: {}, watchers: [
+      watcher('a/b', { id: 'a/b#s1' }),
+      watcher('c/d', { id: 'c/d#s2', sessionId: 'session-c/d' }),
+    ] },
+  }
+  const nodes = walk(render(desk, deskQueue(snap)))
+  const buttons = nodes.filter((n) => n.type === 'button' && n.props && typeof n.props.onClick === 'function' && n.props.title === '点一下只看这个仓库（再点取消）')
+  assert.equal(buttons.length, 2, '每个仓库一个可点名字')
+  // 搜索已命中某仓库时，只应看到它的明细
+  const filtered = walk(render(desk, deskQueue(snap, null, {}, 'overview', 'a/b')))
+    .filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(filtered.includes('a/b'), '命中的要留下')
+  assert.ok(!filtered.includes('c/d'), '不命中的要过滤掉：' + filtered.slice(0, 200))
+})
