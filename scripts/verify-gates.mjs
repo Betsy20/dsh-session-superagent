@@ -10,6 +10,9 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
+const coverage = JSON.parse(readFileSync(join(root, 'test', 'fixtures', 'gate-coverage.json'), 'utf8'))
+const preflightSrc = readFileSync(join(root, 'scripts', 'preflight.mjs'), 'utf8')
+const allChecks = [...new Set([...preflightSrc.matchAll(/record\('([^']+)'/g)].map((m) => m[1]))]
 const run = (args) => {
   try {
     const out = execFileSync('node', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
@@ -140,6 +143,52 @@ const record = (name, detected, detail) => {
     writeFileSync(path, original)
   }
 }
+
+// ⑨ 错误建议：把某条建议拉长到超限，audit-error-hints 必须红
+{
+  const path = join(root, 'lib', 'gh-format.js')
+  const original = readFileSync(path, 'utf8')
+  try {
+    writeFileSync(path, original.replace('（找不到 gh 命令：确认已安装且在 PATH）',
+      '（找不到 gh 命令：请先确认你已经安装了 GitHub CLI，再确认可执行文件所在目录已经加入 PATH 环境变量，必要时重新打开终端）'))
+    const res = run(['scripts/audit-error-hints.mjs'])
+    record('错误建议（注入超长建议）', res.code !== 0)
+  } finally {
+    writeFileSync(path, original)
+  }
+}
+
+// ⑩ 全库文档一致：临时文档里写一个不存在的工具名，audit-docs-all 必须红
+{
+  const path = join(root, 'docs', 'zz-injected-tool.md')
+  try {
+    writeFileSync(path, '# 注入测试' + String.fromCharCode(10) + String.fromCharCode(10) + '调用 `watch_nonexistent_tool` 即可。' + String.fromCharCode(10))
+    const res = run(['scripts/audit-docs-all.mjs'])
+    record('全库文档一致（注入假工具名）', res.code !== 0 && /watch_nonexistent_tool/.test(res.out))
+  } finally {
+    if (existsSync(path)) unlinkSync(path)
+  }
+}
+
+// ⑪ 文案快照（唤醒消息）：改一个可见词，first-run --check 必须红
+{
+  const path = join(root, 'lib', 'watch.js')
+  const original = readFileSync(path, 'utf8')
+  try {
+    writeFileSync(path, original.replace('【为什么是这几条】', '【注入测试标题】'))
+    const res = run(['scripts/first-run.mjs', '--check'])
+    record('文案快照（注入改标题）', res.code !== 0)
+  } finally {
+    writeFileSync(path, original)
+  }
+}
+
+// 覆盖率报告：明确列出"还没被注入验证过"的检查，别让人以为全验过了
+const covered = new Set(coverage.covered)
+const notCovered = allChecks.filter((name) => !covered.has(name))
+console.log('---')
+console.log('注入覆盖：' + (allChecks.length - notCovered.length) + '/' + allChecks.length + ' 项检查有注入验证')
+if (notCovered.length > 0) console.log('未验证（不一定是问题，但要知道）：' + notCovered.join('、'))
 
 const failed = results.filter((item) => !item.detected)
 console.log('---')

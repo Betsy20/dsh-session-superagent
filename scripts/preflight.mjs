@@ -67,7 +67,7 @@ if (!FAST) {
   const out = String(res.stdout || '')
   const summary = (out.match(/PASS (\d+)\/(\d+) 项注入都被检测到/) || [])
   record('门禁自检', res.status === 0 && summary.length > 0,
-    summary.length > 0 ? summary[1] + '/' + summary[2] + ' 项注入都被检测到' : (out.split(String.fromCharCode(10)).filter((l) => l.startsWith('FAIL'))[0] || '无输出').replace(/^FAIL /, ''))
+    summary.length > 0 ? summary[1] + '/' + summary[2] + ' 项注入都被检测到（' + (String(res.stdout || '').match(/注入覆盖：(\d+)\/(\d+)/) || ['', '?', '?'])[1] + '/' + (String(res.stdout || '').match(/注入覆盖：(\d+)\/(\d+)/) || ['', '?', '?'])[2] + ' 项有注入）' : (out.split(String.fromCharCode(10)).filter((l) => l.startsWith('FAIL'))[0] || '无输出').replace(/^FAIL /, ''))
 }
 
 // ② 语法
