@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.97'
+    const CLIENT_VERSION = '0.9.98'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1087,9 +1087,20 @@ window.__ModuleLoader__.load({
             : null,
           watcher.lastError ? (() => {
             const parts = splitErrorText(watcher.lastError)
+            // 错误光说「为什么」不够，要能点一下就到「下一步」（服务端已给 kind）
+            const FIX = {
+              auth: { label: '去填 token', onClick: () => setTab('settings') },
+              moved: { label: '改仓库地址', onClick: () => setTab('trigger') },
+              notfound: { label: '改仓库地址', onClick: () => setTab('trigger') },
+              network: { label: '立刻重试', onClick: () => act(watcher, 'poll') },
+              ratelimit: { label: '立刻重试', onClick: () => act(watcher, 'poll') },
+              gateway: { label: '立刻重试', onClick: () => act(watcher, 'poll') },
+            }
+            const fix = FIX[watcher.lastErrorKind] || null
             return h('div', { className: 'dt-ticket-note dt-ticket-note-error' },
               parts.main.slice(0, 120) + (parts.main.length > 120 ? '…' : ''),
-              parts.hint ? h('div', { className: 'dt-hint' }, parts.hint) : null)
+              parts.hint ? h('div', { className: 'dt-hint' }, parts.hint) : null,
+              fix ? h('div', { className: 'dt-actions' }, h(Btn, { size: 'sm', variant: 'outline', 'aria-label': fix.label, onClick: fix.onClick }, fix.label)) : null)
           })() : null,
           h('div', { className: 'dt-ticket-actions' },
             h(Btn, { size: 'sm', variant: 'outline', icon: h(Icon, { name: 'refresh' }), onClick: () => act(watcher, 'poll') }, '立刻'),

@@ -992,3 +992,30 @@ test('同一仓库被多个会话守着时，面板要说清"还有谁在守"', 
   const soloText = walk(render(desk, deskQueue(solo, null, {}, 'judge'))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
   assert.ok(!soloText.includes('也在守这个仓库'), '独占时不显示')
 })
+
+test('错误旁边要有「下一步」按钮（登录失效 → 去填 token；改名 → 改仓库地址）', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const at = (mins) => new Date(Date.now() - mins * 60000).toISOString()
+  const base = (kind, err) => ({
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: 'x', credentials: {}, sessionUsage: { used: 1, cap: 12, capped: 0 },
+      watchers: [watcher('a/b', {
+        id: 'a/b#s1', lastWake: at(30), history: [{ at: at(30), numbers: [1], ok: true }],
+        lastError: err, lastErrorKind: kind,
+      })] },
+  })
+  const text = (snap) => walk(render(desk, deskQueue(snap))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+
+  const auth = text(base('auth', 'GitHub API 请求: 401（gh 登录失效：跑 gh auth login，或在面板填 token）'))
+  assert.ok(auth.includes('去填 token'), '登录失效要给「去填 token」：' + auth.slice(0, 300))
+
+  const moved = text(base('moved', 'GitHub API 请求: 301（仓库改名或转移了：用新地址重新添加）'))
+  assert.ok(moved.includes('改仓库地址'), '改名要给「改仓库地址」')
+
+  const net = text(base('network', 'GitHub API 请求: EOF（网络抖动：已按退避自动重试）'))
+  assert.ok(net.includes('立刻重试'), '网络问题要给「立刻重试」')
+
+  const other = text(base('other', 'GitHub API 请求: 418 我是茶壶'))
+  assert.ok(!other.includes('去填 token') && !other.includes('改仓库地址') && !other.includes('立刻重试'), '未归类的错误不给乱指路的按钮')
+})
