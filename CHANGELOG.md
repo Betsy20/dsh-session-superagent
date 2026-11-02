@@ -2,6 +2,25 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.6] - 2026-11-02 —— 会话忙时不再白开隔离区
+
+### 学到的（知识库第 55 条）
+把"能不能做"的**便宜判断**放在"做"之前。这里的代价不是网络，而是本地 git：
+本机实测 `git worktree add` **0.187s**，回收阶段每个过期副本还要 `remove` + `branch -D` 各一次。
+
+### 原来的顺序（浪费）
+`pollOnce` 先 `prepareIsolation()`（回收 + 开新副本）再 `wake()`，
+而 `wake()` 第一步 `decideWake(agent.status)` —— 会话不是 idle 就直接拒绝。
+于是"会话忙"这个常见状态，会白白付出一次完整隔离区开销，开出来的副本还没人用。
+
+### 改了什么
+在 `prepareIsolation()` 之前先判一次；忙则写清「这一轮不准备隔离区，下一轮再试」并返回。
+省 git 开销，面板原因也更准确（以前只写 `wake failed`）。
+
+### 测试
+- 新增 `test/wake-order.test.mjs`：**源码顺序断言** —— 前置判断必须在 `prepareIsolation` 之前，
+  且文案含"下一轮再试"。（顺序约束没法用行为测试表达。）合计 **149 例**。
+
 ## [0.9.5] - 2026-11-02 —— 修掉 0.9.3 引入的「丢消息」bug
 
 ### 学到的（知识库第 54 条）
