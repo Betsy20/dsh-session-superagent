@@ -1266,3 +1266,9 @@ test('进入时段外等待时清掉旧错误（否则面板会一直显示「�
   assert.ok(entry.lastDeferred.includes('597 分钟'), '要说清多久后开始：' + entry.lastDeferred)
   assert.ok(Date.parse(entry.nextAt) > Date.now(), 'nextAt 要指向未来')
 })
+
+test('凭证失效要走 30 分钟退避（auth 不会自己好）', () => {
+  // 依据：401 重试无意义，反复 401 还可能被风控当成异常
+  assert.equal(watchModule.permanentBackoffMs('auth', 60000), 30 * 60 * 1000)
+  assert.equal(watchModule.permanentBackoffMs('network', 60000), 0, '网络抖动仍按指数退避')
+})

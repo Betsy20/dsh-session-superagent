@@ -1089,3 +1089,22 @@ test('错误要标出「多久之前」，超过一小时标「旧记录」', ()
   const old = text(150)
   assert.ok(old.includes('旧记录'), '150 分钟前的错误要标「旧记录」：' + old.slice(0, 200))
 })
+
+test('凭证失效时面板要显眼提示「不会自己恢复」', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const at = (mins) => new Date(Date.now() - mins * 60000).toISOString()
+  const snap = {
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: 'x', credentials: {}, sessionUsage: { used: 1, cap: 12, capped: 0 },
+      watchers: [watcher('a/b', {
+        id: 'a/b#s1', lastWake: at(10), needsReauth: true,
+        lastError: 'GitHub API 请求: 401（gh 登录失效：跑 gh auth login，或在面板填 token）',
+        lastErrorKind: 'auth', lastErrorAt: at(5),
+      })] },
+  }
+  const text = walk(render(desk, deskQueue(snap))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(text.includes('凭证失效'), '要有凭证失效提示：' + text.slice(0, 300))
+  assert.ok(text.includes('不会自己恢复'), '要说清不会自愈')
+  assert.ok(text.includes('gh auth login'), '要给出具体命令')
+})

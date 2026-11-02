@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.118'
+    const CLIENT_VERSION = '0.9.119'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1093,6 +1093,8 @@ window.__ModuleLoader__.load({
           (watcher.otherSessions && watcher.otherSessions.length > 0)
             ? h('div', { className: 'dt-ticket-note' }, '还有 ' + watcher.otherSessions.length + ' 个会话也在守这个仓库：' + watcher.otherSessions.join('、') + '（各自独立唤醒；但 ack 标签是仓库级的 —— 任一方 ack 后两边都会跳过，想让两边各处理各的就给对方设不同标签）')
             : null,
+          watcher.needsReauth ? h('div', { className: 'dt-banner dt-danger' },
+            '凭证失效：跑 gh auth login 重新登录 —— 它不会自己恢复，在此之前这条守只会一直失败') : null,
           watcher.lastError ? (() => {
             const parts = splitErrorText(watcher.lastError)
             // 错误光说「为什么」不够，要能点一下就到「下一步」（服务端已给 kind）

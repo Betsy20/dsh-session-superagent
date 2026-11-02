@@ -1086,3 +1086,30 @@ test('github 工具失败时带「下一步」与 kind（不再只贴原始 stde
   assert.ok(ok.includes('[exit code: 0]'))
   assert.ok(!ok.includes('[kind:'), '成功时不该带 kind')
 })
+
+test('凭证失效时 doctor 要明说「不会自愈，需要重新登录」', async () => {
+  const tools = []
+  const dir = tempDir('zhuli-reauth-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: () => () => {} },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-reauth' }) },
+    get: () => null, on() {}, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?reauth=' + Date.now())
+  mod.apply(ctx)
+  await tools.find((t) => t.name === 'watch_start').execute({ repo: 'acme/reauth' })
+
+  const state = mod.__test.readState()
+  const key = Object.keys(state.watchers)[0]
+  state.watchers[key].lastError = 'GitHub API 请求: 401（gh 登录失效：跑 gh auth login，或在面板填 token）'
+  state.watchers[key].needsReauth = true
+  mod.__test.writeState(state)
+
+  const doctor = String(await tools.find((t) => t.name === 'watch_doctor').execute({}))
+  assert.ok(doctor.includes('凭证失效'), 'doctor 要单独报凭证失效：' + doctor.slice(0, 300))
+  assert.ok(doctor.includes('不会自己恢复'), '要说清不会自愈')
+  assert.ok(doctor.includes('gh auth login'), '要给出具体动作')
+})

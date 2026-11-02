@@ -2,6 +2,32 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.119] - 2026-11-03 —— 凭证失效要单独报，并说清"不会自己恢复"
+
+### 真机现场
+```
+$ gh auth status
+X Failed to log in to github.com account MYCF711 (keyring)
+  - The token in keyring is invalid.
+```
+插件这边只会显示一条普通的失败（`gh 登录失效：跑 gh auth login`），混在网络抖动里，
+客户很容易以为"等会儿就好"。而 **401 永远不会自己好**。
+
+### 改法
+1. `permanentBackoffMs` 把 `auth` 也纳入 30 分钟退避 —— 每 60 秒重试一次无意义，反复 401 还可能被风控；
+2. 失败时置 `needsReauth = true`，任何一次成功（含 304/204）都清掉；
+3. `/state` 暴露 `needsReauth`；
+4. `watch_doctor` 单列一行：
+   `FAIL 凭证失效（N 条守）：跑 gh auth login 重新登录，在此之前这些守只会一直失败 —— 它不会自己恢复`
+5. 面板顶部给红色横幅（不只是那行小字错误）。
+
+### 测试
+新增 3 例：`auth` 的 30 分钟退避、doctor 的"不会自己恢复"提示、面板横幅。合计 **228 例**。
+
+### 说明
+GitHub 文档本轮不可达（`raw.githubusercontent.com` 与 `api.github.com` 均 502），
+所以这条只依据本机 `gh auth status` 的实测输出，未复核文档原文。
+
 ## [0.9.118] - 2026-11-03 —— 单测从 101 秒降到 1.6 秒：它们一直在等一个不可能的 gh 响应
 
 ### 现场
