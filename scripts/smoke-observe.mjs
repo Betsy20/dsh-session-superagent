@@ -6,6 +6,14 @@
 //     隔离 worktree 真的建在 .dsh-zhuli/ 下
 //
 // 用法： node scripts/smoke-observe.mjs [owner/repo]
+
+// 这条冒烟需要**真机宿主**（活的会话 + 已挂载的插件 + gh 登录）。
+// 没有宿主时它不是"失败"，而是"没法验" —— 显式跳过，不制造红灯。
+if (process.env.DSH_SMOKE_HOST !== '1') {
+  console.log('SKIP 需要真机宿主：设置 DSH_SMOKE_HOST=1 再跑（列在攒批清单里）')
+  process.exit(0)
+}
+
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'

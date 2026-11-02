@@ -61,6 +61,15 @@ const tryRun = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: ROOT, encod
     bad.length > 0 ? bad[0].replace(/^FAIL /, '') : (cover ? cover + ' 类：都 ≤60 字符且有可执行动作' : '无输出'))
 }
 
+// ①.7 门禁自检（注入式验证：确认检查真的会红；--fast 跳过，约 10 秒）
+if (!FAST) {
+  const res = tryRun('node', ['scripts/verify-gates.mjs'], { timeout: 180000 })
+  const out = String(res.stdout || '')
+  const summary = (out.match(/PASS (\d+)\/(\d+) 项注入都被检测到/) || [])
+  record('门禁自检', res.status === 0 && summary.length > 0,
+    summary.length > 0 ? summary[1] + '/' + summary[2] + ' 项注入都被检测到' : (out.split(String.fromCharCode(10)).filter((l) => l.startsWith('FAIL'))[0] || '无输出').replace(/^FAIL /, ''))
+}
+
 // ② 语法
 {
   const files = ['client.js', 'lib/index.js', 'lib/watch.js', 'lib/gh-format.js', 'lib/redact.js', 'lib/body.js']
@@ -304,9 +313,13 @@ if (FAST) {
   } else {
     const res = tryRun('node', ['scripts/smoke-observe.mjs'], { timeout: 180000 })
     const out = String(res.stdout || '')
+    if (out.startsWith('SKIP')) {
+      console.log('SKIP 冒烟 smoke:observe              需要真机宿主（已列进攒批清单）')
+    } else {
     const okCount = (out.match(/^OK /gm) || []).length
     const badCount = (out.match(/^FAIL /gm) || []).length
     record('冒烟 smoke:observe', res.status === 0 && badCount === 0, `${okCount} 项 OK / ${badCount} 项 FAIL`)
+    }
   }
 }
 
