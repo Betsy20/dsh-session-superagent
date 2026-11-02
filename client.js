@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.64'
+    const CLIENT_VERSION = '0.8.65'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1057,6 +1057,9 @@ window.__ModuleLoader__.load({
 
       const problems = []
       for (const watcher of watchers) {
+        // 仓库结构问题（关闭 Issues / 是 fork）比轮询失败更早该说：它注定收不到条目
+        const structure = repoStructureNote(watcher.repoAccess)
+        if (structure) problems.push({ key: 's-' + watcher.repo, text: structure })
         if (watcher.lastError) problems.push({ key: 'e-' + watcher.repo, text: watcher.repo + ' 轮询失败：' + watcher.lastError })
         else if (watcher.lastDeferred) problems.push({ key: 'd-' + watcher.repo, text: watcher.repo + ' 暂停唤醒：' + watcher.lastDeferred })
       }
@@ -1275,6 +1278,17 @@ window.__ModuleLoader__.load({
         } catch { /* 宿主早期渲染时 fetch 可能还不存在，忽略即可 */ }
         return () => { alive = false }
       }, [])
+
+      /** 仓库结构提示（与服务端 watch.js:repoStructureNote 同语义；客户端要独立一份，不能跨包 import）。 */
+      function repoStructureNote(access) {
+        if (!access || typeof access !== 'object') return ''
+        const repo = String(access.repo || '这个仓库')
+        if (access.hasIssues === false) return repo + ' 关闭了 Issues —— 主理鱼只认 issue / PR，这里不会有任何条目可接。'
+        if (access.fork === true && access.parent && access.hasIssues !== true) {
+          return repo + ' 是 ' + String(access.parent) + ' 的 fork。fork 默认不带 Issues，issue 大多落在上游 —— 确认你要守的是哪一个。'
+        }
+        return ''
+      }
 
       /** 人话字节数：客户看的是"3.2 MB"，不是 3355443。 */
       function bytesText(n) {

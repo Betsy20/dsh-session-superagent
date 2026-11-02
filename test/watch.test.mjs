@@ -8,6 +8,7 @@ import {
   classifyGhError,
   parseGhInclude,
   accessNote,
+  repoStructureNote,
   countReasons,
   jitterMs,
   retryAfterMs,
@@ -512,4 +513,15 @@ test('只读仓库要在任务书里直说（否则会话会去试写然后吃 4
   const items = [{ number: 1, title: 'x', state: 'open', html_url: 'https://x/1', user: { login: 'u' }, labels: [], assignees: [] }]
   const text = formatWatchText('o/r', items, { access: note })
   assert.ok(text.includes('【权限提示】'), '要单独成行，别混在正文里')
+})
+
+test('仓库结构提示：关闭 Issues / 是 fork 都要提前说（否则守着一个永远没条目的仓库）', () => {
+  assert.equal(repoStructureNote(null), '')
+  assert.equal(repoStructureNote({ hasIssues: true, fork: false }), '')
+  const closed = repoStructureNote({ repo: 'o/r', hasIssues: false })
+  assert.ok(closed.includes('关闭了 Issues'), closed)
+  const fork = repoStructureNote({ repo: 'me/r', fork: true, parent: 'up/r' })
+  assert.ok(fork.includes('fork') && fork.includes('up/r'), fork)
+  // 有 issue 的 fork（用户自己开了）不提示
+  assert.equal(repoStructureNote({ repo: 'me/r', fork: true, parent: 'up/r', hasIssues: true }), '')
 })

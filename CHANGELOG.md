@@ -2,6 +2,26 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.65] - 2026-11-02 —— 关闭 Issues / 是 fork 的仓库，提前说清楚
+
+### 学到的（知识库第 14 条）
+`GET /repos` 自带结构信息：`has_issues` / `fork` / `parent.full_name`（本机实测都在）。
+主理鱼只认 issue / PR，所以「关闭了 Issues」的仓库注定永远安静 ——
+客户会以为插件坏了。
+
+（诚实标注：想抓 fork 文档正文说明"fork 默认不带 Issues"时页面没给出可读文本，
+这句按社区常识使用、未取得官方引用；因此对 **自己开了 Issues 的 fork 不提示**，避免误伤。）
+
+### 改了什么
+- `probeAccess` 一并取 `fork / hasIssues / parent`，存进 `entry.repoAccess`；
+- `/state` 回传 `repoAccess`；
+- 面板「需要关注」区新增两条人话提示（**排在轮询失败之前**）：
+  - `o/r 关闭了 Issues —— 主理鱼只认 issue / PR，这里不会有任何条目可接。`
+  - `me/r 是 up/r 的 fork。fork 默认不带 Issues … 确认你要守的是哪一个。`
+
+### 测试
+- 新增 1 例（5 种情况）。合计 **118 例**。
+
 ## [0.8.64] - 2026-11-02 —— 只读仓库提前说清楚，别等它吃 403
 
 ### 学到的（知识库第 13 条）
