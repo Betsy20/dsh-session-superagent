@@ -40,3 +40,4 @@
 | 性能 | [把自己接口也接上 ETag/304](etag-on-our-own-api.md) | ✅ 0.8.85 |
 | 性能 | [要不要改 SSE？量完，不值得](no-sse-decision.md) | ✅ 决定（不改代码） |
 | 可靠性 | [「挂不挂得上去」要在离线有答案](offline-mount-smoke.md) | ✅ 0.8.87 |
+| 可靠性 | [数量对不等于形状对：契约快照](contract-snapshot.md) | ✅ 0.8.88 |

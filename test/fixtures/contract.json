@@ -1,0 +1,86 @@
+{
+  "inject": [
+    "agents",
+    "tools",
+    "webServer"
+  ],
+  "tools": [
+    {
+      "name": "github",
+      "params": [
+        "body",
+        "confirm",
+        "method",
+        "path"
+      ],
+      "required": [
+        "path"
+      ]
+    },
+    {
+      "name": "repo_here",
+      "params": [],
+      "required": []
+    },
+    {
+      "name": "watch_ack",
+      "params": [
+        "label",
+        "number",
+        "numbers",
+        "repo"
+      ],
+      "required": []
+    },
+    {
+      "name": "watch_doctor",
+      "params": [
+        "repo"
+      ],
+      "required": []
+    },
+    {
+      "name": "watch_start",
+      "params": [
+        "activeHours",
+        "assignee",
+        "batchLimit",
+        "goal",
+        "ignoreLabels",
+        "intervalSec",
+        "isolated",
+        "labels",
+        "maxWakesPerHour",
+        "observe",
+        "onlyAssigned",
+        "repo",
+        "workdir"
+      ],
+      "required": []
+    },
+    {
+      "name": "watch_status",
+      "params": [],
+      "required": []
+    },
+    {
+      "name": "watch_stop",
+      "params": [
+        "repo"
+      ],
+      "required": [
+        "repo"
+      ]
+    }
+  ],
+  "routes": [
+    "/session-superagent/client-error",
+    "/session-superagent/client-note",
+    "/session-superagent/credentials",
+    "/session-superagent/diagnose",
+    "/session-superagent/goal",
+    "/session-superagent/state",
+    "/session-superagent/update",
+    "/session-superagent/watch"
+  ]
+}

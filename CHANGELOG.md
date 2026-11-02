@@ -2,6 +2,32 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.88] - 2026-11-02 —— 契约快照：数量对，形状也要对
+
+### 学到的（知识库第 37 条）
+Node 有 Snapshot testing 一节，但本机 `assert.snapshot` 是 `undefined`（`t.assert.snapshot` 属实验 API），
+**所以没用它** —— 改用最朴素的「JSON fixture + deepEqual」，即 approval testing。
+
+### 为什么需要
+0.8.87 的挂载冒烟只验**数量**（8 路由 / 7 工具）。路由改名、工具少一个参数时，数量仍可能是 8/7，
+但客户调用会**全废**。数量和形状是两件事。
+
+### 改了什么
+- `scripts/contract.mjs`：假 ctx → 真 `apply()` → 抽出 `{version, inject, tools[{name,params,required}], routes}`；
+- `test/fixtures/contract.json` 存快照；`test/contract-shape.test.mjs` 每次 deepEqual；
+- 只记**参数名**不记描述文案 —— 改文案不该红。
+- 改形状必须 `node scripts/contract.mjs --update` 并在 CHANGELOG 说明。
+
+### 负例验证（重要）
+故意把 `github` 的 params 改成只剩 `path` → 测试**立刻红**；`--update` 后恢复绿。
+
+### 当轮修正的一处设计错误
+第一版把 `version` 也写进快照 —— 结果每次发版都必须手工 `--update`，纯摩擦。
+已移除（版本由 meta 测试守）。**"测试不该逼人做无意义的操作"** 也是设计标准之一。
+
+### 测试
+- 新增 1 例，合计 **135 例**。
+
 ## [0.8.87] - 2026-11-02 —— 离线挂载冒烟：下次重启前先证明"挂得上去"
 
 ### 为什么这轮做这个（知识库第 36 条）
