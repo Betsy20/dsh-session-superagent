@@ -365,3 +365,14 @@ test('/state 带 sessionUsage（近一小时用了几次、上限多少、几条
   assert.ok(body.sessionUsage.cap >= 1, '上限要有值：' + JSON.stringify(body.sessionUsage))
   assert.equal(typeof body.sessionUsage.capped, 'number')
 })
+
+test('/state 每条守都带 deferReason（面板按字段统计，不再匹配文案）', async () => {
+  await call('POST', '/session-superagent/watch', { repo: 'o/reason', sessionId: 'session-reason', intervalSec: 60 })
+  const res = await call('GET', '/session-superagent/state')
+  const body = JSON.parse(res.body)
+  const list = body.watchers || []
+  assert.ok(list.length > 0, '应该有守')
+  for (const w of list) assert.ok('deferReason' in w, '缺 deferReason：' + JSON.stringify(w).slice(0, 120))
+  // 新加的守还没被暂停过 —— 应当是 null 而不是 undefined
+  assert.equal(list[0].deferReason, null)
+})

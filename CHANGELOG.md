@@ -2,6 +2,30 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.21] - 2026-11-02 —— 用原因码替代"匹配提示文案"
+
+### 学到的（知识库第 70 条）
+把展示层当数据层是反模式。OTel 的 log record 带结构化 attributes，文案只负责给人看。
+一旦拿文案当判据，任何一次文案优化都会**静默改变统计数据**。
+
+### 修的是什么
+0.9.20 统计"几条守被上限挡住"用的是 `lastDeferred.includes('上限')`：
+- 文案一改统计归零；
+- "额度紧张（剩余 …）"这类含"上限"但不是频率上限的提示会被误算。
+
+### 改法
+服务端在各暂停分支写 `entry.deferReason`（`active-hours` / `ratelimit` / `quota` /
+`unchanged` / `observe` / `cap-session` / `cap-watcher` / `busy`），
+统计改用 `countCapped()` 只认两种 cap 码；`/state` 也回传 `deferReason`。
+
+### 用例锁住的误判
+```js
+countCapped([{ lastDeferred: '每小时最多唤醒 6 次' }]) === 0   // 文案有"上限"也不算
+```
+
+### 测试
+- 新增 2 例（计数语义 + `/state` 契约）。合计 **166 例**。
+
 ## [0.9.20] - 2026-11-02 —— 面板显示"还能用几次"（会话唤醒用量）
 
 ### 学到的（知识库第 69 条）

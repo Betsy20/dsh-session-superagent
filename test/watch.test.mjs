@@ -17,6 +17,7 @@ import {
   mergeWakeTexts,
   msUntilActiveWindow,
   nextWaketimeAt,
+  countCapped,
   durationText,
   pushEvent,
   repoBadges,
@@ -992,4 +993,20 @@ test('按仓库汇总：同仓库合并、有问题的排前面、徽章去重',
   assert.equal(bad.errors, 1)
   assert.deepEqual(summarizeByRepo(null), [])
   assert.deepEqual(summarizeByRepo([null, {}]), [])
+})
+
+test('被上限挡住的数量按字段统计，不靠匹配文案', () => {
+  const list = [
+    { id: 'a#s', deferReason: 'cap-session' },
+    { id: 'b#s', deferReason: 'cap-watcher' },
+    { id: 'c#s', deferReason: 'ratelimit' },
+    { id: 'd#s', deferReason: null },
+    { id: 'e#s' },
+    null,
+  ]
+  assert.equal(countCapped(list), 2)
+  // 就算文案里写着"上限"，只要没字段就不算（这正是旧实现的误判来源）
+  assert.equal(countCapped([{ id: 'x', lastDeferred: '每小时最多唤醒 6 次' }]), 0)
+  assert.equal(countCapped({ a: { deferReason: 'cap-session' } }), 1, '支持对象入参')
+  assert.equal(countCapped(null), 0)
 })
