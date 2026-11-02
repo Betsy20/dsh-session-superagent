@@ -31,7 +31,7 @@
 | 类型 | 文件 |
 |---|---|
 | tutorial | `docs/首次唤醒走查.md` |
-| how-to | `docs/UPDATING.md`、`docs/首次唤醒走查.md` 的速查表 |
+| how-to | `UPDATING.md`（仓库根目录）、`docs/首次唤醒走查.md` 的速查表 |
 | reference | `README.md`（工具表、参数）、`docs/01-架构.md` |
 | explanation | `docs/kb/*`（每条的"取舍"段）、`docs/whats-new-0.9.md` |
 
@@ -39,4 +39,4 @@
 ✅ 0.8.91（走查 + `docs/README.md` 索引）。
 
 ## 还没做的
-- 没有为"多个仓库同时守"再写一份；`docs/UPDATING.md` 也没有完全贴合 how-to 的写法。
+- 没有为"多个仓库同时守"再写一份；`UPDATING.md`（仓库根目录） 也没有完全贴合 how-to 的写法。

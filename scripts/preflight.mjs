@@ -136,9 +136,10 @@ const tryRun = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: ROOT, encod
   const res = tryRun('node', ['scripts/audit-kb-claims.mjs'], { timeout: 60000 })
   const out = String(res.stdout || '')
   const claims = (out.match(/声明\s+(\d+) 条/) || [])[1]
+  const paths = (out.match(/提到的文件路径\s+(\d+) 个/) || [])[1]
   const bad = out.split(String.fromCharCode(10)).filter((line) => line.startsWith('FAIL') || line.includes('没写落地状态：'))
   record('知识库有据', res.status === 0 && bad.length === 0,
-    bad.length > 0 ? bad[0].trim() : (claims ? claims + ' 条 ✅ 都能找到发布' : '无输出'))
+    bad.length > 0 ? bad[0].trim() : (claims ? claims + ' 条 ✅ 都能找到发布 / ' + (paths || '?') + ' 个路径都存在' : '无输出'))
 }
 
 // ⑥.5 双主题预览能渲染（离线验收界面用的那条命令，坏掉就等于没有验收手段）

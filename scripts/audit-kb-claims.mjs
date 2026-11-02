@@ -4,7 +4,7 @@
 // 而 CHANGELOG 里根本没有这个版本，那这条结论就是无据的 —— 而且没人会发现。
 //
 // 用法：node scripts/audit-kb-claims.mjs
-import { readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
@@ -49,6 +49,29 @@ if (unknown.length > 0) {
 if (noClaim.length > 0) {
   console.log('WARN ' + noClaim.length + ' 篇没有写"是否已落地"（KB 的固定格式要求这一项）')
   failed = true
+}
+
+// ② 文件路径交叉验证：KB 里提到的脚本/源码路径必须真的存在
+//    重构改名后 KB 常留旧路径，这类漂移完全可自动检测。
+const pathClaims = []
+for (const name of files) {
+  const text = readFileSync(join(kbDir, name), 'utf8')
+  for (const match of text.matchAll(/(?:^|[^\w/])((?:scripts|lib|test|src|docs)\/[\w./-]+\.(?:mjs|js|md|yml|json))/g)) {
+    pathClaims.push({ name, path: match[1] })
+  }
+}
+const allPaths = new Set(pathClaims.map((c) => c.path))
+const missingPaths = [...allPaths].filter((item) => !existsSync(join(root, item)))
+console.log('提到的文件路径    ' + allPaths.size + ' 个')
+if (missingPaths.length > 0) {
+  failed = true
+  console.log('FAIL 这些路径在仓库里不存在（重构后忘了改 KB）：')
+  for (const missing of missingPaths) {
+    const owners = [...new Set(pathClaims.filter((c) => c.path === missing).map((c) => c.name))]
+    console.log('  ' + missing + '  <- ' + owners.join(', '))
+  }
+} else {
+  console.log('PASS KB 提到的每个文件路径都真实存在')
 }
 
 if (failed) process.exitCode = 1
