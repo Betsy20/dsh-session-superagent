@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.14'
+    const CLIENT_VERSION = '0.9.15'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -855,6 +855,8 @@ window.__ModuleLoader__.load({
       const [reasonFilter, setReasonFilter] = useState(null)
       // 行内徽章可点：点「只读」就只看只读的守（与跳过原因筛选同一套交互）
       const [badgeFilter, setBadgeFilter] = useState(null)
+      // 只看有问题的：放在最后追加，避免打乱测试桩按位置取值的队列
+      const [problemsOnly, setProblemsOnly] = useState(false)
       // 建议规则弹层：给"叫醒了没回音"一个下一步动作（只提供可复制的规则，不替客户写仓库文件）
 
       const load = useCallback(async () => {
@@ -1137,7 +1139,11 @@ window.__ModuleLoader__.load({
         || (watcher.filteredLog || []).some((entry) => String(entry.number).includes(needle) || String(entry.title || '').toLowerCase().includes(needle))
       const matchesBadge = (watcher) => !badgeFilter
         || repoBadges(watcher.repoAccess).some((badge) => badge.text === badgeFilter)
-      const visible = watchers.filter((watcher) => matches(watcher) && matchesBadge(watcher))
+      const hasProblem = (watcher) => Boolean(watcher.lastError)
+        || Number(watcher.silentWakes) >= 2
+        || Boolean(repoStructureNote(watcher.repoAccess))
+        || repoBadges(watcher.repoAccess).some((badge) => badge.tone === 'warning' || badge.tone === 'danger')
+      const visible = watchers.filter((watcher) => matches(watcher) && matchesBadge(watcher) && (!problemsOnly || hasProblem(watcher)))
 
       const overview = [
         watchers.some((w) => (w.filteredLog || []).length > 0)
@@ -1254,7 +1260,12 @@ window.__ModuleLoader__.load({
               h('div', { className: 'dt-hint' }, watcher.repo + ' · ' + event.text)))))))
 
       // 按仓库汇总：守多个仓库时先看哪个健康，再看明细（渐进披露）
-      const repoSummary = visible.length === 0 ? null : h(Section, { key: 'repo-summary', title: '按仓库', hint: '点仓库名只看它（再点取消）' },
+      const problemCount = watchers.filter(hasProblem).length
+      const repoSummary = watchers.length === 0 ? null : h(Section, { key: 'repo-summary', title: '按仓库', hint: '点仓库名只看它（再点取消）' },
+        h('div', { className: 'dt-row-meta' },
+          h(Pill, { active: problemsOnly, onClick: () => setProblemsOnly(!problemsOnly) }, '只看有问题的' + (problemCount > 0 ? ' (' + problemCount + ')' : '')),
+          problemsOnly ? h(Pill, { onClick: () => setProblemsOnly(false) }, '全部') : null),
+        visible.length === 0 ? h(Hint, null, '没有符合条件的主理鱼。点上面「全部」看所有守。') : null,
         h('div', { className: 'dt-rows' }, ...summarizeByRepo(visible).map((group) => h('div', { key: 'repo-' + group.repo, className: 'dt-row' },
           h('div', { className: 'dt-row-main' },
             h('div', { className: 'dt-row-title' },

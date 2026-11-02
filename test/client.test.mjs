@@ -102,8 +102,9 @@ function walk(node, out = []) {
 /** 主理鱼面板的 useState 队列：snap / tab / notice / form / token / goalDraft / goalTouched / toast / editing / draft */
 const deskForm = { repo: '', intervalSec: '60', goal: '', labels: '', onlyAssigned: false, activeHours: '', isolated: false, workdir: '' }
 const deskQueue = (snapshot, editing = null, draft = {}, tab = 'overview', search = '', glossary = false, update = null) =>
-  // 末尾两个是 0.8.38 新增的 update / checking 槽位（版本检查），顺序必须跟组件里的 useState 一致
-  [snapshot, tab, null, deskForm, '', '', false, [], editing, draft, search, glossary, update, false, 'source', null, null]
+  // 末尾依次是：update / checking（0.8.38 版本检查）、settingsSection / reasonFilter / badgeFilter、
+  // 以及 0.9.15 追加的 problemsOnly —— 顺序必须跟组件里的 useState 一致（测试桩按位置取值）
+  [snapshot, tab, null, deskForm, '', '', false, [], editing, draft, search, glossary, update, false, 'source', null, null, false]
 
 const watcher = (repo, extra = {}) => ({
   repo,
@@ -777,4 +778,28 @@ test('「按仓库」汇总里的仓库名可以点（点一下只看这个仓�
     .filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
   assert.ok(filtered.includes('a/b'), '命中的要留下')
   assert.ok(!filtered.includes('c/d'), '不命中的要过滤掉：' + filtered.slice(0, 200))
+})
+
+test('「只看有问题的」：一键筛掉健康的守，并且能一键回到全部', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = {
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: 'x', credentials: {}, watchers: [
+      watcher('ok/healthy', { id: 'ok/healthy#s1' }),
+      watcher('bad/error', { id: 'bad/error#s2', sessionId: 's2', lastError: 'boom' }),
+      watcher('bad/silent', { id: 'bad/silent#s3', sessionId: 's3', silentWakes: 3 }),
+    ] },
+  }
+  const all = walk(render(desk, deskQueue(snap))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(all.includes('只看有问题的 (2)'), '要有入口并带上数量：' + all.slice(0, 200))
+
+  // problemsOnly = true（第 18 个槽）
+  const only = walk(render(desk, deskQueue(snap, null, {}, 'overview', '', '', null, false))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  const filteredQueue = deskQueue(snap)
+  filteredQueue[17] = true
+  const onlyBad = walk(render(desk, filteredQueue)).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(onlyBad.includes('bad/error') && onlyBad.includes('bad/silent'), '有问题的要留下')
+  assert.ok(!onlyBad.includes('ok/healthy'), '健康的不该出现：' + onlyBad.slice(0, 240))
+  assert.ok(onlyBad.includes('全部'), '要能一键回到全部')
 })
