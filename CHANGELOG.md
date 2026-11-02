@@ -2,6 +2,24 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.67] - 2026-11-02 —— 能力徽章可点筛选；顺手记下「限流是分池的」
+
+### 学到的（知识库第 16 条，判断准则）
+GitHub 限流**分池**：`X-RateLimit-Resource` 就是池名（core / search / graphql …），
+search 池额度更紧、GraphQL 完全独立。
+<https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api>
+
+我们 0.8.53 的「剩余 < 500 推到 reset」没区分池 —— 目前只打 core，所以没出错；
+但将来加"按关键字搜 issue"就必须按 `resource` 分账。这条**先记准则、暂不改代码**（诚实标注：未落地）。
+
+### 改了什么（本轮代码）
+行内能力徽章从 `Tag`（只读）换成官方 `Pill`（可点）：
+- 点 `只读` / `已归档` / `无 Issues` / `私有` → 只看这类守，再点取消；
+- 顶部显示「只看 只读 的守（1 条）· 清除」，与「跳过原因」的交互一致。
+
+### 测试
+- 新增 1 例：未筛选两条都在 → 选「只读」只剩 ro/two 且有状态提示。合计 **120 例**。
+
 ## [0.8.66] - 2026-11-02 —— 归档仓库：能读不能写，行内加能力徽章
 
 ### 学到的（知识库第 15 条）

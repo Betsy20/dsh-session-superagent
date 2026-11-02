@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.66'
+    const CLIENT_VERSION = '0.8.67'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -842,6 +842,8 @@ window.__ModuleLoader__.load({
       const [settingsSection, setSettingsSection] = useState('source')
       // 判定页：点「跳过原因」标签就只看这一类（知识库里记的"还没做"，本轮补上）
       const [reasonFilter, setReasonFilter] = useState(null)
+      // 行内徽章可点：点「只读」就只看只读的守（与跳过原因筛选同一套交互）
+      const [badgeFilter, setBadgeFilter] = useState(null)
 
       const load = useCallback(async () => {
         try {
@@ -997,7 +999,11 @@ window.__ModuleLoader__.load({
             }, watcher.repo)),
           h('div', { className: 'dt-row-meta dt-ticket-meta' },
             stateTag(watcher),
-            ...repoBadges(watcher.repoAccess).map((badge) => h(Tag, { key: 'b-' + badge.text, tone: badge.tone }, badge.text)),
+            ...repoBadges(watcher.repoAccess).map((badge) => h(Pill, {
+              key: 'b-' + badge.text,
+              active: badgeFilter === badge.text,
+              onClick: () => setBadgeFilter(badgeFilter === badge.text ? null : badge.text),
+            }, badge.text)),
             watcher.observe ? h(Tag, { tone: 'warning' }, '仅观察') : null,
             watcher.activeHours ? h(Tag, null, '时段 ' + watcher.activeHours) : null,
             watcher.isolated ? h(Tag, null, isolationText(watcher)) : null,
@@ -1073,7 +1079,9 @@ window.__ModuleLoader__.load({
         || watcher.repo.toLowerCase().includes(needle)
         || (watcher.title || '').toLowerCase().includes(needle)
         || (watcher.filteredLog || []).some((entry) => String(entry.number).includes(needle) || String(entry.title || '').toLowerCase().includes(needle))
-      const visible = watchers.filter(matches)
+      const matchesBadge = (watcher) => !badgeFilter
+        || repoBadges(watcher.repoAccess).some((badge) => badge.text === badgeFilter)
+      const visible = watchers.filter((watcher) => matches(watcher) && matchesBadge(watcher))
 
       const overview = [
         watchers.some((w) => (w.filteredLog || []).length > 0)
@@ -1087,6 +1095,11 @@ window.__ModuleLoader__.load({
         problems.length > 0
           ? h(Section, { key: 'problems', title: '需要关注', count: problems.length },
             h('ul', { className: 'dt-plain-list' }, problems.map((item) => h('li', { key: item.key, className: 'dt-danger' }, item.text))))
+          : null,
+        badgeFilter
+          ? h('div', { className: 'dt-row-meta', key: 'badge-filter' },
+            h('span', null, '只看 ' + badgeFilter + ' 的守（' + visible.length + ' 条）：'),
+            h(Pill, { onClick: () => setBadgeFilter(null) }, '清除'))
           : null,
         h('div', { className: 'dt-stats', key: 'stats' },
           h('div', { className: 'dt-stat' }, h('span', { className: 'dt-stat-value' }, String(watchers.length)), h('span', null, '条主理鱼')),

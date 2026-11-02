@@ -103,7 +103,7 @@ function walk(node, out = []) {
 const deskForm = { repo: '', intervalSec: '60', goal: '', labels: '', onlyAssigned: false, activeHours: '', isolated: false, workdir: '' }
 const deskQueue = (snapshot, editing = null, draft = {}, tab = 'overview', search = '', glossary = false, update = null) =>
   // 末尾两个是 0.8.38 新增的 update / checking 槽位（版本检查），顺序必须跟组件里的 useState 一致
-  [snapshot, tab, null, deskForm, '', '', false, [], editing, draft, search, glossary, update, false, 'source', null]
+  [snapshot, tab, null, deskForm, '', '', false, [], editing, draft, search, glossary, update, false, 'source', null, null]
 
 const watcher = (repo, extra = {}) => ({
   repo,
@@ -637,4 +637,31 @@ test('判定页：点跳过原因标签可只看这一类（知识库里的"还�
   const filtered = walk(render(desk, deskQueue(snapshot, null, {}, 'judge').map((v, i) => (i === 15 ? '不在标签白名单: ai-fix' : v))))
   const text = filtered.filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
   assert.ok(text.includes('#42'), '筛选后要列出该类条目：' + text.slice(0, 200))
+})
+
+test('能力徽章可点：点「只读」只剩只读的守', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snapshot = {
+    loading: false, error: null,
+    body: {
+      sessionGoal: null, sessionTitle: '会话',
+      credentials: { token: 'none', sshKeyPath: 'none' },
+      watchers: [
+        watcher('ok/one', { id: 'ok/one#s1', repoAccess: { repo: 'ok/one', push: true, hasIssues: true } }),
+        watcher('ro/two', { id: 'ro/two#s2', repoAccess: { repo: 'ro/two', push: false, hasIssues: true } }),
+      ],
+    },
+  }
+  // 未筛选：两条都在
+  const all = walk(render(desk, deskQueue(snapshot)))
+  const allText = all.filter((n) => typeof n.text === 'string').map((n) => n.text).join('|')
+  assert.ok(allText.includes('ok/one') && allText.includes('ro/two'), '未筛选应显示两条')
+
+  // 选中「只读」：只剩 ro/two
+  const filtered = walk(render(desk, deskQueue(snapshot).map((v, i) => (i === 16 ? '只读' : v))))
+  const filteredText = filtered.filter((n) => typeof n.text === 'string').map((n) => n.text).join('|')
+  assert.ok(filteredText.includes('ro/two'), '只读筛选要留下 ro/two：' + filteredText.slice(0, 160))
+  assert.ok(!filteredText.includes('ok/one'), '只读筛选不该留下 ok/one')
+  assert.ok(filteredText.includes('只看 只读 的守'), '要有明确的状态提示')
 })
