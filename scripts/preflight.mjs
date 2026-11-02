@@ -124,6 +124,13 @@ const tryRun = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: ROOT, encod
   record('离线挂载冒烟', ok, detail)
 }
 
+// ⑥.45 文档链接体检（45+ 篇互相引用，写错了没人会发现）
+{
+  const res = tryRun('node', ['scripts/check-docs.mjs'], { timeout: 60000 })
+  const out = String(res.stdout || '').trim().split(String.fromCharCode(10))
+  record('文档链接', res.status === 0, out[1] ? out[1].replace(/^PASS /, '') : '无输出')
+}
+
 // ⑥.5 双主题预览能渲染（离线验收界面用的那条命令，坏掉就等于没有验收手段）
 {
   const out = join(tmpdir(), 'zhuli-preview-check-' + Date.now() + '.html')
