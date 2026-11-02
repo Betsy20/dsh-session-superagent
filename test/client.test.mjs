@@ -974,3 +974,21 @@ test('判定页的日志标题要说清"最近 5 次唤醒"（数据早就有，
   assert.ok(text.includes('#3 #4'), '要能看到最近一次唤醒的条目')
   assert.ok(text.includes('agent busy'), '失败原因要显示')
 })
+
+test('同一仓库被多个会话守着时，面板要说清"还有谁在守"', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = {
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: 'x', credentials: {}, sessionUsage: { used: 1, cap: 12, capped: 0 },
+      watchers: [watcher('a/b', { id: 'a/b#s1', lastWake: '2026-11-02T09:00:00.000Z', otherSessions: ['session-2', 'session-3'] })] },
+  }
+  const text = walk(render(desk, deskQueue(snap))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(text.includes('还有 2 个会话也在守这个仓库'), '总览行要说清还有谁：' + text.slice(0, 300))
+  assert.ok(text.includes('互不影响'), '要说明会不会互相抢')
+
+  // 没有别的会话时不显示
+  const solo = { ...snap, body: { ...snap.body, watchers: [watcher('a/b', { id: 'a/b#s1', lastWake: '2026-11-02T09:00:00.000Z', otherSessions: [] })] } }
+  const soloText = walk(render(desk, deskQueue(solo, null, {}, 'judge'))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(!soloText.includes('也在守这个仓库'), '独占时不显示')
+})

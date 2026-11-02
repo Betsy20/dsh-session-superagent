@@ -777,3 +777,41 @@ test('一条会话最多 20 条守：第 21 条被拒绝，批量请求整批拒
   const update = String(await start.execute({ repo: 'acme/r0', intervalSec: 120 }))
   assert.ok(!update.includes('最多挂'), '更新已有守不该被拦：' + update)
 })
+
+test('/state 回传 otherSessions：同仓库的其它会话', async () => {
+  const tools = []
+  const localRoutes = new Map()
+  const dir = tempDir('zhuli-peers-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: (route) => { localRoutes.set(route.path, route); return () => {} } },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-a' }) },
+    get: () => null, on() {}, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?peers=' + Date.now())
+  mod.apply(ctx)
+  const start = tools.find((t) => t.name === 'watch_start')
+  await start.execute({ repo: 'acme/shared' })
+
+  // 手写另一个会话的守（模拟另一个会话也在守同一仓库）
+  const state = mod.__test.readState()
+  state.watchers['acme/shared#session-b'] = {
+    id: 'acme/shared#session-b', repo: 'acme/shared', sessionId: 'session-b', intervalSec: 60, enabled: true,
+  }
+  mod.__test.writeState(state)
+
+  const route = localRoutes.get('/session-superagent/state')
+  const fakeRes = {
+    statusCode: 200, headers: {}, chunks: [],
+    setHeader(k, v) { this.headers[k] = v }, end(c) { if (c !== undefined) this.chunks.push(c) },
+    get body() { return this.chunks.join('') },
+  }
+  await route.handler({ method: 'GET', url: '/session-superagent/state' }, fakeRes)
+  const parsed = JSON.parse(fakeRes.body)
+  const mine = parsed.watchers.find((w) => w.sessionId === 'session-a')
+  const theirs = parsed.watchers.find((w) => w.sessionId === 'session-b')
+  assert.deepEqual(mine.otherSessions, ['session-b'], '我方要看到对方')
+  assert.deepEqual(theirs.otherSessions, ['session-a'], '对方也要看到我方')
+})

@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.92'
+    const CLIENT_VERSION = '0.9.93'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1082,6 +1082,9 @@ window.__ModuleLoader__.load({
               watcher.note ? '目标: ' + String(watcher.note).slice(0, 40) : '',
             ].filter(Boolean).join(' · ')),
           watcher.lastDeferred ? h('div', { className: 'dt-ticket-note' }, watcher.lastDeferred) : null,
+          (watcher.otherSessions && watcher.otherSessions.length > 0)
+            ? h('div', { className: 'dt-ticket-note' }, '还有 ' + watcher.otherSessions.length + ' 个会话也在守这个仓库：' + watcher.otherSessions.join('、') + '（各自独立唤醒，互不影响）')
+            : null,
           watcher.lastError ? (() => {
             const parts = splitErrorText(watcher.lastError)
             return h('div', { className: 'dt-ticket-note dt-ticket-note-error' },
