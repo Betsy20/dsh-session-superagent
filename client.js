@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.39'
+    const CLIENT_VERSION = '0.8.40'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -301,14 +301,32 @@ window.__ModuleLoader__.load({
     // session-level superagent (a live watcher): green = watching, amber =
     // paused, red = last poll failed. Icon only — details live in the
     // click-through panel, and a native tooltip carries the one-line summary.
+    /**
+     * 现在是否落在活跃时段里。支持跨夜（22:00-06:00）。
+     * 解析不了就返回 null —— 宁可显示「主理中」，也不要乱标。
+     */
+    function inWindowNow(hours) {
+      const match = String(hours || '').match(/^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})$/)
+      if (!match) return null
+      const now = new Date()
+      const current = now.getHours() * 60 + now.getMinutes()
+      const from = Number(match[1]) * 60 + Number(match[2])
+      const to = Number(match[3]) * 60 + Number(match[4])
+      return from <= to ? current >= from && current < to : current >= from || current < to
+    }
+
     function orbitStateOf(w) {
       if (!w) return 'paused'
       if (w.lastError) return 'error'
-      return w.enabled === false ? 'paused' : 'active'
+      if (w.enabled === false) return 'paused'
+      // 设了活跃时段、而此刻在窗口外：它其实不会唤醒，只是把条目攒着 ——
+      // 这时候还标「主理中」就是在骗人（2026-11-02 用户截图指出）。
+      if (w.activeHours && inWindowNow(w.activeHours) === false) return 'dormant'
+      return 'active'
     }
 
-    const SAT_COLOR = { active: '#3fb950', paused: '#d29922', error: '#f85149' }
-    const STATE_TEXT = { active: '主理中', paused: '已暂停', error: '异常' }
+    const SAT_COLOR = { active: '#3fb950', paused: '#d29922', error: '#f85149', dormant: '#8b949e' }
+    const STATE_TEXT = { active: '主理中', paused: '已暂停', error: '异常', dormant: '时段外' }
 
     /** 尊重系统的「减少动态效果」设置。 */
     const prefersReducedMotion = () => {
@@ -327,7 +345,7 @@ window.__ModuleLoader__.load({
         ? 'currentColor'
         : states.indexOf('error') >= 0
           ? SAT_COLOR.error
-          : anyActive ? SAT_COLOR.active : SAT_COLOR.paused
+          : anyActive ? SAT_COLOR.active : states.indexOf('dormant') >= 0 ? SAT_COLOR.dormant : SAT_COLOR.paused
       const dashed = states.indexOf('paused') >= 0
       const still = prefersReducedMotion()
 
@@ -816,8 +834,8 @@ window.__ModuleLoader__.load({
 
       const stateTag = (watcher) => {
         const state = orbitStateOf(watcher)
-        const tone = state === 'active' ? 'success' : state === 'paused' ? 'warning' : 'danger'
-        return h(Tag, { tone }, STATE_TEXT[state])
+        const tone = state === 'active' ? 'success' : state === 'paused' ? 'warning' : state === 'dormant' ? 'outline' : 'danger'
+        return h(Tag, { tone, title: state === 'dormant' ? '不在活跃时段：只攒条目，不唤醒' : undefined }, STATE_TEXT[state])
       }
 
       const row = (watcher) => {

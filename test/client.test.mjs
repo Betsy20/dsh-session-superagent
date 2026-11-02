@@ -551,3 +551,26 @@ test('有新版本时面板顶部给一条横幅，点进去看升级命令', ()
   const quietText = quiet.filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
   assert.ok(!quietText.includes('有新版本'), '没新版本就别打扰')
 })
+
+test('活跃时段之外的 watcher 不再谎报「主理中」（改显示「时段外」）', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  // 造一个一定落在窗口外的时段：把「当前时间」往后推一小时当起点，跨度一小时
+  const now = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  const from = (now.getHours() + 2) % 24
+  const to = (from + 1) % 24
+  const window = pad(from) + ':00-' + pad(to) + ':00'
+  const snapshot = {
+    loading: false, error: null,
+    body: {
+      sessionGoal: null, sessionTitle: '会话',
+      credentials: { token: 'none', sshKeyPath: 'none' },
+      watchers: [watcher('a/window', { activeHours: window })],
+    },
+  }
+  const nodes = walk(render(desk, deskQueue(snapshot)))
+  const text = nodes.filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(text.includes('时段外'), '窗口外应显示「时段外」，实际：' + text.slice(0, 200))
+  assert.ok(text.includes('时段 ' + window), '时段本身仍然要显示给人看')
+})
