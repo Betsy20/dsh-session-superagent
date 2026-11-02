@@ -665,3 +665,29 @@ test('能力徽章可点：点「只读」只剩只读的守', () => {
   assert.ok(!filteredText.includes('ok/one'), '只读筛选不该留下 ok/one')
   assert.ok(filteredText.includes('只看 只读 的守'), '要有明确的状态提示')
 })
+
+test('中间态：有守但从未唤醒过，要给"在等"的引导而不是沉默', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snapshot = {
+    loading: false, error: null,
+    body: {
+      sessionGoal: null, sessionTitle: '会话',
+      credentials: { token: 'none', sshKeyPath: 'none' },
+      watchers: [watcher('a/b', { id: 'a/b#s1', lastPoll: '2026-11-02T08:00:00Z', lastWake: null })],
+    },
+  }
+  const nodes = walk(render(desk, deskQueue(snapshot)))
+  const text = nodes.filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(text.includes('还没有唤醒过'), '要说明"在等"：' + text.slice(0, 200))
+  assert.ok(text.includes('立刻'), '要给出可以马上试一下的动作')
+
+  // 已经唤醒过的不该再显示这句
+  const woken = {
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: '会话', credentials: { token: 'none', sshKeyPath: 'none' },
+      watchers: [watcher('a/b', { id: 'a/b#s1', lastWake: '2026-11-02T08:00:00Z' })] },
+  }
+  const after = walk(render(desk, deskQueue(woken))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(!after.includes('还没有唤醒过'), '唤醒过就不该再提示')
+})

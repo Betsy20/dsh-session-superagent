@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.88'
+    const CLIENT_VERSION = '0.8.89'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1136,6 +1136,12 @@ window.__ModuleLoader__.load({
         problems.length > 0
           ? h(Section, { key: 'problems', title: '需要关注', count: problems.length },
             h('ul', { className: 'dt-plain-list' }, problems.map((item) => h('li', { key: item.key, className: 'dt-danger' }, item.text))))
+          : null,
+        // 中间态：已经有守、但一次都没唤醒过 —— 这不是"没配置"，是"在等"
+        (watchers.length > 0 && watchers.every((w) => !w.lastWake))
+          ? h('div', { className: 'sa-dock-foot', key: 'waiting' },
+            '还没有唤醒过：守会在仓库出现新条目时叫醒这个会话。'
+            + '想先试一次，点行里的「立刻」；如果一直没动静，看上面「需要关注」里有没有被过滤的记录。')
           : null,
         badgeFilter
           ? h('div', { className: 'dt-row-meta', key: 'badge-filter' },
