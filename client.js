@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.86'
+    const CLIENT_VERSION = '0.9.87'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1145,38 +1145,39 @@ window.__ModuleLoader__.load({
         if (deferFilter && watcher.deferReason !== deferFilter) continue
         // 仓库结构问题（关闭 Issues / 是 fork）比轮询失败更早该说：它注定收不到条目
         const structure = repoStructureNote(watcher.repoAccess)
-        if (structure) problems.push({ key: 's-' + watcher.repo, text: structure })
+        if (structure) problems.push({ key: 's-' + watcher.repo, text: structure, rank: 3, kind: 'structure' })
         // 只读：以前只在行内显示一个徽章，客户在「需要关注」里看不到，也不知道回写会 403
         const readOnly = accessNoteForPanel(watcher.repoAccess, watcher.repo)
-        if (readOnly) problems.push({ key: 'ro-' + watcher.repo, text: readOnly })
+        if (readOnly) problems.push({ key: 'ro-' + watcher.repo, text: readOnly, rank: 4, kind: 'readonly' })
         // 叫醒了但没回音：守在工作、消息也进去了，但会话没动手（规则缺失或被忽略）
         if (Number(watcher.silentWakes) >= 2) {
           problems.push({
             key: 'silent-' + watcher.repo,
+            rank: 2, kind: 'silent',
             text: watcher.repo + ' 连续 ' + watcher.silentWakes + ' 次被叫醒后没有动作（没看到 watch_ack 标签）—— 会话可能没按规则处理',
             action: { label: '看建议规则', onClick: () => setGlossary('rules:' + watcher.repo) },
           })
         }
         // 被反复重开的条目：说明"之前判过不做"可能有问题，值得人看一眼
         if (watcher.lastReopened) {
-          problems.push({ key: 'r-' + watcher.repo, text: watcher.repo + ' #' + watcher.lastReopened + ' 被重新打开过 —— 之前判"不做"可能不对' })
+          problems.push({ key: 'r-' + watcher.repo, text: watcher.repo + ' #' + watcher.lastReopened + ' 被重新打开过 —— 之前判"不做"可能不对', rank: 5, kind: 'reopened' })
         }
-        if (structure) problems.push({ key: 's-' + watcher.repo, text: structure })
         if (watcher.lastError) {
           // 同样拆开：现象截断、建议保留（这里原来是整串塞进「需要关注」）
           const parts = splitErrorText(watcher.lastError)
           problems.push({
             key: 'e-' + watcher.repo,
+            rank: 1, kind: 'error',
             text: watcher.repo + ' 轮询失败：' + parts.main.slice(0, 120) + (parts.main.length > 120 ? '…' : '') + ' ' + parts.hint,
           })
         }
-        else if (watcher.lastDeferred) problems.push({ key: 'd-' + watcher.repo, text: watcher.repo + ' 暂停唤醒：' + watcher.lastDeferred })
+        else if (watcher.lastDeferred) problems.push({ key: 'd-' + watcher.repo, text: watcher.repo + ' 暂停唤醒：' + watcher.lastDeferred, rank: 6, kind: 'deferred' })
       }
       if (body.gh && body.gh.ok === false && credentials.token === 'none') {
-        problems.push({ key: 'gh', text: 'gh CLI 不可用，且没有配置 token —— 现在所有轮询都会失败。先跑 gh auth login，或在「设置 → 来源」填一个 token。' })
+        problems.push({ key: 'gh', rank: 0, kind: 'gh', text: 'gh CLI 不可用，且没有配置 token —— 现在所有轮询都会失败。先跑 gh auth login，或在「设置 → 来源」填一个 token。' })
       }
       if (watchers.length > 0 && credentials.token === 'none') {
-        problems.push({ key: 'cred', text: '未配置 token，正在复用已登录的 gh CLI（可用 panel 填 token 换成独立凭据）' })
+        problems.push({ key: 'cred', rank: 7, kind: 'cred', text: '未配置 token，正在复用已登录的 gh CLI（可用 panel 填 token 换成独立凭据）' })
       }
 
       const needle = search.trim().toLowerCase()
@@ -1203,7 +1204,8 @@ window.__ModuleLoader__.load({
                 '#' + entry.number + ' ' + (entry.title || '') + ' — ' + entry.reason)),
             }))
           : null,
-        problems.length > 0
+        // 排序：会丢消息的（失败/没回音）排前面；静态提示（仓库归档、只读）排后面
+        (() => { problems.sort((a, b) => ((a.rank ?? 9) - (b.rank ?? 9)) || String(a.text).localeCompare(String(b.text))); return problems.length > 0 })()
           ? h(Section, { key: 'problems', title: '需要关注', count: problems.length },
             h('ul', { className: 'dt-plain-list' }, problems.map((item) => h('li', { key: item.key, className: 'dt-danger' }, item.text))))
           : null,

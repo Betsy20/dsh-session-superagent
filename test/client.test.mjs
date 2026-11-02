@@ -928,3 +928,30 @@ test('空态三步里提到的控件，必须在「触发」页真实存在（�
     assert.ok(trigger.includes(word), '「触发」页缺字段：' + word)
   }
 })
+
+test('「需要关注」按严重程度排序：会丢消息的排最前，静态提示排后', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = {
+    loading: false, error: null,
+    body: {
+      sessionGoal: null, sessionTitle: 'x', credentials: { token: 'ok' }, sessionUsage: { used: 0, cap: 12, capped: 0 },
+      watchers: [watcher('a/b', {
+        id: 'a/b#s1',
+        lastError: 'GitHub API 请求: EOF（网络抖动：这一轮没连上 GitHub，已按退避自动重试，不需要手动处理）',
+        repoAccess: { push: false, archived: true, hasIssues: true },
+        silentWakes: 3,
+      })],
+    },
+  }
+  const text = walk(render(desk, deskQueue(snap))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  const at = (needle) => text.indexOf(needle)
+  const errPos = at('轮询失败')
+  const silentPos = at('没有动作')
+  const structurePos = at('已归档')
+  const readonlyPos = at('只有读权限')
+  assert.ok(errPos >= 0 && silentPos >= 0 && structurePos >= 0 && readonlyPos >= 0, '四类提示都要在：' + text.slice(0, 300))
+  assert.ok(errPos < structurePos, '轮询失败要排在"已归档"前面')
+  assert.ok(errPos < readonlyPos, '轮询失败要排在"只读"前面')
+  assert.ok(silentPos < structurePos, '"没回音"要排在"已归档"前面')
+})
