@@ -76,6 +76,71 @@ const record = (name, detected, detail) => {
   }
 }
 
+// ⑤ 版本一致：把 CLIENT_VERSION 改掉，preflight 的「版本一致」必须红
+{
+  const path = join(root, 'client.js')
+  const original = readFileSync(path, 'utf8')
+  try {
+    const mutated = original.replace(/const CLIENT_VERSION = '[^']+'/, "const CLIENT_VERSION = '0.0.1'")
+    writeFileSync(path, mutated)
+    // 只跑相关用例（跑整套 preflight 太慢，注入验证要快才能常跑）
+    const res = run(['--test', 'test/meta.test.mjs'])
+    record('版本一致（注入错版本）', res.code !== 0 && /CLIENT_VERSION/.test(res.out))
+  } finally {
+    writeFileSync(path, original)
+  }
+}
+
+// ⑥ 路由面：改一条路由路径，preflight 的「路由面」必须红
+{
+  const path = join(root, 'lib', 'index.js')
+  const original = readFileSync(path, 'utf8')
+  try {
+    const mutated = original.replace("path: '/session-superagent/trace'", "path: '/session-superagent/zzz'")
+    writeFileSync(path, mutated)
+    const res = run(['--test', 'test/routes.test.mjs'])
+    record('路由面（注入改路径）', res.code !== 0)
+  } finally {
+    writeFileSync(path, original)
+  }
+}
+
+// 信息密度：往「判定」页多塞四个 Section，density 脚本必须红
+{
+  const path = join(root, 'client.js')
+  const original = readFileSync(path, 'utf8')
+  try {
+    const inject = [
+      "h(Section, { key: 'zzz1', title: '注入块一' }, null),",
+      "h(Section, { key: 'zzz2', title: '注入块二' }, null),",
+      "h(Section, { key: 'zzz3', title: '注入块三' }, null),",
+      "h(Section, { key: 'zzz4', title: '注入块四' }, null),",
+      "h(Section, { key: 'trace', title: '追溯一条'",
+    ].join(String.fromCharCode(10) + '        ')
+    const injected = original.replace("h(Section, { key: 'trace', title: '追溯一条'", inject)
+    writeFileSync(path, injected)
+    const res = run(['scripts/audit-density.mjs'])
+    record('信息密度（注入 4 个区块）', res.code !== 0)
+  } finally {
+    writeFileSync(path, original)
+  }
+}
+
+// ⑧ JSON 契约：往清单里加一个不存在的字段，render-contract --check 必须红
+{
+  const path = join(root, 'test', 'fixtures', 'contract-stability.json')
+  const original = readFileSync(path, 'utf8')
+  try {
+    const data = JSON.parse(original)
+    data.watch_status.root.zzzInjected = 'stable'
+    writeFileSync(path, JSON.stringify(data, null, 2) + String.fromCharCode(10))
+    const res = run(['scripts/render-contract.mjs', '--check'])
+    record('JSON 契约（注入假字段）', res.code !== 0)
+  } finally {
+    writeFileSync(path, original)
+  }
+}
+
 const failed = results.filter((item) => !item.detected)
 console.log('---')
 if (failed.length > 0) {
