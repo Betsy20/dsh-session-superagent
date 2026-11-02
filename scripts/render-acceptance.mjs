@@ -51,6 +51,7 @@ const WHY = {
   '信息密度': ['首屏区块过多', 'KB `information-density.md`'],
   '文档标识符': ['工具名/路由改名后文档没跟上', 'KB `identifier-drift.md`'],
   '知识库有据': ['知识库的 ✅ 没有对应发布、路径不存在', 'KB `audit-kb-claims.md`'],
+  '长跑体积': ['状态文件随运行时间无限增长（数组没封顶）', 'KB measure-before-trimming.md + 0.9.95'],
   '双主题预览可渲染': ['面板在另一套主题下渲染失败', 'KB `information-density.md`'],
   'UI 体检': ['写死颜色 / 裸 div 可点 / 弹层键盘不可用', 'KB `information-density.md`'],
   '冒烟 smoke:observe': ['真机 observe 模式跑不起来', 'README 验收节'],
