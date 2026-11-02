@@ -245,6 +245,14 @@ if (!FAST) {
     bad.length > 0 ? bad[0].trim() : (claims ? claims + ' 条 ✅ 都能找到发布 / ' + (paths || '?') + ' 个路径都存在' : '无输出'))
 }
 
+// ⑥.25 整句文案不该重复（复制粘贴后改一处忘另一处）
+{
+  const res = tryRun('node', ['scripts/audit-duplicate-copy.mjs'], { timeout: 60000 })
+  const out = String(res.stdout || '')
+  const first = out.trim().split(String.fromCharCode(10))[0] || '无输出'
+  record('整句文案不重复', /重复 0 处/.test(out), first)
+}
+
 // ⑥.3 README 的说法要和代码常量对得上
 {
   const res = tryRun('node', ['scripts/verify-readme-claims.mjs'], { timeout: 60000 })
