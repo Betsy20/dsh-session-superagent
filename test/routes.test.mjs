@@ -597,3 +597,38 @@ test('watch_trace 能说清"被冷却期吸收"，而不是三合一猜测', asy
   const item = json.results[0]
   assert.equal(item.absorbed.length, 1, 'JSON 里要有 absorbed 明细')
 })
+
+test('watch_ack 失败要区分"会自动恢复"和"需要你处理"', async () => {
+  const tools = []
+  const dir = tempDir('zhuli-ackfail-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: () => () => {} },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-ack' }) },
+    get: () => null, on() {}, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?ackfail=' + Date.now())
+  mod.apply(ctx)
+  const ack = tools.find((t) => t.name === 'watch_ack')
+
+  // 不建守直接 ack：会走 "没有这个守" 的错误分支
+  const missing = String(await ack.execute({ repo: 'o/none', number: 1 }))
+  assert.ok(missing.includes('error'), '没有守时要报错：' + missing.slice(0, 120))
+
+  // 分类函数本身的判据：可恢复的三类 vs 需动手的三类
+  const { classifyGhError } = await import('../lib/gh-format.js')
+  for (const [text, expectRetry] of [
+    ['Get "https://api.github.com/x": EOF', true],
+    ['HTTP 403: API rate limit exceeded', true],
+    ['HTTP 502: Bad Gateway', true],
+    ['HTTP 401: Bad credentials', false],
+    ['HTTP 404: Not Found', false],
+    ['gh: command not found', false],
+  ]) {
+    const kind = classifyGhError(text).kind
+    const retryable = ['network', 'ratelimit', 'gateway'].includes(kind)
+    assert.equal(retryable, expectRetry, text + ' → ' + kind)
+  }
+})
