@@ -5,3 +5,4 @@
 | 主题 | 条目 | 已落地 |
 |---|---|---|
 | GitHub API 性能 | [条件请求（ETag / 304）](github-conditional-requests.md) | ✅ 0.8.51 |
+| 轮询调度 | [抖动去同步（jitter）](polling-jitter.md) | ✅ 0.8.52 |

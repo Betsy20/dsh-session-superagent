@@ -2,6 +2,28 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.52] - 2026-11-02 —— 首轮抖动：多条守不再同一毫秒一起发车
+
+### 学到的一条（知识库第 2 条）
+AWS《Exponential Backoff And Jitter》：固定周期的客户端会同步成 thundering herd，加抖动摊平峰值。
+<https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/>
+
+我们的 `inFlight` 闸是**按 watcher**的，挡不住「N 条守在同一毫秒一起打 gh api」。
+
+### 改了什么
+`jitterMs(entry.id, min(5000, 间隔×10%))` 用 **id 哈希**算偏移（可复现，不是随机数），
+只延迟**首轮**，之后按 `every` 稳定推进。
+
+### 顺带做了三组实测（都写进知识库）
+| 测什么 | 结果 |
+|---|---|
+| 单条 watcher 满载状态 | **21.8 KB**（seen 500 + history 20 + filteredLog 5），10 条 ≈ 218 KB，有上限 |
+| `gh api` vs `gh api --include` | 稳态几乎同速（~500-650 ms）—— 0.8.51 的 `--include` 没有额外开销 |
+| 抖动分布 | 20 条守 → 17 个不同偏移（用例里要求 >8） |
+
+### 测试
+- 合计 **105 例**；UI 体检 11/11。
+
 ## [0.8.51] - 2026-11-02 —— 条件请求：没变化不计入速率限制
 
 ### 学到了什么（新知识库 `docs/kb/` 的第一条）

@@ -7,6 +7,7 @@ import * as watchModule from '../lib/watch.js'
 import {
   classifyGhError,
   parseGhInclude,
+  jitterMs,
   advanceSeen, applyWatcherAction, batchFresh, decideWake, formatWatchText, newestUpdatedAt,
   hasAckLabel, nextDelayMs, normalizeFilters, partitionItems, passesFilters, pruneSeen, pruneWakeTimes,
   inActiveHours, mergePollResult, filterReason, pushFiltered, recordReported, splitFresh,
@@ -397,4 +398,15 @@ test('parseGhInclude：解析 --include 的状态行 / ETag / 正文', () => {
   const plain = parseGhInclude('[1,2,3]')
   assert.equal(plain.status, 0)
   assert.equal(plain.body, '[1,2,3]')
+})
+
+test('jitterMs：同一条守永远同一个偏移，且在窗口内', () => {
+  const a = jitterMs('owner/repo#session-1', 5000)
+  const b = jitterMs('owner/repo#session-1', 5000)
+  assert.equal(a, b, '同一个 key 必须稳定，否则调试时对不上')
+  assert.ok(a >= 0 && a < 5000, '偏移必须落在窗口内：' + a)
+  // 不同 key 不应该全都挤在同一个点（取 20 条看分布）
+  const offsets = new Set(Array.from({ length: 20 }, (_, i) => jitterMs('repo#' + i, 5000)))
+  assert.ok(offsets.size > 8, '20 条守应该散开，实际只用了 ' + offsets.size + ' 个偏移')
+  assert.equal(jitterMs('x', 0), 0, '窗口为 0 时不出抖动')
 })
