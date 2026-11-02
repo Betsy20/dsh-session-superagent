@@ -1213,3 +1213,30 @@ test('之前叫醒过的条目要在消息里标出来（这不是新问题）',
   const plain = formatWatchText('o/r', [item(7)], { changedTotal: 1, batchLimit: 5 })
   assert.ok(!plain.includes('之前叫醒过'))
 })
+
+test('ack 标签被人手动删掉：本地水位仍然挡住重复叫醒（三种情形都验一遍）', () => {
+  const item = (over = {}) => ({
+    number: 12, title: 't', state: 'open', html_url: 'https://x/12',
+    user: { login: 'u' }, labels: [], assignees: [],
+    updated_at: '2026-11-02T10:00:00.000Z', ...over,
+  })
+  const labelled = item({ labels: [{ name: '主理鱼:已处理' }] })
+
+  // ① 标签在：跳过，并留下可追溯的记录
+  assert.equal(hasAckLabel(labelled), true, '有标签就要认出来')
+  assert.equal(hasAckLabel(item()), false)
+
+  // ② 标签被删、但本地水位还在：不重复叫醒（updated_at 没有变新）
+  const state = { seen: { 12: '2026-11-02T10:00:00.000Z' }, cursor: '2026-11-01T00:00:00.000Z' }
+  const afterDelete = partitionItems([item()], state, { cooldownMs: 180000 })
+  assert.equal(afterDelete.fresh.length, 0, '水位挡住重复叫醒')
+
+  // ③ 标签被删、水位也没了（换了机器 / 状态重建）：会再叫醒一次 —— 这是设计取舍
+  const afterLoss = partitionItems([item()], { seen: {}, cursor: '2026-11-01T00:00:00.000Z' })
+  assert.equal(afterLoss.fresh.length, 1, '两边都没痕迹时会再叫醒一次（可接受）')
+
+  // 边界：条目被编辑过（updated 变新）时，即使有水位也会重新叫醒 —— 客户改了内容
+  const edited = item({ updated_at: '2026-11-03T00:00:00.000Z' })
+  const afterEdit = partitionItems([edited], state, { cooldownMs: 180000 })
+  assert.equal(afterEdit.fresh.length, 1, '内容变了要重新处理')
+})

@@ -3,7 +3,7 @@
 <img src="assets/icon-180.png" width="88" height="88" alt="">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.9.104-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
+[![Version](https://img.shields.io/badge/version-0.9.105-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
 [![npm](https://img.shields.io/npm/v/dsh-session-superagent.svg)](https://www.npmjs.com/package/dsh-session-superagent)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-plugin-orange.svg)](https://github.com/topics/dsh-plugin)
 
@@ -104,6 +104,7 @@ dsh plugin install /path/to/dsh-session-superagent
 - 一条会话可以守多个仓库（每条守独立配置间隔/过滤/时段），但**同一会话同一时刻只处理一批**：
   多仓库同时有动静时按每小时上限排队。
 - 宿主重启后 watcher 从状态文件恢复；会话不在则不注入（会记 `lastError`）。
+- **ack 标签被别人手动删掉**：只要本地水位还在，不会重复叫醒你；但如果状态文件也重建了，那条会被当成新条目再叫醒一次（宁可多叫一次，也不漏）。
 - **服务端改动要重启宿主才生效**（客户端热重载会生效，别被"界面上有新功能"骗了；
   面板顶部会在版本不一致时直接提示）。
 - **三层频率限制**（都是滑动窗口，不是整点重置）：
@@ -121,7 +122,7 @@ dsh plugin install /path/to/dsh-session-superagent
 ## 开发
 
 ```sh
-node --test          # 213 项单测
+node --test          # 214 项单测
 ```
 
 ### 工具输出：文本给人和 agent，JSON 给程序
