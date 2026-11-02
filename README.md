@@ -3,7 +3,7 @@
 <img src="assets/icon-180.png" width="88" height="88" alt="">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.9.28-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
+[![Version](https://img.shields.io/badge/version-0.9.29-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
 [![npm](https://img.shields.io/npm/v/dsh-session-superagent.svg)](https://www.npmjs.com/package/dsh-session-superagent)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-plugin-orange.svg)](https://github.com/topics/dsh-plugin)
 
@@ -85,6 +85,9 @@ dsh plugin install /path/to/dsh-session-superagent
 3. 轮询命中 → 会话收到 `【主理鱼】owner/name 有 1 条新动态：…`；
 4. 会话按 `AGENTS.md` 判断：bug 直接修、范围外的功能请求回复“待定”、需要决策则提问；
 5. 处理完写回 issue/PR。
+
+想知道「第 3 步到底多久会发生」，直接跑 `node scripts/explain-latency.mjs`：它把延迟拆成
+轮询间隔 / 抖动 / 活跃时段 / 冷却期 / 每小时上限 五段，并给出常见与最坏两种情况。
 
 ## 安全边界
 
