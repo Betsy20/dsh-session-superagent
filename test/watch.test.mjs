@@ -11,6 +11,7 @@ import {
   pickSuggestion,
   repoBadges,
   repoStructureNote,
+  commentSummaryLine,
   countReasons,
   jitterMs,
   retryAfterMs,
@@ -548,4 +549,19 @@ test('仓库名纠错：优先同名、其次包含、别乱猜', () => {
   assert.equal(pickSuggestion('', candidates), null)
   assert.equal(pickSuggestion('me/x', null), null, '没有候选不崩')
   assert.equal(pickSuggestion('me/abc', ['x/abc']), 'x/abc', '短名字只要同名仍然可用')
+})
+
+test('「最后是谁在说话」：有就给一行，没就给空（不许瞎编）', () => {
+  assert.equal(commentSummaryLine(null), '')
+  assert.equal(commentSummaryLine({}), '')
+  assert.equal(commentSummaryLine({ login: 'octocat' }), '@octocat')
+  assert.equal(commentSummaryLine({ login: 'octocat', at: '2026-11-02T08:00:00Z' }), '@octocat 2026-11-02T08:00:00Z')
+
+  const items = [{
+    number: 5, title: '有人已经在处理', state: 'open', html_url: 'https://x/5',
+    user: { login: 'author' }, labels: [], assignees: [], comments: 2,
+    lastComment: { login: 'helper', at: '2026-11-02T07:00:00Z' },
+  }]
+  const text = formatWatchText('o/r', items, {})
+  assert.ok(text.includes('最后评论: @helper'), text.slice(0, 200))
 })

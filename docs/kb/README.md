@@ -22,3 +22,4 @@
 | 轮询调度 | [限流是分池的](rate-limit-pools.md) | ⚠️ 准则已记，代码待用 |
 | 交互 | [输入错误要在点添加那一刻说](add-time-precheck.md) | ✅ 0.8.68 |
 | 轮询调度 | [search 池只有 30 次/分钟](search-rate-pool.md) | ✅ 0.8.69 |
+| 通知设计 | [叫醒前先说有没有人在处理](last-commenter.md) | ✅ 0.8.70 |
