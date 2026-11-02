@@ -55,3 +55,4 @@
 | 隔离执行 | [隔离区只按天数回收，管不住"堆"](worktree-count-cap.md) | ✅ 0.9.0 |
 | 文档 | ["已知限制"要和代码一起改](limits-must-track-code.md) | ✅ 0.9.1 |
 | 限额 | [单个资源的限额保护不了总量](session-level-quota.md) | ✅ 0.9.2 |
+| 通知设计 | [三个守同时有动静 ≠ 三条消息](coalesce-bursts.md) | ✅ 0.9.3 |

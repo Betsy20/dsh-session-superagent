@@ -14,6 +14,7 @@ import {
   parseGhInclude,
   accessNote,
   pickSuggestion,
+  mergeWakeTexts,
   msUntilActiveWindow,
   nextWaketimeAt,
   repoBadges,
@@ -845,4 +846,14 @@ test('会话级上限：多个守的唤醒次数要累加（单守上限挡不�
   assert.equal(sessionWakesLastHour(null, 's1', now), 0)
   assert.equal(sessionWakesLastHour([null, {}], 's1', now), 0)
   assert.equal(sessionWakesLastHour(entries, '', now), 0)
+})
+
+test('同会话多条唤醒要合并成一条（实测三守相位只差 1 秒）', () => {
+  assert.equal(mergeWakeTexts([]), '')
+  assert.equal(mergeWakeTexts(['只有一条']), '只有一条', '单条不加包装')
+  assert.equal(mergeWakeTexts(['', '   ']), '', '空内容丢掉')
+  const merged = mergeWakeTexts(['A 仓库有 2 条', 'B 仓库有 1 条', 'C 仓库有 3 条'])
+  assert.ok(merged.includes('3 处变化'), '要说清合并了几处：' + merged.slice(0, 60))
+  assert.ok(merged.includes('第 1 处') && merged.includes('第 3 处'), '每处都要有分隔')
+  assert.ok(merged.includes('A 仓库有 2 条') && merged.includes('C 仓库有 3 条'), '内容不能丢')
 })
