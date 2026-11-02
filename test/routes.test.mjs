@@ -894,3 +894,57 @@ test('watch_trace 文本：一切正常时一行说完，异常才展开', async
   assert.ok(loud.includes('唤醒尝试'), '有失败要展开：' + loud)
   assert.ok(loud.includes('agent busy'), '要说明失败原因')
 })
+
+test('/state 的 304 真的会命中：60 秒 12 次拉取，只有变化那几次返回 200', async () => {
+  const tools = []
+  const localRoutes = new Map()
+  const dir = tempDir('zhuli-304-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: (route) => { localRoutes.set(route.path, route); return () => {} } },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-304' }) },
+    get: () => null, on() {}, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?e304=' + Date.now())
+  mod.apply(ctx)
+  await tools.find((t) => t.name === 'watch_start').execute({ repo: 'acme/etag' })
+
+  const route = localRoutes.get('/session-superagent/state')
+  const fetchOnce = async (ifNoneMatch) => {
+    const res = {
+      statusCode: 200, headers: {}, chunks: [],
+      setHeader(k, v) { this.headers[k.toLowerCase()] = v },
+      end(chunk) { if (chunk !== undefined) this.chunks.push(chunk) },
+      get body() { return this.chunks.join('') },
+    }
+    const headers = ifNoneMatch ? { 'if-none-match': ifNoneMatch } : {}
+    await route.handler({ method: 'GET', url: '/session-superagent/state', headers }, res)
+    return res
+  }
+
+  // 12 次拉取：第 1 次拿 ETag，之后内容不变应有 10 次 304；第 6 次改一下状态
+  const budget = { statuses: [], bytes: 0, saved: 0 }
+  let etag = ''
+  for (let i = 1; i <= 12; i += 1) {
+    if (i === 6) {
+      const state = mod.__test.readState()
+      const key = Object.keys(state.watchers)[0]
+      state.watchers[key].cursor = '2026-11-02T00:00:00.000Z'
+      mod.__test.writeState(state)
+    }
+    const res = await fetchOnce(etag)
+    budget.statuses.push(res.statusCode)
+    budget.bytes += Buffer.byteLength(res.body)
+    if (res.statusCode === 200) {
+      etag = res.headers.etag
+      budget.saved += 0 // 200 就是要下载的
+    } else if (res.statusCode === 304) {
+      budget.saved += 1
+    }
+  }
+  const not304 = budget.statuses.filter((code) => code !== 304).length
+  assert.equal(not304, 2, '12 次里只有 2 次 200（首次 + 改状态那次），实际：' + budget.statuses.join(','))
+  assert.ok(budget.bytes < 8 * 1024, '省下来的正文要明显（实际收到 ' + budget.bytes + ' 字节）')
+})

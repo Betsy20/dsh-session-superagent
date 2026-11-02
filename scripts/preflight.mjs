@@ -245,6 +245,14 @@ if (!FAST) {
     bad.length > 0 ? bad[0].trim() : (claims ? claims + ' 条 ✅ 都能找到发布 / ' + (paths || '?') + ' 个路径都存在' : '无输出'))
 }
 
+// ⑥.4 面板请求体积（/state @ 20 条守，现实上限 ≤ 50 KB）
+{
+  const res = tryRun('node', ['scripts/measure-state.mjs', '20'], { timeout: 60000 })
+  const out = String(res.stdout || '').trim().split(String.fromCharCode(10))
+  const last = out[out.length - 1] || '无输出'
+  record('面板请求体积', res.status === 0, last.replace(/^(PASS|FAIL)\s*/, ''))
+}
+
 // ⑥.45 长跑体积：20 条守跑 30 天的状态文件要 ≤ 200 KB
 {
   const res = tryRun('node', ['scripts/measure-growth.mjs', '30'], { timeout: 180000 })
