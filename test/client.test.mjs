@@ -874,3 +874,18 @@ test('术语表覆盖客户会在面板上遇到的词（含"上限"这种歧义
   // "上限"必须有歧义澄清：会话上限 vs GitHub 限流
   assert.ok(text.includes('GitHub 的限流'), '要说清"上限"和 GitHub 限流不是一回事')
 })
+
+test('长错误不能把建议切掉（截断曾恰好切掉最有用的一段）', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const longMain = '轮询失败：' + 'x'.repeat(200)
+  const hint = '（网络抖动：这一轮没连上 GitHub，已按退避自动重试，不需要手动处理）'
+  const snap = {
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: 'x', credentials: {}, sessionUsage: { used: 0, cap: 12, capped: 0 },
+      watchers: [watcher('a/b', { id: 'a/b#s1', lastError: longMain + hint })] },
+  }
+  const text = walk(render(desk, deskQueue(snap))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(text.includes('已按退避自动重试'), '建议必须完整出现：' + text.slice(0, 300))
+  assert.ok(!text.includes('x'.repeat(150)), '现象部分要截断，避免占满版面')
+})

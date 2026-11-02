@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.62'
+    const CLIENT_VERSION = '0.9.63'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -612,6 +612,13 @@ window.__ModuleLoader__.load({
     const BORDER = '1px solid var(--dsw-alias-border-l2, rgba(128,128,128,.22))'
 
     /** Dock entry: the machine-wide ring plus its click-through detail list. */
+    /** 把错误拆成「现象」和「建议」：服务端存的是 short +（hint），建议在末尾的括号里。 */
+    function splitErrorText(text) {
+      const value = String(text || '')
+      const match = /（[^（）]*）\s*$/.exec(value)
+      if (!match) return { main: value, hint: '' }
+      return { main: value.slice(0, match.index).trim(), hint: match[0].trim() }
+    }
     function StatusOrbit() {
       const [watchers, setWatchers] = useState(null)
       const [open, setOpen] = useState(false)
@@ -743,7 +750,13 @@ window.__ModuleLoader__.load({
             w.goal && w.goal.objective
               ? h('div', { className: 'dt-hint' }, 'goal · ' + String(w.goal.objective).slice(0, 60))
               : null,
-            w.lastError ? h('div', { className: 'dt-error' }, String(w.lastError).slice(0, 160)) : null),
+            w.lastError ? (() => {
+              // 之前整串 slice(0,160)：错误一长就先切掉后面的建议 —— 恰好是最有用的部分
+              const parts = splitErrorText(w.lastError)
+              return h('div', { className: 'dt-error' },
+                parts.main.slice(0, 120) + (parts.main.length > 120 ? '…' : ''),
+                parts.hint ? h('div', { className: 'dt-hint' }, parts.hint) : null)
+            })() : null),
           h('div', { className: 'dt-row-actions' },
             h(Btn, { size: 'sm', variant: 'ghost', onClick: () => act(w, 'poll') }, '立刻'),
             h(Btn, { size: 'sm', variant: 'ghost', onClick: () => act(w, w.enabled ? 'pause' : 'resume') },
@@ -1069,7 +1082,12 @@ window.__ModuleLoader__.load({
               watcher.note ? '目标: ' + String(watcher.note).slice(0, 40) : '',
             ].filter(Boolean).join(' · ')),
           watcher.lastDeferred ? h('div', { className: 'dt-ticket-note' }, watcher.lastDeferred) : null,
-          watcher.lastError ? h('div', { className: 'dt-ticket-note dt-ticket-note-error' }, String(watcher.lastError).slice(0, 160)) : null,
+          watcher.lastError ? (() => {
+            const parts = splitErrorText(watcher.lastError)
+            return h('div', { className: 'dt-ticket-note dt-ticket-note-error' },
+              parts.main.slice(0, 120) + (parts.main.length > 120 ? '…' : ''),
+              parts.hint ? h('div', { className: 'dt-hint' }, parts.hint) : null)
+          })() : null,
           h('div', { className: 'dt-ticket-actions' },
             h(Btn, { size: 'sm', variant: 'outline', icon: h(Icon, { name: 'refresh' }), onClick: () => act(watcher, 'poll') }, '立刻'),
             h(Btn, {
@@ -1144,7 +1162,14 @@ window.__ModuleLoader__.load({
           problems.push({ key: 'r-' + watcher.repo, text: watcher.repo + ' #' + watcher.lastReopened + ' 被重新打开过 —— 之前判"不做"可能不对' })
         }
         if (structure) problems.push({ key: 's-' + watcher.repo, text: structure })
-        if (watcher.lastError) problems.push({ key: 'e-' + watcher.repo, text: watcher.repo + ' 轮询失败：' + watcher.lastError })
+        if (watcher.lastError) {
+          // 同样拆开：现象截断、建议保留（这里原来是整串塞进「需要关注」）
+          const parts = splitErrorText(watcher.lastError)
+          problems.push({
+            key: 'e-' + watcher.repo,
+            text: watcher.repo + ' 轮询失败：' + parts.main.slice(0, 120) + (parts.main.length > 120 ? '…' : '') + ' ' + parts.hint,
+          })
+        }
         else if (watcher.lastDeferred) problems.push({ key: 'd-' + watcher.repo, text: watcher.repo + ' 暂停唤醒：' + watcher.lastDeferred })
       }
       if (body.gh && body.gh.ok === false && credentials.token === 'none') {
