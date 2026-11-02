@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.62'
+    const CLIENT_VERSION = '0.8.63'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1173,6 +1173,16 @@ window.__ModuleLoader__.load({
             ['仓库', watchers.length === 0 ? '未绑定' : watchers.map((w) => w.repo).join(', ')],
             ['gh CLI', !body.gh ? '检测中…' : body.gh.ok ? '可用 · ' + (body.gh.version || '') : '不可用 · ' + (body.gh.error || '')],
             ['凭证', credentials.token === 'none' ? '回退到 gh CLI 登录态' : '使用面板配置的 token'],
+            ['权限范围', (() => {
+              const info = body.tokenScopes
+              if (!info) return '正在探测…'
+              if (!info.ok) return '探测失败：' + String(info.error || '').slice(0, 60)
+              if (!info.scopes.length) return '细粒度 token（无 OAuth scope）'
+              return info.scopes.join(', ')
+            })()],
+            (body.tokenScopes && body.tokenScopes.broad && body.tokenScopes.broad.length > 0)
+              ? ['提示', '这个 token 带 ' + body.tokenScopes.broad.join(', ') + ' —— 我们的功能只需要「读 issue/PR + 写评论和标签」，建议换细粒度 token 只授 Issues 读写']
+              : null,
             ['隔离占用', !body.isolation || (body.isolation.roots || []).length === 0
               ? '没有开隔离执行'
               : (body.isolation.roots || []).map((r) => r.count + ' 个 · ' + bytesText(r.bytes)).join('；')

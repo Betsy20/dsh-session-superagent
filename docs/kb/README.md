@@ -15,3 +15,4 @@
 | 隔离执行 | [保留策略要能配、要可见](retention-configurable.md) | ✅ 0.8.60 |
 | 状态可靠性 | [状态文件被写坏时别当空状态](state-crash-safety.md) | ✅ 0.8.61 |
 | 安全 | [Windows 上 chmod 0600 保护不了 token](windows-secrets-perms.md) | ✅ 0.8.62 |
+| 安全 | [token 权限要看得见、也要够窄](token-scopes.md) | ✅ 0.8.63 |

@@ -2,6 +2,29 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.63] - 2026-11-02 —— 面板显示 token 权限范围，宽 scope 会提醒
+
+### 学到的（知识库第 12 条）
+GitHub 细粒度 token 按「资源 × 操作 × 仓库」授权，经典 PAT 的 `repo` 却是该账号可见仓库的**全部读写**。
+最小权限的意义在于泄漏后的影响面 —— 对一个跑在客户机器上的插件尤其重要。
+
+本机实测当前 token 的 scopes：
+
+```
+admin:repo_hook, delete:packages, gist, notifications, project,
+read:org, read:user, repo, workflow, write:discussion, write:packages
+```
+
+其中 `delete:packages` / `admin:repo_hook` / `workflow` **我们一个都用不到**。
+
+### 改了什么
+- `gh api -i user` 读 `x-oauth-scopes`（**缓存 5 分钟**，不额外给每次 `/state` 加一次网络往返）；
+- `/state` 带 `tokenScopes`；设置页「来源」显示「权限范围: …」；
+- 命中宽 scope 时多一行提示：建议换细粒度 token，只授 Issues 读写。
+
+### 测试
+- 合计 **116 例**（复用既有 /state 契约用例，未新增网络依赖）。
+
 ## [0.8.62] - 2026-11-02 —— Windows 上 `chmod 0600` 是假的，改用 ACL
 
 ### 学到的（知识库第 11 条，安全问题）
