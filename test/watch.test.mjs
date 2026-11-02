@@ -726,6 +726,8 @@ test('关联 PR：open 优先、去重、消息里提醒"已有 PR 在做"', () 
   assert.equal(linkedPrNote(null), '')
   assert.equal(linkedPrNote([]), '')
   assert.equal(linkedPrNote([{ number: 20, state: 'OPEN' }]), '已有 PR #20（进行中）')
+  assert.equal(linkedPrNote([{ number: 20, state: 'OPEN', draft: true }]), '已有 PR #20（进行中·草稿）', '草稿要说清楚')
+  assert.equal(linkedPrNote([{ number: 21, state: 'MERGED', draft: true }]), '已有 PR #21（已合并）', '合并不可能是草稿，不加后缀')
   assert.equal(linkedPrNote([{ number: 21, state: 'MERGED' }]), '已有 PR #21（已合并）')
   assert.match(linkedPrNote([{ number: 20, state: 'OPEN' }, { number: 21, state: 'CLOSED' }]), /等 2 个/)
 

@@ -2,6 +2,20 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.81] - 2026-11-02 —— 草稿 PR 要标出来，别当成"有人在推进"
+
+### 学到的（知识库第 30 条）
+GraphQL `PullRequest.isDraft`（本机实测 `cli/cli` 前 3 个 open PR 全是 `isDraft: true`）。
+草稿 PR 不触发通知、不能合并 —— 作者明确表示"还没准备好"。
+<https://docs.github.com/en/graphql/reference/objects#pullrequest>
+
+### 为什么值得
+上一轮加了「已有 PR 在做」。但如果是草稿，会话可能误判"有人推进，我不用管" —— 漏活。
+现在区分：`已有 PR #20（进行中·草稿）`；合并态即使 `isDraft=true` 也不加后缀（防御性）。
+
+### 测试
+- 用例扩充（草稿带后缀 / 合并态不带后缀）。合计 **132 例**。
+
 ## [0.8.80] - 2026-11-02 —— 「已经有 PR 在做了」：避免重复劳动
 
 ### 学到的（知识库第 29 条）
