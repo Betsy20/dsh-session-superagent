@@ -158,6 +158,17 @@ const tryRun = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: ROOT, encod
   record('文案快照', res.status === 0, res.status === 0 ? (out[0] || '').replace(/^PASS /, '') : '文案变了：跑 node scripts/first-run.mjs --write 再看 diff')
 }
 
+// ⑥.455 文档里提到的工具名/路由必须真实存在（重构改名后文档不会自己报错）
+{
+  const res = tryRun('node', ['scripts/audit-claims-consistency.mjs'], { timeout: 60000 })
+  const out = String(res.stdout || '')
+  const bad = out.split(String.fromCharCode(10)).filter((line) => line.startsWith('FAIL'))
+  const tools = (out.match(/工具 (\d+) 个/) || [])[1]
+  const routes = (out.match(/路由 (\d+) 条/) || [])[1]
+  record('文档标识符', res.status === 0 && bad.length === 0,
+    bad.length > 0 ? bad[0].replace(/^FAIL /, '') : (tools || '?') + ' 个工具 / ' + (routes || '?') + ' 条路由都对得上')
+}
+
 // ⑥.46 知识库的 ✅ 必须能在 CHANGELOG 里找到对应版本（KB 不能只靠自己声称）
 {
   const res = tryRun('node', ['scripts/audit-kb-claims.mjs'], { timeout: 60000 })

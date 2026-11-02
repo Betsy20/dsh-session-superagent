@@ -3,7 +3,7 @@
 <img src="assets/icon-180.png" width="88" height="88" alt="">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.9.31-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
+[![Version](https://img.shields.io/badge/version-0.9.32-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
 [![npm](https://img.shields.io/npm/v/dsh-session-superagent.svg)](https://www.npmjs.com/package/dsh-session-superagent)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-plugin-orange.svg)](https://github.com/topics/dsh-plugin)
 
@@ -106,9 +106,12 @@ dsh plugin install /path/to/dsh-session-superagent
 - 宿主重启后 watcher 从状态文件恢复；会话不在则不注入（会记 `lastError`）。
 - **服务端改动要重启宿主才生效**（客户端热重载会生效，别被"界面上有新功能"骗了；
   面板顶部会在版本不一致时直接提示）。
-- 每小时唤醒上限是**滑动窗口**：6 次若集中在开头几分钟，下一次要等约 1 小时
-  （面板会写「约 X 分钟后可再唤醒」）。默认上限下，**会话级 12 次/小时**：
-  守 3 个活跃仓库时约能处理 12 条/小时，其余攒到下一小时（离线模拟实测，见 docs/kb）。
+- **三层频率限制**（都是滑动窗口，不是整点重置）：
+  单条守 **6 次/小时** → 一条守一小时最多叫醒你 6 次；
+  整条会话 **12 次/小时**（跨所有守累计）；
+  冷却期 **3 分钟**（只吸收你自己刚操作过的条目，别人提交的不受影响）。
+  6 次若集中在开头几分钟，下一次要等约 1 小时（面板会写「约 X 分钟后可再唤醒」）。
+  离线模拟实测：守 3 个活跃仓库时约能处理 12 条/小时，其余攒到下一小时。
 - 隔离执行会在仓库下留 `.dsh-zhuli/` 副本：默认**最多 5 个**、超 3 天回收；
   副本体积≈该仓库工作树大小。开隔离区时会自动把它写进 `.git/info/exclude`，
   所以**不会污染 `git status`**、也不会误提交。

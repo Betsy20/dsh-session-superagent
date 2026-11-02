@@ -2,6 +2,28 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.32] - 2026-11-02 —— 文档标识符门禁 + README 补全三层限制
+
+### 学到的（知识库第 80 条）
+文档里的标识符（工具名、路由）会漂移，能自动查的那一半先查掉。
+
+### 新增：`scripts/audit-claims-consistency.mjs`
+从 `lib/index.js` 抽真实工具名与路由，扫 5 份文档里提到的同名标识符，对不上就 FAIL。
+```
+工具 6 个：watch_ack watch_trace watch_doctor watch_start watch_status watch_stop
+路由 9 条
+PASS 文档里提到的工具名都真实存在
+PASS 文档里提到的路由都真实存在
+```
+**这次没抓到漂移** —— 说明最近的重构都同步改了文档。门禁的价值是"以后忘改会红"。
+
+### 顺手补的真缺口
+README 原来只写「会话级 12 次/小时」，**漏了单守 6 次/小时与冷却期 3 分钟** ——
+客户看到"6 次"会以为是会话级。现在三层并列写清（数字与代码常量一致）。
+
+### 门禁
+`preflight --fast` 第 **15** 项：`PASS 文档标识符　6 个工具 / 9 条路由都对得上`。
+
 ## [0.9.31] - 2026-11-02 —— 面板也能追溯了（`/trace` 路由，路由面 8 → 9）
 
 ### 做了什么
