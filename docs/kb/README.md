@@ -43,3 +43,4 @@
 | 可靠性 | [数量对不等于形状对：契约快照](contract-snapshot.md) | ✅ 0.8.88 |
 | 交互 | [「在等」也是一种空态](waiting-state.md) | ✅ 0.8.89 |
 | 文档 | [四十个版本的 CHANGELOG ≠ 客户能读的东西](release-notes-for-humans.md) | ✅ 0.8.90 |
+| 文档 | [文档分四种，别用一种应付](docs-four-kinds.md) | ✅ 0.8.91 |

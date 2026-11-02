@@ -2,6 +2,27 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.91] - 2026-11-02 —— 新客户第一次被叫醒，照着走一遍就行
+
+### 学到的（知识库第 40 条）
+Divio Documentation System 把文档分四类：tutorial / how-to / reference / explanation，
+**它们的写法互相冲突**，用一个文件全做等于三件都做不好。
+<https://docs.divio.com/documentation-system/>
+
+我们原来有 README（reference）、CHANGELOG（开发视角）、`docs/kb`（explanation），
+缺最影响首次体验的一类：**tutorial**。客户装完了仍不知道"怎么确认它真的在工作"。
+
+### 改了什么
+新增 `docs/首次唤醒走查.md`：7 步，**每步写清"你应该看到什么"和"没看到时看哪里"**：
+1. 确认 gh 可用 + token 权限 → 2. 加一条守（先勾仅观察）→ 3. 看它轮询 →
+4. 制造一次动静 → 5. 判定页确认被判定到 → 6. 关掉仅观察，真的叫醒一次 →
+7. 处理完 `watch_ack` 打标签。
+
+最后附一页速查表（现象 → 先看哪里）。
+
+### 说明
+本版只动文档，运行时行为未变。
+
 ## [0.8.90] - 2026-11-02 —— 给使用者写一页"0.9 有什么新变化"
 
 ### 学到的（知识库第 39 条）
