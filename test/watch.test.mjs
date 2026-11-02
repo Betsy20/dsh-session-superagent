@@ -487,3 +487,15 @@ test('唤醒消息带「为什么是这几条」（只给结果不给依据，�
   const plain = formatWatchText('o/r', items, {})
   assert.ok(!plain.includes('【为什么是这几条】'), '没信息就别硬编')
 })
+
+test('唤醒消息的完成标准是可观测的三条（Given-When-Then 思路）', () => {
+  const items = [{ number: 1, title: 'x', state: 'open', html_url: 'https://x/1', user: { login: 'u' }, labels: [], assignees: [] }]
+  const text = formatWatchText('o/r', items, { criteria: ['改了什么', '怎么验证的', '回写到哪', '第四条留着', '第五条会被截'] })
+  assert.ok(text.includes('【完成标准】'), '要有独立的完成标准块')
+  assert.ok(text.includes('1. 改了什么') && text.includes('3. 回写到哪'), '按序号列出来')
+  assert.ok(text.includes('第四条留着') && !text.includes('第五条'), '最多 4 条，第 5 条起丢掉')
+  // 不给标准时退回原来的一句话
+  const plain = formatWatchText('o/r', items, {})
+  assert.ok(!plain.includes('【完成标准】'))
+  assert.ok(plain.includes('完成标准 = 有测试结果'))
+})

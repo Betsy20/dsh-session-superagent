@@ -10,3 +10,4 @@
 | 轮询调度 | [第二阶段限流：照 Retry-After 等](rate-limit-secondary.md) | ✅ 0.8.54 |
 | 判定与可解释性 | [让「为什么没叫醒」有答案](filter-explainability.md) | ✅ 0.8.55 |
 | 通知设计 | [通知要带「为什么是你」](notification-rationale.md) | ✅ 0.8.57 |
+| 通知设计 | [完成标准要可观测](acceptance-criteria.md) | ✅ 0.8.58 |
