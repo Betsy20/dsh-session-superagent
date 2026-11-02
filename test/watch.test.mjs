@@ -225,12 +225,21 @@ test('batchFresh 只取前 N 条，N 非法时退回 3', () => {
   assert.deepEqual(batchFresh([], 5), [])
 })
 
-test('nextDelayMs：失败翻倍，封顶 30 分钟，成功复位', () => {
+test('nextDelayMs：失败翻倍；预算内封顶 30 分钟，超出预算封顶 2 小时', () => {
   const base = 30000
   assert.equal(nextDelayMs({ consecutiveFailures: 0 }, base), base)
   assert.equal(nextDelayMs({ consecutiveFailures: 1 }, base), 60000)
   assert.equal(nextDelayMs({ consecutiveFailures: 3 }, base), 240000)
-  assert.equal(nextDelayMs({ consecutiveFailures: 20 }, base), 30 * 60 * 1000, '封顶 30 分钟')
+  // 第 5 次仍在预算内：最多 30 分钟
+  // base=30s 时：5 次失败 = 30s×32 = 16 分钟（还没到 30 分钟上限）
+  assert.equal(nextDelayMs({ consecutiveFailures: 5 }, base), 16 * 60 * 1000)
+  // 换成 60s 基准才看得到上限：5 次 → 被 30 分钟截住
+  assert.equal(nextDelayMs({ consecutiveFailures: 5 }, 60000), 30 * 60 * 1000, '预算内封顶 30 分钟')
+  // 第 6 次起超出预算：改 2 小时一次（原来是 30 分钟一直重试到天荒地老）
+  // base=30s：20 次 = 30s×120 = 1 小时（预算外的倍率上限 120）
+  assert.equal(nextDelayMs({ consecutiveFailures: 20 }, base), 60 * 60 * 1000)
+  // base=60s 才真正碰到 2 小时上限
+  assert.equal(nextDelayMs({ consecutiveFailures: 20 }, 60000), 2 * 60 * 60 * 1000, '超出预算封顶 2 小时')
 })
 
 test('pruneWakeTimes 只保留最近一小时的唤醒', () => {
@@ -1290,4 +1299,15 @@ test('合并唤醒消息：收尾的「接下来」只保留一份（内容不�
   // 结构断言为主：合并后会多出「—— 第 N 处 ——」分隔行，所以长度只要求净省下一点
   const saved = items.join('').length - merged.length
   assert.ok(saved > 30, '合并后要净省下长度（实际省 ' + saved + '）')
+})
+
+test('重试预算：连续失败到第 6 次就放慢到 2 小时一次（不再密集重试）', () => {
+  const base = 60000
+  const at = (f) => Math.round(watchModule.nextDelayMs({ consecutiveFailures: f }, base) / 60000)
+  assert.equal(at(0), 1, '没失败就按配置间隔')
+  assert.equal(at(1), 2)
+  assert.equal(at(3), 8)
+  assert.ok(at(5) <= 30, '预算内不超过 30 分钟')
+  assert.ok(at(6) >= 60, '到预算后明显放慢（实际 ' + at(6) + ' 分钟）')
+  assert.equal(at(20), 120, '最多 2 小时一次')
 })

@@ -2,6 +2,37 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.121] - 2026-11-03 —— 重试要花预算：连续失败 6 次后放慢到 2 小时一次
+
+### 学到什么（出处）
+Google SRE《Handling Overload》：
+
+> We implement a **per-request retry budget of up to three attempts**. If a request has already failed
+> three times, we let the failure bubble up to the caller. … Secondly, we implement a **per-client retry budget**.
+
+<https://sre.google/sre-book/handling-overload/>
+
+核心是：**重试要花预算，花完就该慢下来**，而不是无限次地按固定节奏重来。
+
+### 我们原来的问题
+`nextDelayMs` 是指数退避，但**封顶 30 分钟之后就一直是 30 分钟** —— 一条凭证失效的守会以
+每 30 分钟一次的频率重试**几天**（真机就在这个状态：失败 4 次）。
+
+### 改法
+引入 `RETRY_BUDGET_ATTEMPTS = 6`：
+| 连续失败 | 等待 |
+|---|---|
+| 1 | 2 分钟 |
+| 3 | 8 分钟 |
+| 5 | 30 分钟（预算内上限） |
+| **6 起** | **最多 2 小时一次**（预算外上限） |
+
+`watch_doctor` 同时补一行解释：`已连续失败 8 次，重试间隔已放慢到最多每 2 小时一次` ——
+否则客户看到"很久没动"会以为定时器坏了（这正好和 0.9.96 的"重启 vs 定时器丢了"是同一类误会）。
+
+### 测试
+新增 1 例（doctor 解释）；更新 1 例（退避取值，含 30s/60s 两种基准下的上限）。合计 **231 例**。
+
 ## [0.9.120] - 2026-11-03 —— 合并唤醒消息：同一份「接下来」只印一次
 
 ### 学到什么（出处）

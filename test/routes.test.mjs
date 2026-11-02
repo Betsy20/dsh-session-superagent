@@ -1113,3 +1113,30 @@ test('凭证失效时 doctor 要明说「不会自愈，需要重新登录」', 
   assert.ok(doctor.includes('不会自己恢复'), '要说清不会自愈')
   assert.ok(doctor.includes('gh auth login'), '要给出具体动作')
 })
+
+test('连续失败很多次时，doctor 要解释「间隔已放慢」而不是让人以为卡住了', async () => {
+  const tools = []
+  const dir = tempDir('zhuli-budget-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: () => () => {} },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-budget' }) },
+    get: () => null, on() {}, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?budget=' + Date.now())
+  mod.apply(ctx)
+  await tools.find((t) => t.name === 'watch_start').execute({ repo: 'acme/budget' })
+
+  const state = mod.__test.readState()
+  const key = Object.keys(state.watchers)[0]
+  state.watchers[key].consecutiveFailures = 8
+  state.watchers[key].lastPoll = new Date().toISOString()
+  state.server = { ...(state.server || {}), startedAt: new Date().toISOString() }
+  mod.__test.writeState(state)
+
+  const doctor = String(await tools.find((t) => t.name === 'watch_doctor').execute({}))
+  assert.ok(doctor.includes('已连续失败 8 次'), '要报出失败次数：' + doctor.slice(0, 300))
+  assert.ok(doctor.includes('2 小时'), '要说明间隔已放慢到 2 小时')
+})
