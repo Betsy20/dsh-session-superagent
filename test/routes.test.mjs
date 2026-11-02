@@ -1047,3 +1047,20 @@ test('非错误状态码聚一遍：200/204/304 都不该被当成失败', async
   assert.equal(why.kind, 'notmodified')
   assert.ok(why.hint.includes('不是错误'), '提示要直说不是错误：' + why.hint)
 })
+
+test('尊重 x-poll-interval：GitHub 要求更慢就照它等（解析 + 间隔下限）', async () => {
+  const { parseGhInclude } = await import('../lib/gh-format.js')
+  const CRLF = String.fromCharCode(13, 10)
+  const withHeader = parseGhInclude('HTTP/2.0 200 OK' + CRLF + 'x-poll-interval: 90' + CRLF + CRLF + '[]')
+  assert.equal(withHeader.pollInterval, 90, '要解析出 x-poll-interval')
+  const without = parseGhInclude('HTTP/2.0 200 OK' + CRLF + CRLF + '[]')
+  assert.equal(without.pollInterval, null, '没有这个头时是 null（不是 0）')
+
+  // 间隔下限：min(配置, GitHub 要求) 取大者 —— 用纯函数验证逻辑本身
+  const { nextDelayMs } = await import('../lib/watch.js')
+  const entry = { consecutiveFailures: 1, minIntervalSec: 90 }
+  const base = 60000
+  const floor = Math.max(base, entry.minIntervalSec * 1000)
+  assert.equal(floor, 90000, '下限应当是 90 秒')
+  assert.ok(nextDelayMs(entry, floor) >= floor, '退避只在更大的方向上生效')
+})

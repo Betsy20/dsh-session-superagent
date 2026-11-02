@@ -1240,3 +1240,13 @@ test('ack 标签被人手动删掉：本地水位仍然挡住重复叫醒（三�
   const afterEdit = partitionItems([edited], state, { cooldownMs: 180000 })
   assert.equal(afterEdit.fresh.length, 1, '内容变了要重新处理')
 })
+
+test('永久性错误（404 / 改名）至少等半小时再试 —— 别反复撞不存在的资源', () => {
+  // 依据：GitHub 最佳实践「wait much longer before you check again」
+  assert.equal(watchModule.permanentBackoffMs('notfound', 60000), 30 * 60 * 1000)
+  assert.equal(watchModule.permanentBackoffMs('moved', 60000), 30 * 60 * 1000)
+  assert.equal(watchModule.permanentBackoffMs('network', 60000), 0, '网络问题不该被当成永久错误')
+  assert.equal(watchModule.permanentBackoffMs('ratelimit', 60000), 0)
+  // 配置的间隔更长时取配置
+  assert.equal(watchModule.permanentBackoffMs('notfound', 45 * 60 * 1000), 45 * 60 * 1000)
+})

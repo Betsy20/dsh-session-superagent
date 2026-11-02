@@ -2,6 +2,29 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.114] - 2026-11-03 —— 按 GitHub 官方最佳实践补两条：x-poll-interval、永久错误等更久
+
+### 学到什么（出处）
+GitHub《Best practices for using the REST API》明确两条我们没做：
+
+1. **`x-poll-interval`**：「If a response includes an `x-poll-interval` header, wait at least that many seconds
+   before you poll the same endpoint again.」
+2. **重复 404**：「Once you have confirmed that your credentials are correct, **wait much longer** before you check
+   again… Repeatedly requesting a missing resource wastes your rate limit and can trigger a secondary rate limit.」
+
+出处：<https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api>
+
+### 改了什么
+1. `parseGhInclude` 解析 `x-poll-interval`（修了一个坑：`Number(null) === 0` 会让"没有这个头"被当成 0）；
+2. 轮询取 `max(配置间隔, x-poll-interval)` 作为下限 —— **成功路径也生效**
+   （此前 `nextAt` 只在失败退避时设置，成功后清空，间隔下限等于没用）；
+3. 永久性错误（`notfound` / `moved`）新增 **30 分钟**最低等待（`permanentBackoffMs`），
+   不再按普通指数退避反复撞不存在的仓库。
+
+### 测试
+新增 2 例：`x-poll-interval` 解析（有/无头）+ 间隔下限逻辑；`permanentBackoffMs` 四种 kind 的取值。
+合计 **222 例**。
+
 ## [0.9.113] - 2026-11-03 —— 把「不是错误的状态码」理一遍：204 也补上了
 
 ### 梳理结果
