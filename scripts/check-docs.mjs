@@ -52,6 +52,25 @@ const orphans = readdirSync(kbDir)
   .filter((name) => name.endsWith('.md') && name !== 'README.md')
   .filter((name) => !index.includes(name))
 
+// 板块自检：索引顶部的「板块 → 篇数」必须和各板块下实际列出的条数一致，
+// 否则重构索引时很容易出现"表头写 11 篇、下面只列 9 篇"。
+const sectionCounts = [...index.matchAll(/^## (.+)$/gm)].map((m) => m[1])
+const declared = [...index.matchAll(/^\| ([^|]+) \| (\d+) \| [^|]*\|$/gm)]
+  .filter((m) => !m[1].includes('板块'))
+  .map((m) => ({ name: m[1].trim(), n: Number(m[2]) }))
+const countMismatch = []
+for (const item of declared) {
+  const heading = index.indexOf('## ' + item.name)
+  if (heading < 0) {
+    countMismatch.push(item.name + '（索引里没有这个板块）')
+    continue
+  }
+  const next = index.indexOf(String.fromCharCode(10) + '## ', heading + 3)
+  const body = index.slice(heading, next < 0 ? index.length : next)
+  const listed = (body.match(/^\| \[/gm) || []).length
+  if (listed !== item.n) countMismatch.push(item.name + '：声明 ' + item.n + ' 篇，实际列出 ' + listed + ' 篇')
+}
+
 const verbose = process.argv.includes('--verbose')
 console.log(`扫描 ${files.length} 篇 Markdown，${seenTargets.size} 个内部链接目标`)
 
@@ -73,4 +92,12 @@ if (orphans.length > 0) {
   console.log('PASS 知识库文档全部被索引')
 }
 
-if (problems.length > 0 || orphans.length > 0) process.exitCode = 1
+
+if (countMismatch.length > 0) {
+  console.log(`FAIL 索引板块篇数对不上（${countMismatch.length} 处）：`)
+  for (const item of countMismatch) console.log('  ' + item)
+} else {
+  console.log('PASS 索引板块篇数与实际条目一致')
+}
+
+if (problems.length > 0 || orphans.length > 0 || countMismatch.length > 0) process.exitCode = 1
