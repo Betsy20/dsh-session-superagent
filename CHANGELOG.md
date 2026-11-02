@@ -2,6 +2,26 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.46] - 2026-11-02 —— 写工具也给 JSON：成功与否不再靠读中文
+
+### 学到的（延续知识库第 91 条）
+只读工具有了 `format=json`，但**写工具**仍返回自然语言：
+`acked o/r #12 with label …` / `stopped o/r#s` —— agent 判断成功与否只能读中文，改一次措辞就误判。
+
+### 改法
+`watch_start` / `watch_stop` / `watch_ack` 补上 `format: 'json'`：
+| 场景 | JSON |
+|---|---|
+| start 成功 | `{ schemaVersion, ok: true, repo, id, intervalSec, flags, updated }` |
+| stop 成功 | `{ schemaVersion, ok: true, id }` |
+| ack 成功 | `{ schemaVersion, ok: true, repo, label, acked, at }` |
+| 失败 | `{ schemaVersion, ok: false, error }` |
+
+文本形态**保持不变**（老调用方不受影响），顺序是"先判断 json，再拼文本"。
+
+### 测试
+- 新增 1 例（start 新建/更新、stop 成功/不存在、默认仍返回文本）。合计 **182 例**。
+
 ## [0.9.45] - 2026-11-02 —— README 写着 136 项单测，实际 181（现在会自动报错）
 
 ### 学到的（知识库第 92 条）

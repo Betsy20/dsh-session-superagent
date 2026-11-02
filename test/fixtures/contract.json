@@ -25,6 +25,7 @@
     {
       "name": "watch_ack",
       "params": [
+        "format",
         "label",
         "number",
         "numbers",
@@ -46,6 +47,7 @@
         "activeHours",
         "assignee",
         "batchLimit",
+        "format",
         "goal",
         "ignoreLabels",
         "intervalSec",
@@ -72,6 +74,7 @@
     {
       "name": "watch_stop",
       "params": [
+        "format",
         "repo"
       ],
       "required": [

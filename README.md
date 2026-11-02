@@ -3,7 +3,7 @@
 <img src="assets/icon-180.png" width="88" height="88" alt="">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.9.45-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
+[![Version](https://img.shields.io/badge/version-0.9.46-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
 [![npm](https://img.shields.io/npm/v/dsh-session-superagent.svg)](https://www.npmjs.com/package/dsh-session-superagent)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-plugin-orange.svg)](https://github.com/topics/dsh-plugin)
 
@@ -121,7 +121,7 @@ dsh plugin install /path/to/dsh-session-superagent
 ## 开发
 
 ```sh
-node --test          # 181 项单测
+node --test          # 182 项单测
 ```
 
 ### 工具输出：文本给人和 agent，JSON 给程序
@@ -133,6 +133,7 @@ node --test          # 181 项单测
 | `watch_status` | 每条守一行 + 会话用量行 | `{ schemaVersion, session, watchers[] }` |
 | `watch_doctor` | `OK/WARN/FAIL` 检查清单 | `{ schemaVersion, checks[{status,text}] }` |
 | `watch_trace` | 单条条目的追溯文字 | `{ schemaVersion, number, results[] }`（错误时 `{ schemaVersion, error }`） |
+| `watch_start` / `watch_stop` / `watch_ack` | 一句话结果 | `{ schemaVersion, ok, … }` —— 成功/失败都靠 `ok` 判断，不用读中文 |
 
 `schemaVersion` 现在是 `1`；**字段语义一变就会加这个数**，程序可以据此决定要不要重新解析。
 

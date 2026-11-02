@@ -497,3 +497,41 @@ test('三个只读工具口径一致：都支持 format=json 且带 schemaVersio
   assert.equal(trace.schemaVersion, 1)
   assert.ok(Array.isArray(trace.results))
 })
+
+test('写工具也给 JSON：成功/失败都能被程序判断（不再靠读中文）', async () => {
+  const tools = []
+  const dir = (await import('node:fs')).mkdtempSync((await import('node:path')).join((await import('node:os')).tmpdir(), 'zhuli-wr-'))
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: () => () => {} },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-wr' }) },
+    get: () => null, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?wr=' + Date.now())
+  mod.apply(ctx)
+  const start = tools.find((t) => t.name === 'watch_start')
+  const stop = tools.find((t) => t.name === 'watch_stop')
+
+  const started = JSON.parse(await start.execute({ repo: 'o/wr', format: 'json', sessionMaxWakes: 12 }))
+  assert.equal(started.schemaVersion, 1)
+  assert.equal(started.ok, true)
+  assert.equal(started.repo, 'o/wr')
+  assert.equal(started.updated, false, '第一次是新建')
+
+  const again = JSON.parse(await start.execute({ repo: 'o/wr', format: 'json' }))
+  assert.equal(again.updated, true, '第二次是更新')
+
+  const stopped = JSON.parse(await stop.execute({ repo: 'o/wr', format: 'json' }))
+  assert.equal(stopped.ok, true)
+
+  // 停一条不存在的：也要能用 ok:false 判断
+  const missing = JSON.parse(await stop.execute({ repo: 'o/none', format: 'json' }))
+  assert.equal(missing.ok, false)
+  assert.ok(typeof missing.error === 'string')
+
+  // 文本形态保持不变
+  const text = String(await start.execute({ repo: 'o/wr' }))
+  assert.ok(text.startsWith('watching '), '默认仍返回文本：' + text.slice(0, 60))
+})

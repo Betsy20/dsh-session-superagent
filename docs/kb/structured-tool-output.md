@@ -43,6 +43,19 @@ agent 只能靠正则/子串解析 —— **文案一改，agent 的解析就静
 用例：三个工具的 `format` 参数都在 schema 里；`status`/`doctor` 可解析且带版本；
 `trace` 在"没有守"时也返回 JSON 错误；建守后 `results` 是数组。
 
+## 0.9.46 追加：写工具也走 JSON
+`watch_start` / `watch_stop` / `watch_ack` 补上 `format: 'json'`：
+
+| 场景 | JSON |
+|---|---|
+| start 成功 | `{ schemaVersion, ok: true, repo, id, intervalSec, flags, updated }` |
+| stop 成功 | `{ schemaVersion, ok: true, id }` |
+| ack 成功 | `{ schemaVersion, ok: true, repo, label, acked, at }` |
+| 任何失败 | `{ schemaVersion, ok: false, error }`（ack 还带 `failed.number`） |
+
+**为什么重要**：以前 agent 判断"到底成功没有"只能读中文（`acked …` / `stopped …`），
+一旦我们改措辞它就误判。现在 `ok` 是布尔真值，不依赖文案。
+
 ## 还没做的
 - 没有把 `schemaVersion` 写进 README 的对外契约（消费方要自己发现）；
 - 面板不吃 JSON（它走 `/state`），两边字段仍靠用例对照。
