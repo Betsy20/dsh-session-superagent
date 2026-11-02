@@ -269,6 +269,32 @@ const record = (name, detected, detail) => {
   }
 }
 
+// ⑱ 双主题预览：把渲染器里的"浅色主题"标记改掉，检查必须红
+{
+  const path = join(root, 'scripts', 'render-preview.mjs')
+  const original = readFileSync(path, 'utf8')
+  try {
+    writeFileSync(path, original.replace('浅色主题', '浅色（注入）'))
+    const res = run(['scripts/audit-preview.mjs'])
+    record('双主题预览可渲染（注入缺主题）', res.code !== 0)
+  } finally {
+    writeFileSync(path, original)
+  }
+}
+
+// ⑲ 验收清单：给 preflight 塞一条没有解释的 record，清单检查必须红
+{
+  const path = join(root, 'scripts', 'preflight.mjs')
+  const original = readFileSync(path, 'utf8')
+  try {
+    writeFileSync(path, original + String.fromCharCode(10) + "record('注入的检查项', true, '没有解释')" + String.fromCharCode(10))
+    const res = run(['scripts/render-acceptance.mjs', '--check'])
+    record('验收清单（注入无解释检查）', res.code !== 0 && /注入的检查项/.test(res.out))
+  } finally {
+    writeFileSync(path, original)
+  }
+}
+
 // 覆盖率报告：明确列出"还没被注入验证过"的检查，别让人以为全验过了
 const covered = new Set(coverage.covered)
 const exempt = coverage.exempt || {}

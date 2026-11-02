@@ -253,25 +253,11 @@ if (!FAST) {
     bad.length > 0 ? bad[0].trim() : (claims ? claims + ' 条 ✅ 都能找到发布 / ' + (paths || '?') + ' 个路径都存在' : '无输出'))
 }
 
-// ⑥.5 双主题预览能渲染（离线验收界面用的那条命令，坏掉就等于没有验收手段）
+// ⑥.5 双主题预览能渲染（独立脚本，注入验证也能单独跑）
 {
-  const out = join(tmpdir(), 'zhuli-preview-check-' + Date.now() + '.html')
-  const res = tryRun('node', ['scripts/render-preview.mjs', out], { timeout: 120000 })
-  let ok = false
-  let detail = 'render-preview 执行失败'
-  try {
-    const html = readFileSync(out, 'utf8')
-    const hasLight = html.includes('浅色主题')
-    const hasDark = html.includes('深色主题')
-    const scenarios = (html.match(/class="preview-title"/g) || []).length
-    ok = res.status === 0 && hasLight && hasDark && scenarios >= 18
-    detail = scenarios + ' 块（浅色+深色）'
-  } catch (error) {
-    detail = String(error && error.message || error).slice(0, 120)
-  } finally {
-    try { rmSync(out, { force: true }) } catch {}
-  }
-  record('双主题预览可渲染', ok, detail)
+  const res = tryRun('node', ['scripts/audit-preview.mjs'], { timeout: 120000 })
+  const line = (String(res.stdout || '').trim().split(String.fromCharCode(10))[0] || '无输出')
+  record('双主题预览可渲染', res.status === 0, line.replace(/^(PASS|FAIL) 双主题预览可渲染\s*/, ''))
 }
 
 // ⑦ UI 体检（不需要宿主：量的是源码里的可访问性与 token 使用）
