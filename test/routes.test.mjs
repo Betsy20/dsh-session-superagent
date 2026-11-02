@@ -743,3 +743,37 @@ test('watch_start 一次加多个仓库：逗号/空格都认，JSON 列出每�
   const after = mod.__test.readState()
   assert.equal(Object.keys(after.watchers).length, 5, '失败时不该写进任何一条')
 })
+
+test('一条会话最多 20 条守：第 21 条被拒绝，批量请求整批拒绝', async () => {
+  const tools = []
+  const dir = tempDir('zhuli-cap-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: () => () => {} },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-cap' }) },
+    get: () => null, on() {}, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?cap=' + Date.now())
+  mod.apply(ctx)
+  const start = tools.find((t) => t.name === 'watch_start')
+
+  for (let i = 0; i < 20; i += 1) {
+    const out = String(await start.execute({ repo: 'acme/r' + i }))
+    assert.ok(!out.includes('最多挂'), '第 ' + (i + 1) + ' 条不该被拦：' + out)
+  }
+  const over = String(await start.execute({ repo: 'acme/overflow' }))
+  assert.ok(over.includes('最多挂 20 条'), '第 21 条要被拦下：' + over)
+
+  // 批量：整批拒绝（不能只加进去一半）
+  const batch = String(await start.execute({ repo: 'acme/x acme/y' }))
+  assert.ok(batch.includes('最多挂'), '批量也要拦：' + batch)
+  const state = mod.__test.readState()
+  assert.equal(Object.keys(state.watchers).length, 20, '总数仍是 20')
+  assert.ok(!state.watchers['acme/x#session-cap'], '批量里的第一个也不该写进去')
+
+  // 更新已有守不受上限影响
+  const update = String(await start.execute({ repo: 'acme/r0', intervalSec: 120 }))
+  assert.ok(!update.includes('最多挂'), '更新已有守不该被拦：' + update)
+})
