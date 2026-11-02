@@ -158,6 +158,16 @@ const tryRun = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: ROOT, encod
   record('文案快照', res.status === 0, res.status === 0 ? (out[0] || '').replace(/^PASS /, '') : '文案变了：跑 node scripts/first-run.mjs --write 再看 diff')
 }
 
+// ⑥.458 全 docs/ 一致性（老文档最容易把人带到不存在的工具/路由/文件）
+{
+  const res = tryRun('node', ['scripts/audit-docs-all.mjs'], { timeout: 60000 })
+  const out = String(res.stdout || '')
+  const bad = out.split(String.fromCharCode(10)).filter((line) => line.startsWith('FAIL'))
+  const scanned = (out.match(/扫描 (\d+) 份文档/) || [])[1]
+  record('全库文档一致', res.status === 0 && bad.length === 0,
+    bad.length > 0 ? bad[0].replace(/^FAIL /, '') : (scanned || '?') + ' 份文档的工具/路由/版本/路径都对得上')
+}
+
 // ⑥.457 唤醒消息单行长度（聊天窗口里太长会挤成一团）
 {
   const res = tryRun('node', ['scripts/audit-line-length.mjs'], { timeout: 60000 })
