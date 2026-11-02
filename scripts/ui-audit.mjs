@@ -62,7 +62,12 @@ add('图标按钮缺可读名字', iconOnlyUnnamed.bad, 0,
 const emptyBranches = count(/length === 0/g, clientSource)
 add('空态分支数', emptyBranches, (v) => v >= 4, '列表 / 日志 / 搜索 / 悬浮面板 各至少要有一条')
 
-// ⑥ 原生组件复用：按钮/输入/标签这些应该用宿主组件，不是裸标签
+// ⑥ 弹层键盘行为：Escape 关闭 + Tab 焦点陷阱 + 关闭后焦点归还（官方 Modal 的三件套）
+const modalKeys = ['Escape', 'trapTab(', 'restoreTo'].filter((needle) => clientSource.includes(needle)).length
+add('弹层键盘行为（Escape/陷阱/归还）', modalKeys + '/3', (v) => v === '3/3',
+  '官方 controls.tsx 的 Modal 三件都有；少一件键盘用户就会被困住')
+
+// ⑦ 原生组件复用：按钮/输入/标签这些应该用宿主组件，不是裸标签
 const rawButtons = count(/h\('button'/g, clientSource)
 const nativeBtns = count(/h\(Btn,/g, clientSource)
 add('裸 button / 原生 Btn', rawButtons + '/' + nativeBtns, () => true, '裸 button 越少越像原生；这一项只看趋势')
@@ -71,7 +76,9 @@ results[results.length - 1].native = nativeBtns
 
 // ⑦ CSS 类是否都被用到（官方搬来的那批允许闲置，但自己写的类闲置就是死代码）
 const ownClasses = [...new Set([...ownStyleBlocks.matchAll(/\.(sa-[a-z0-9-]+)/g)].map((m) => m[1]))]
-const deadOwnClasses = ownClasses.filter((c) => count(new RegExp('\\.' + c + '\\b'), clientSource) <= 1)
+// 类名也可能写在 className 字符串里（'dt-card sa-dock-panel'），所以按类名出现次数数，
+// 只按 `.类名` 会把 JSX 里用到的类误判成死代码。
+const deadOwnClasses = ownClasses.filter((c) => count(new RegExp('(^|[^a-z0-9-])' + c + '([^a-z0-9-]|$)'), clientSource) <= 1)
 add('自造类里的死代码', deadOwnClasses.length, 0, deadOwnClasses.length ? '没用到的自造类：' + deadOwnClasses.join(' ') : '全部有用到')
 
 const passed = results.filter((r) => r.ok).length
