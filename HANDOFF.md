@@ -175,6 +175,13 @@ computed style 核对：模态 `fixed/inset:0`、宽 380 居中；Toast `fixed/t
 ② 是之前从未在真机上走到过的分支：忙的时候**不推进水位、不建隔离区、不注入**，
 把活儿留给下一轮。这条跑通，说明「只在 idle 才唤醒」的约束是真的生效，而不只是代码里写着。
 
+### 外部事项（需要别人动作，别每小时重复提）
+- **awesome 收录**：PR <https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/11266>
+  状态 `OPEN / MERGEABLE`、`check=SUCCESS`、0 review / 0 comment —— **在等维护者合并**，我们这边无需动作。
+  合并后再更新 README 徽章与 `docs/awesome-submission.md` 的状态。
+- **真机验证**（需宿主）：双主题实拍、键盘走查（Tab→Escape→焦点归还）、真实唤醒闭环。
+  攒成一批，等用户有空一次验。
+
 ### 热重载链路已端到端证明（2026-11-02 10:48）
 
 ```
