@@ -1196,3 +1196,20 @@ test('只有一条变化时不再解释「为什么是这几条」（那是噪�
   const withSkip = formatWatchText('o/r', one, { changedTotal: 1, batchLimit: 5, skippedReasons: { '已关闭': 2 } })
   assert.ok(withSkip.includes('本轮跳过 2 条'), '跳过信息不能丢')
 })
+
+test('之前叫醒过的条目要在消息里标出来（这不是新问题）', () => {
+  const item = (n) => ({ number: n, title: 't' + n, state: 'open', html_url: 'https://x/' + n, user: { login: 'u' }, labels: [], assignees: [], updated_at: '2026-11-01T10:00:00Z' })
+  const text = formatWatchText('o/r', [item(7), item(8)], {
+    changedTotal: 4, batchLimit: 5,
+    seenBefore: { 7: '2026-10-30T08:00:00Z' },
+  })
+  const line7 = text.split(String.fromCharCode(10)).find((l) => l.startsWith('#7')) || ''
+  const line8 = text.split(String.fromCharCode(10)).find((l) => l.startsWith('#8')) || ''
+  assert.ok(line7.includes('之前叫醒过'), '叫醒过的要标：' + line7)
+  assert.ok(line7.includes('2026-10-30'), '要带日期')
+  assert.ok(!line8.includes('之前叫醒过'), '没叫醒过的不该标')
+
+  // 没有 seenBefore 时行为不变
+  const plain = formatWatchText('o/r', [item(7)], { changedTotal: 1, batchLimit: 5 })
+  assert.ok(!plain.includes('之前叫醒过'))
+})
