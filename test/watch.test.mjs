@@ -20,6 +20,7 @@ import {
   repoBadges,
   stalenessNote,
   sessionWakesLastHour,
+  shouldRunCleanup,
   stateReasonNote,
   repoStructureNote,
   buildCommentBatchQuery,
@@ -877,4 +878,21 @@ test('合并时同一段【完成标准】只保留一份（实测能砍掉近�
   const c = formatWatchText('o/repoC', [item(3, 'c')], { criteria: ['另一套标准'] })
   const mixed = mergeWakeTexts([a, c])
   assert.equal((mixed.match(new RegExp('【完成标准】', 'g')) || []).length, 2, '不同的完成标准要都留着')
+})
+
+test('回收节流：没超额且刚跑过就跳过；超额必须立刻跑', () => {
+  const now = Date.UTC(2026, 10, 2, 12, 0, 0)
+  // 刚跑过（1 分钟前），数量没超额 -> 跳过
+  assert.equal(shouldRunCleanup({ count: 3, keepCount: 5, lastRunAt: now - 60_000, now, intervalMs: 600_000 }).run, false)
+  // 超过 10 分钟 -> 跑
+  assert.equal(shouldRunCleanup({ count: 3, keepCount: 5, lastRunAt: now - 11 * 60_000, now, intervalMs: 600_000 }).run, true)
+  // 超额：无论刚跑没跑过都要跑（否则会堆）
+  const over = shouldRunCleanup({ count: 9, keepCount: 5, lastRunAt: now - 1000, now, intervalMs: 600_000 })
+  assert.equal(over.run, true)
+  assert.equal(over.reason, 'over-cap')
+  // 从没跑过 -> 跑
+  assert.equal(shouldRunCleanup({ count: 1, keepCount: 5, lastRunAt: 0, now }).run, true)
+  // 坏数据不崩
+  assert.equal(typeof shouldRunCleanup({}).run, 'boolean')
+  assert.equal(typeof shouldRunCleanup().run, 'boolean')
 })
