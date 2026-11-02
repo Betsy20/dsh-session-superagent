@@ -2,6 +2,31 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.98] - 2026-11-02 —— 时段外不再空打 API（一夜能省 800+ 次）
+
+### 学到的（知识库第 47 条）
+Renovate 的 `schedule`：**不在时间窗内就不去查更新**，而不是"查完再决定"。
+通用原则：把"不做"的判断尽量前移。
+<https://docs.renovatebot.com/configuration-options/#schedule>
+
+### 抓到的浪费
+`pollOnce` 里 `activeHours` 的判断原来在**拉完 API 之后**：
+```js
+const res = await run('gh', ...)            // 先打一次 GitHub
+if (!inActiveHours(entry.activeHours)) return  // 才决定不叫醒
+```
+客户设 `09:00-18:00`，**夜里 14 小时照样每 N 秒打一次**：60 秒间隔 ≈ **一夜 840 次**
+（多数是 304 不计额度，但每次都要起 `gh` 进程 + 一次网络往返），且开门后还要等下一个周期。
+
+### 改了什么
+1. 时段判断**移到函数最前**（拉数据之前）；
+2. 用 `msUntilActiveWindow()` 算出开门时间，把 `nextAt` 设到那一刻。
+
+用例锁死语义：23:30 → 9.5 小时；07:00 → 2 小时；跨夜 15:00 → 7 小时；非法/空 → 0；最小 1 秒。
+
+### 测试
+- 新增 1 例（8 种情况）。合计 **141 例**。
+
 ## [0.8.97] - 2026-11-02 —— 错误提示要回答"我该做什么"
 
 ### 学到的（知识库第 46 条）

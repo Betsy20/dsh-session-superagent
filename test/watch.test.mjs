@@ -14,6 +14,7 @@ import {
   parseGhInclude,
   accessNote,
   pickSuggestion,
+  msUntilActiveWindow,
   repoBadges,
   stalenessNote,
   stateReasonNote,
@@ -768,4 +769,23 @@ test('错误归类覆盖真实见过的 12 种（别退回 other）', () => {
   }
   // "command not found" 不能被当成 notfound 仓库
   assert.equal(classifyGhError('gh: command not found').kind, 'nogh')
+})
+
+test('时段外要算清"还有多久开门"（并把轮询安排到那一刻）', () => {
+  const at = (h, m) => new Date(2026, 10, 2, h, m, 0)
+  // 时段内：0
+  assert.equal(msUntilActiveWindow('09:00-18:00', at(10, 0)), 0)
+  // 夜里 23:30，第二天 09:00 开门 → 9.5 小时
+  assert.equal(msUntilActiveWindow('09:00-18:00', at(23, 30)), (9 * 60 + 30) * 60 * 1000)
+  // 早上 07:00 → 2 小时
+  assert.equal(msUntilActiveWindow('09:00-18:00', at(7, 0)), 2 * 60 * 60 * 1000)
+  // 跨夜时段 22:00-06:00：凌晨 3 点在时段内
+  assert.equal(msUntilActiveWindow('22:00-06:00', at(3, 0)), 0)
+  // 跨夜时段：下午 15:00 → 到 22:00 还有 7 小时
+  assert.equal(msUntilActiveWindow('22:00-06:00', at(15, 0)), 7 * 60 * 60 * 1000)
+  // 非法/空 → 0（当作一直活跃）
+  assert.equal(msUntilActiveWindow('', at(3, 0)), 0)
+  assert.equal(msUntilActiveWindow('乱写', at(3, 0)), 0)
+  // 永远 >= 1 秒，避免 0 延迟死循环
+  assert.ok(msUntilActiveWindow('09:00-18:00', at(8, 59)) >= 1000)
 })

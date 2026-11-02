@@ -50,3 +50,4 @@
 | 工程 | [拆分文件看「改动轴」，不看行数](split-by-change-axis.md) | ✅ 0.8.95 |
 | 工程 | [1795 行的 index.js：量完，不拆](why-not-split-index.md) | ✅ 决定 + 文档体检工具（0.8.96） |
 | 交互 | [错误提示要回答"我该做什么"](humanize-errors.md) | ✅ 0.8.97 |
+| 轮询调度 | [时段判断要在拉数据之前](active-hours-before-fetch.md) | ✅ 0.8.98 |
