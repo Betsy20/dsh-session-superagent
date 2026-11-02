@@ -2,6 +2,24 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.55] - 2026-11-02 —— 「为什么没叫醒」现在有答案
+
+### 学到的（知识库第 5 条）
+GitHub 的 issue 过滤语义是「限定词 + 集合运算」，用户能自己复现「为什么这条没出现」——
+**可枚举的条件**，而不是黑盒结果。
+<https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/filtering-and-searching-issues-and-pull-requests>
+
+主理鱼有 8 种过滤原因，但原来只保留最近 5 条日志。客户问「我加了标签为什么还是一条都没叫醒」，
+我们只能看到最近 5 条，说不出全貌。
+
+### 改了什么
+- 按原因**累计计数**（`countReasons`，只留最多的 12 种），存进每条守的 `filterCounts`；
+- `/state` 回传，「判定」页顶部显示一行：
+  `跳过原因累计： 不在标签白名单: ai-fix × 37  机器人 × 12  …`
+
+### 测试
+- 新增 1 例：累计 / 排序 / 空原因不记 / 种类上限。合计 **109 例**。
+
 ## [0.8.54] - 2026-11-02 —— 第二阶段限流：照 Retry-After 等，别猜
 
 ### 学到的一条（知识库第 4 条）

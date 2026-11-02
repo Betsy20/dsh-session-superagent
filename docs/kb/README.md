@@ -8,3 +8,4 @@
 | 轮询调度 | [抖动去同步（jitter）](polling-jitter.md) | ✅ 0.8.52 |
 | 轮询调度 | [按剩余额度自适应降频](rate-limit-adaptive.md) | ✅ 0.8.53 |
 | 轮询调度 | [第二阶段限流：照 Retry-After 等](rate-limit-secondary.md) | ✅ 0.8.54 |
+| 判定与可解释性 | [让「为什么没叫醒」有答案](filter-explainability.md) | ✅ 0.8.55 |

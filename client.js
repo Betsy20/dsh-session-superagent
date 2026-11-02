@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.8.54'
+    const CLIENT_VERSION = '0.8.55'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1089,11 +1089,24 @@ window.__ModuleLoader__.load({
       // 判定日志（对应官方 eval 页）：每轮的唤醒结果、跳过原因、被过滤记录，一次看全
       // 判定页用官方的时间线结构（dt-timeline / dt-event / dt-event-foot），
       // 官方在 thread.tsx 与 settings-kit.tsx 里就是这么铺「发生过什么」的。
+      // 跳过原因分布：把「为什么没叫醒」做成可读的统计（客户最常问的问题）
+      const reasonTotals = (() => {
+        const merged = {}
+        for (const w of watchers) for (const [reason, n] of Object.entries(w.filterCounts || {})) {
+          merged[reason] = (Number(merged[reason]) || 0) + (Number(n) || 0)
+        }
+        return Object.entries(merged).sort((a, b) => b[1] - a[1]).slice(0, 8)
+      })()
       const judge = h(Section, {
         title: '判定日志',
         count: watchers.reduce((n, w) => n + (w.history || []).length, 0),
         action: h(InfoTip, { text: '每轮判定都会记一条：唤醒、仅观察，或跳过及其原因。只存最近若干条。' }),
       },
+        reasonTotals.length > 0
+          ? h('div', { className: 'dt-row-meta', key: 'reason-totals' },
+            h('span', null, '跳过原因累计：'),
+            reasonTotals.map(([reason, n]) => h(Tag, { key: reason, tone: 'quiet' }, reason + ' × ' + n)))
+          : null,
         watchers.length === 0
           ? h(Hint, null, '还没有主理鱼。')
           : h('ol', { className: 'dt-timeline' },

@@ -7,6 +7,7 @@ import * as watchModule from '../lib/watch.js'
 import {
   classifyGhError,
   parseGhInclude,
+  countReasons,
   jitterMs,
   retryAfterMs,
   throttleDelayMs,
@@ -453,4 +454,18 @@ test('Retry-After：stage 2 限流按服务端说的等，别瞎猜', () => {
   assert.equal(retryAfterMs(0), 0, '没给就别推迟')
   assert.equal(retryAfterMs('abc'), 0, '解析不了当没给')
   assert.equal(retryAfterMs(99999), 3600 * 1000, '封顶 1 小时')
+})
+
+test('countReasons：按原因累计并按次数排序（客户问「为什么没叫醒」要有答案）', () => {
+  let counts = {}
+  counts = countReasons(counts, '不在标签白名单: ai-fix')
+  counts = countReasons(counts, '不在标签白名单: ai-fix')
+  counts = countReasons(counts, '机器人')
+  assert.deepEqual(counts, { '不在标签白名单: ai-fix': 2, 机器人: 1 })
+  assert.deepEqual(countReasons(counts, ''), counts, '空原因不记')
+  // 种类有上限，且保留次数最多的
+  let many = {}
+  for (let i = 0; i < 30; i += 1) many = countReasons(many, '原因' + i, { maxKinds: 5 })
+  assert.equal(Object.keys(many).length, 5)
+  assert.deepEqual(Object.keys(countReasons({}, 'x', { maxKinds: 5 })), ['x'])
 })
