@@ -104,6 +104,35 @@ node --test          # 97 项单测
 
 版本与发布流程见 [UPDATING.md](UPDATING.md)，交付门见 [CHECKLIST.md](CHECKLIST.md)，接手台账见 [MAINTENANCE.md](MAINTENANCE.md)。
 
+## 客户（Customer）
+
+> **本文档里的「客户」= 在**其它电脑**上使用本插件的使用者**（不是本机的会话，也不是本仓库的贡献者）。
+
+客户和本机的差别，决定了排查要看哪里：
+
+| | 本机（开发者） | 客户 |
+|---|---|---|
+| 插件来源 | `file:` 硬链接到本仓库 | npm / 市场安装的发布版 |
+| 状态文件 | `<DSH_HOME>/state/session-superagent/watchers.json` | 同路径，但在客户自己的 `~/.dsh/` 下 |
+| 我能不能直接查 | 能 | **不能** —— 只能让客户贴信息 |
+
+所以客户报问题时要这三样，缺一件就只能猜：
+
+1. **版本**：面板「设置」页，或状态文件里 `client['note:client-version'].detail`；
+2. **挂载状态**：状态文件里的 `server` 字段（`routes` / `failed` / `base`），或让客户跑一次 `watch_doctor`；
+3. **出错那行的原文**：0.8.36 起 gh 失败会被分类成人话（网络抖动 / 凭证失效 / 限流 / 仓库不存在 / 没装 gh）。
+
+**客户升级**：
+
+```bash
+dsh plugin --profile <profile> add dsh-session-superagent@latest
+```
+
+（客户机器上 `npm i` 不会生效 —— 必须装进 profile，见上面的「安装」。）
+
+**本机复现不了客户的问题**：`EOF` / 超时 / 代理这类错误取决于客户的网络，本机能访问同一个仓库不代表客户能。
+遇到这种情况，先按上面的三样收集信息，再判断是环境还是代码。
+
 ## 故障排查（都是真实踩过的）
 
 | 症状 | 原因 | 处理 |
