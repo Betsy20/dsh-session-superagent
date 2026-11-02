@@ -2,6 +2,23 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.80] - 2026-11-02 —— 试过给"✅ 已落地"加内容校验，结论是**不能当门禁**
+
+### 想做什么
+现在 KB 的 ✅ 只校验"版本号在 CHANGELOG 里存在"，没校验"那条 CHANGELOG 真在讲这件事"。
+于是试着加一层：KB 里的反引号标识符（`watch_doctor` 之类）至少要出现在对应 CHANGELOG 里。
+
+### 结果：判据太松，全是噪音
+109 条 KB 里 **8 条**报"对不上"，逐条看都是**正常表述差异**：
+- `0.9.62` 的 CHANGELOG 写"兜底也要有下一步"，KB 里写 `preflight`；
+- `0.8.91` 的 CHANGELOG 写"文档分四种"，KB 里写 `README.md` / `CHANGELOG.md`。
+
+CHANGELOG 是给人读的散文，KB 写的是实现细节 —— **两者必然用不同词**。
+
+### 决定
+保留这项检查但**降级为 INFO**，不判失败；数字会打出来（8/109），漂移可见但不制造假警报。
+这正是 KB KB `docs/kb/audit-false-positives.md` 那条的又一次实践。
+
 ## [0.9.79] - 2026-11-02 —— 工具描述里的承诺必须在对账表里有一行（双向）
 
 ### 为什么要做
