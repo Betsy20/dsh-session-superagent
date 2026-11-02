@@ -51,3 +51,4 @@
 | 工程 | [1795 行的 index.js：量完，不拆](why-not-split-index.md) | ✅ 决定 + 文档体检工具（0.8.96） |
 | 交互 | [错误提示要回答"我该做什么"](humanize-errors.md) | ✅ 0.8.97 |
 | 轮询调度 | [时段判断要在拉数据之前](active-hours-before-fetch.md) | ✅ 0.8.98 |
+| 轮询调度 | [被上限挡住时要说还要等多久](wake-cap-wait-visibility.md) | ✅ 0.8.99 |

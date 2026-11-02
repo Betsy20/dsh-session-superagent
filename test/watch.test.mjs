@@ -15,6 +15,7 @@ import {
   accessNote,
   pickSuggestion,
   msUntilActiveWindow,
+  nextWaketimeAt,
   repoBadges,
   stalenessNote,
   stateReasonNote,
@@ -788,4 +789,17 @@ test('时段外要算清"还有多久开门"（并把轮询安排到那一刻）
   assert.equal(msUntilActiveWindow('乱写', at(3, 0)), 0)
   // 永远 >= 1 秒，避免 0 延迟死循环
   assert.ok(msUntilActiveWindow('09:00-18:00', at(8, 59)) >= 1000)
+})
+
+test('被每小时上限挡住时，要算得出"还有多久有名额"', () => {
+  const now = Date.UTC(2026, 10, 2, 10, 0, 0)
+  // 名额没满 -> 现在就可以
+  assert.equal(nextWaketimeAt([now - 60_000], 6, now), now)
+  // 满 6 次，最早那次在 30 分钟前 -> 还要等 30 分钟
+  const times = [30, 25, 20, 15, 10, 5].map((min) => now - min * 60_000)
+  assert.equal(nextWaketimeAt(times, 6, now), now - 30 * 60_000 + 60 * 60_000)
+  // 过期的不算（超过 1 小时的自动剔除）
+  assert.equal(nextWaketimeAt([now - 70 * 60_000], 6, now), now)
+  // cap 非法/0 时按 6 兜底，不崩
+  assert.equal(typeof nextWaketimeAt(times, 0, now), 'number')
 })
