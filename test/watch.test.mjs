@@ -639,3 +639,17 @@ test('一次只能处理 N 条时，先处理更该处理的（重开 > 有评�
   assert.deepEqual(batchFresh([a, b, c], 3).map((i) => i.number), [11, 12, 13])
   assert.deepEqual(batchFresh([a, b, c], 3).map((i) => i.number), [11, 12, 13], '多次调用顺序一致')
 })
+
+test('优先级开关：关掉某一类加权后，就按"最近更新"顺序处理', () => {
+  const reopened = { number: 1, state_reason: 'reopened' }
+  const plain = { number: 2 }
+  // 全开：重开在前
+  assert.deepEqual(batchFresh([plain, reopened], 2).map((i) => i.number), [1, 2])
+  // 关掉重开加权：退回原顺序（稳定）
+  assert.deepEqual(batchFresh([plain, reopened], 2, { reopened: false }).map((i) => i.number), [2, 1])
+  // 三项全关 == 原顺序
+  assert.deepEqual(batchFresh([plain, reopened], 2, { reopened: false, comments: false, labels: false }).map((i) => i.number), [2, 1])
+  // 权重本身不受影响
+  assert.equal(priorityScore(reopened, { reopened: false }), 0)
+  assert.equal(priorityScore({ comments: 1, labels: [{}] }, { comments: false }), 5)
+})

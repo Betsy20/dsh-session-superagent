@@ -28,3 +28,4 @@
 | 性能 | [主轮询要不要换 GraphQL：测了，不换](list-path-decision.md) | ✅ 决定 + 基准脚本（0.8.73） |
 | 判定与可解释性 | [「判过不做」又被重开才是信号](state-reason.md) | ✅ 0.8.74 |
 | 判定与可解释性 | [一次 N 条时先处理更该处理的](batch-priority.md) | ✅ 0.8.75 |
+| 判定与可解释性 | [权重是产品判断，别写死](priority-configurable.md) | ✅ 0.8.76 |
