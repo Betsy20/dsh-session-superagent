@@ -3,7 +3,7 @@
 <img src="assets/icon-180.png" width="88" height="88" alt="">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.9.0-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
+[![Version](https://img.shields.io/badge/version-0.9.1-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
 [![npm](https://img.shields.io/npm/v/dsh-session-superagent.svg)](https://www.npmjs.com/package/dsh-session-superagent)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-plugin-orange.svg)](https://github.com/topics/dsh-plugin)
 
@@ -98,8 +98,15 @@ dsh plugin install /path/to/dsh-session-superagent
 
 - 依赖 `gh` CLI 已登录；需要 GitHub 账号权限。
 - 轮询而非 webhook：延迟等于轮询间隔。
-- 单会话单仓库；多仓库请每仓库一个会话，各自 `watch_start`。
+- 一条会话可以守多个仓库（每条守独立配置间隔/过滤/时段），但**同一会话同一时刻只处理一批**：
+  多仓库同时有动静时按每小时上限排队。
 - 宿主重启后 watcher 从状态文件恢复；会话不在则不注入（会记 `lastError`）。
+- **服务端改动要重启宿主才生效**（客户端热重载会生效，别被"界面上有新功能"骗了；
+  面板顶部会在版本不一致时直接提示）。
+- 每小时唤醒上限是**滑动窗口**：6 次若集中在开头几分钟，下一次要等约 1 小时
+  （面板会写「约 X 分钟后可再唤醒」）。
+- 隔离执行会在仓库下留 `.dsh-zhuli/` 副本：默认**最多 5 个**、超 3 天回收；
+  副本体积≈该仓库工作树大小。
 
 ## 开发
 
