@@ -2,6 +2,35 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.27] - 2026-11-02 —— 隔离执行链路在本机真跑通了（9 步）
+
+### 为什么做
+唤醒消息里写着"在隔离工作区里改，推分支开 PR"，但这条链路一直只有"读过代码"
+和"worktree list 里出现过目录" —— 从没真跑过一遍完整流程。
+
+### 新增：`scripts/verify-isolation.mjs`
+在本机临时仓库里真开 worktree、真改文件、真提交、真回收，输出 9 步结论：
+```
+PASS 临时仓库就绪
+PASS 开隔离工作区　<tmp>epo\.dsh-zhuli\zhuli-demo
+PASS 隔离区里能改能提交　d08af28 fix: #42
+PASS 主工作区没被污染　README.md 仍是原样
+PASS 回收隔离区　1 个 worktree
+PASS 回收后分支仍在（remove 不管分支）　zhuli/demo
+PASS 显式删分支才真的清掉　zhuli/demo 已删除
+PASS 数量线回收最旧的 3 个　wt6,wt7,wt8
+PASS 孤儿目录 prune 后不再挂着　1 个 worktree
+PASS 隔离链路 9 步全部通过
+```
+
+### 它纠正了一个误解
+`git worktree remove` **不会**删分支。产品里是显式再跑 `git branch -D` 才清理干净 ——
+脚本第一版断言"分支随回收删除"，直接 FAIL，按产品的真实命令序列改写后才通过。
+**这就是"读代码以为懂"和"真跑一遍"的差别。**
+
+### 门禁
+`preflight --fast` 第 **13** 项：`PASS 隔离链路　9 步全部通过`（1.3 秒）。
+
 ## [0.9.26] - 2026-11-02 —— 客户会读到的文字有了快照，改动必须是有意的
 
 ### 做法
