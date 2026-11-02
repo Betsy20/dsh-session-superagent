@@ -955,3 +955,22 @@ test('「需要关注」按严重程度排序：会丢消息的排最前，静�
   assert.ok(errPos < readonlyPos, '轮询失败要排在"只读"前面')
   assert.ok(silentPos < structurePos, '"没回音"要排在"已归档"前面')
 })
+
+test('判定页的日志标题要说清"最近 5 次唤醒"（数据早就有，只是名字看不出来）', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const at = (mins) => new Date(Date.now() - mins * 60000).toISOString()
+  const snap = {
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: 'x', credentials: {}, sessionUsage: { used: 1, cap: 12, capped: 0 },
+      watchers: [watcher('a/b', { id: 'a/b#s1', history: [
+        { at: at(50), numbers: [1], ok: true },
+        { at: at(40), numbers: [2], ok: false, reason: 'agent busy' },
+        { at: at(30), numbers: [3, 4], ok: true },
+      ] })] },
+  }
+  const text = walk(render(desk, deskQueue(snap, null, {}, 'judge'))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(text.includes('最近 5 次唤醒'), '标题要能看出这是最近几次：' + text.slice(0, 240))
+  assert.ok(text.includes('#3 #4'), '要能看到最近一次唤醒的条目')
+  assert.ok(text.includes('agent busy'), '失败原因要显示')
+})

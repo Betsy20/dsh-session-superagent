@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.90'
+    const CLIENT_VERSION = '0.9.91'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1253,7 +1253,7 @@ window.__ModuleLoader__.load({
         return Object.entries(merged).sort((a, b) => b[1] - a[1]).slice(0, 8)
       })()
       const judge = h(Section, {
-        title: '判定日志',
+        title: '判定日志（最近 5 次唤醒）',
         count: watchers.reduce((n, w) => n + (w.history || []).length, 0),
         action: h(InfoTip, { text: '每轮判定都会记一条：唤醒、仅观察，或跳过及其原因。只存最近若干条。' }),
       },
