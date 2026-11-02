@@ -433,8 +433,10 @@ test('watch_status 带诊断：暂停原因、未回音、会话用量（agent �
   mod.__test.writeState(state)
 
   const text = String(await tools.find((t) => t.name === 'watch_status').execute({}))
-  assert.ok(text.includes('defer=cap-session'), '要带暂停原因码：' + text)
-  assert.ok(text.includes('silent=3'), '要带未回音次数')
+  // 0.9.86 起文本改成"人话 + 只在需要时追加原因"，信息量不变
+  assert.ok(text.includes('暂停：cap-session'), '要带暂停原因码：' + text)
+  assert.ok(text.includes('叫醒 3 次没回音'), '要带未回音次数：' + text)
+  assert.ok(!text.includes('lastPoll='), '不再堆无意义字段（lastPoll=- 之类）')
   assert.match(text, /session:\s*\d+\/12 wakes last hour/, '要有会话用量行')
 })
 
@@ -631,4 +633,39 @@ test('watch_ack 失败要区分"会自动恢复"和"需要你处理"', async () 
     const retryable = ['network', 'ratelimit', 'gateway'].includes(kind)
     assert.equal(retryable, expectRetry, text + ' → ' + kind)
   }
+})
+
+test('watch_status 文本：正常的守不堆字段，异常的守才追加原因', async () => {
+  const tools = []
+  const dir = tempDir('zhuli-dense-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: () => () => {} },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-dense' }) },
+    get: () => null, on() {}, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?dense=' + Date.now())
+  mod.apply(ctx)
+  const start = tools.find((t) => t.name === 'watch_start')
+  await start.execute({ repo: 'o/ok' })
+  await start.execute({ repo: 'o/bad' })
+
+  const state = mod.__test.readState()
+  const keys = Object.keys(state.watchers)
+  const badKey = keys.find((k) => k.includes('o/bad'))
+  state.watchers[badKey].deferReason = 'active-hours'
+  state.watchers[badKey].lastError = null
+  mod.__test.writeState(state)
+
+  const text = String(await tools.find((t) => t.name === 'watch_status').execute({}))
+  const lines = text.split(String.fromCharCode(10))
+  const okLine = lines.find((l) => l.includes('o/ok')) || ''
+  const badLine = lines.find((l) => l.includes('o/bad')) || ''
+
+  assert.ok(okLine.length < 60, '正常的守行要短：' + okLine)
+  assert.ok(!okLine.includes('暂停'), '正常的守不该有暂停原因')
+  assert.ok(badLine.includes('暂停：active-hours'), '异常的守要说原因：' + badLine)
+  assert.equal(lines.filter((l) => l.includes('| 每 ')).length, 2, '每条守一行')
 })
