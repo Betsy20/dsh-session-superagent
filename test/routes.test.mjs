@@ -1140,3 +1140,20 @@ test('连续失败很多次时，doctor 要解释「间隔已放慢」而不是�
   assert.ok(doctor.includes('已连续失败 8 次'), '要报出失败次数：' + doctor.slice(0, 300))
   assert.ok(doctor.includes('2 小时'), '要说明间隔已放慢到 2 小时')
 })
+
+test('gh 返回空内容时先查凭证，再谈代理（真机：令牌失效却怪代理）', async () => {
+  const { diagnoseEmptyBody } = await import('../lib/gh-format.js')
+  const invalidToken = 'X Failed to log in to github.com account MYCF711 (keyring)' + String.fromCharCode(10)
+    + '  - The token in keyring is invalid.'
+  const okAuth = 'github.com' + String.fromCharCode(10) + '  Logged in to github.com account me (keyring)'
+
+  const auth = diagnoseEmptyBody({ bodyText: '', authStatusText: invalidToken })
+  assert.equal(auth.kind, 'auth', '空内容 + 凭证失效 → 归 auth')
+  assert.ok(auth.hint.includes('gh auth login'), '要直接给出修复动作：' + auth.hint)
+
+  const empty = diagnoseEmptyBody({ bodyText: '', authStatusText: okAuth })
+  assert.equal(empty.kind, 'empty', '凭证正常但内容为空 → 归 empty（代理/网络）')
+
+  // 有内容就不该报诊断
+  assert.equal(diagnoseEmptyBody({ bodyText: '[]', authStatusText: invalidToken }), null)
+})

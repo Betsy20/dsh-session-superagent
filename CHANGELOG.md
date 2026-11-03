@@ -2,6 +2,37 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.124] - 2026-11-03 —— 真机实测：令牌失效时我们却在怪代理
+
+### 现场（09:00 时段开门后的真实轮询）
+```
+serverVersion: 0.9.116
+- MYCF711/dsh-go | 启用 | 失败 5 | nextAt 2026-11-03T01:30:27.698Z
+  lastError: 返回内容不是合法 JSON（可能是代理干扰）—— 已按退避自动重试
+```
+
+时段一到它确实开始轮询了（`nextAt` 排到 09:30），但**失败原因写错了**：
+真实原因是 `gh` 令牌失效 → 输出为空 → `JSON.parse('')` 抛错，于是我们甩锅给"代理"。
+客户会去查一个根本不存在的代理，而真正要做的是 `gh auth login`。
+
+### 学到什么（出处）
+GitHub 排障文档在"结果不对"时要求先确认凭证：
+
+> If you are using pagination correctly and still do not see all of the results that you expect,
+> you should **confirm that the authentication credentials** that you used have access…
+
+<https://docs.github.com/en/rest/using-the-rest-api/troubleshooting-the-rest-api#missing-results>
+
+### 改法
+1. 新增纯函数 `diagnoseEmptyBody({ bodyText, authStatusText })`：
+   - 空内容 + 凭证失效 → `auth`（提示 `gh auth login`）；
+   - 空内容 + 凭证正常 → `empty`（提示可能是代理/未登录，去看 `watch_doctor`）；
+2. 解析失败时先跑一次 `gh auth status`（60 秒缓存，只在失败路径）；
+3. 判为 `auth` 时置 `needsReauth = true` 并走 30 分钟退避。
+
+### 测试
+新增 1 例（空 + 凭证失效 → auth；空 + 凭证正常 → empty；有内容 → 不诊断）。合计 **234 例**。
+
 ## [0.9.123] - 2026-11-03 —— 「已放慢到 2 小时档」不该是写死的文案
 
 ### 学到什么（出处）
