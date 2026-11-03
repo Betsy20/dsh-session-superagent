@@ -70,6 +70,7 @@ mod.factory((name) => {
 }).apply(ctx)
 
 const Desk = slots.get('session-superagent-desk')
+const Orbit = slots.get('session-superagent-orbit')
 if (!Desk) throw new Error('没有注册 session-superagent-desk，已注册：' + [...slots.keys()].join(','))
 
 // ── 样本快照：覆盖各种状态（正常/暂停/异常/仅观察/隔离/退避/过滤记录/历史）──
@@ -161,6 +162,12 @@ let i = head
 while (i < clientSrc.length && clientSrc[i] !== '"') i += clientSrc[i] === '\\' ? 2 : 1
 const PORTED_CSS = JSON.parse('"' + clientSrc.slice(head, i) + '"')
 
+// 弹层样式是另一段常量（DOCK_CSS），预览也要带进来，否则弹层是"没上色"的假象
+const dockMarker = 'const DOCK_CSS = `'
+const dockHead = clientSrc.indexOf(dockMarker) + dockMarker.length
+const dockTail = clientSrc.indexOf('`', dockHead)
+const DOCK_CSS = clientSrc.slice(dockHead, dockTail)
+
 // hook 槽顺序必须与 client.js 里 ZhuliPanel 的 useState 顺序完全一致：
 // snap, tab, notice, form, token, goalDraft, goalTouched, [], editing, draft, search,
 // glossary, update, checking, settingsSection
@@ -179,6 +186,12 @@ const scenarios = [
   { name: 'Toast（保存成功）', hooks: deskHooks({ notice: { id: 't1', text: '已保存：MYCF711/dsh-session-superagent', tone: 'info' } }) },
   { name: 'Toast（错误）', hooks: deskHooks({ notice: { id: 't2', text: '保存失败：gh: Not Found (HTTP 404)', tone: 'error' } }) },
   { name: '术语表', hooks: deskHooks({ glossary: true }) },
+]
+
+const orbitWatchers = [
+  { repo: 'MYCF711/dsh-go', sessionId: 'session-c0a5847a-d34c-4281-8521-54384849d956', title: '用 Go 实现 DSH 插件化方案', enabled: true, intervalSec: 120, lastPoll: new Date(Date.now() - 83000).toISOString(), lastWake: new Date(Date.now() - 3600000).toISOString(), activeHours: '09:00-23:00', isolated: true, workdir: 'E:/temp/iso' },
+  { repo: 'MYCF711/dsh-go', sessionId: 'session-685dfadb-f641-4a4f-95d7-6b659ee238d6', title: '询问当前情况', enabled: false, intervalSec: 120, lastPoll: new Date(Date.now() - 3 * 3600000).toISOString(), activeHours: '09:00-23:00' },
+  { repo: 'acme/web', sessionId: 'session-7f7155cf-20f0-4d9a', title: '前端修 bug', enabled: true, intervalSec: 60, lastPoll: new Date(Date.now() - 5000).toISOString(), consecutiveFailures: 2, nextAt: new Date(Date.now() + 45000).toISOString(), lastError: 'GitHub API 请求: 401（gh 登录失效：跑 gh auth login，或在面板填 token）' },
 ]
 
 const sections = scenarios.map((scenario) => {
@@ -236,11 +249,30 @@ const sectionsForTheme = scenarios.map((scenario) => {
   return '<h2 class="preview-title">' + scenario.name + '</h2>' + '<div class="preview-frame">' + render(tree) + '</div>'
 }).join('')
 
+const orbitSection = (() => {
+  hookQueue = [orbitWatchers, true, { x: 200, y: 400 }]
+  hookIndex = 0
+  const tree = Orbit()
+  return '<h2 class="preview-title">卫星环弹层（点开状态栏圆环后的样子）</h2>'
+    + '<div class="preview-popover">' + render(tree) + '</div>'
+})()
+
+const ONLY_POPOVER = process.argv.includes('--popover')
+const outArg = process.argv.slice(2).find((a) => !a.startsWith('--') && a.endsWith('.html')) || OUT
+
+const themePopover = (label, tokens) => '<section>'
+  + '<h1 class="theme-name">' + label + '</h1>'
+  + '<div class="themed" style="' + tokens.split(String.fromCharCode(10)).join(' ') + '">'
+  + orbitSection
+  + '</div></section>'
+
 const themeBlock = (label, tokens) => '<section>'
   + '<h1 class="theme-name">' + label + '</h1>'
   + '<div class="themed" style="' + tokens.split(String.fromCharCode(10)).join(' ') + '">'
-  + sectionsForTheme
+  + orbitSection + sectionsForTheme
   + '</div></section>'
+
+
 
 const html = '<!doctype html><meta charset="utf-8"><title>主理鱼面板预览（浅色 / 深色）</title>'
   + '<style>'
@@ -250,13 +282,19 @@ const html = '<!doctype html><meta charset="utf-8"><title>主理鱼面板预览�
   + '.preview-frame{width:900px;background:var(--dsw-alias-bg-base);border:1px solid var(--dsw-alias-border-l3);'
   + 'border-radius:12px;min-height:120px;max-height:820px;overflow:auto;color:var(--dsw-alias-label-primary)}'
   + '.dt-page{height:auto!important;max-height:none!important}'
+  + '.preview-popover svg{width:20px;height:20px;display:block}'
+  + '.preview-popover button{height:20px}'
+  + '.preview-popover{position:relative;width:400px;margin:8px 0 4px;padding:24px;background:var(--dsw-alias-bg-base);border:1px solid var(--dsw-alias-border-l3);border-radius:12px}'
+  + '.preview-popover .sa-dock-panel{position:static!important;left:auto!important;bottom:auto!important;width:368px!important}'
+  + DOCK_CSS
   + PORTED_CSS
   + '</style>'
   + '<div style="font:13px/1.5 system-ui;opacity:.75">主理鱼面板静态预览 —— 真实 client.js 渲染的 DOM + 移植的官方 CSS。'
   + '兜底色值只是近似（真机以宿主注入的 --dsw-alias-* 为准），这里用来发现「某个主题下颜色写死或漏 token」。</div>'
-  + themeBlock('浅色主题', lightTokens)
-  + themeBlock('深色主题', darkTokens)
+  + (ONLY_POPOVER
+    ? (process.argv.includes('--dark') ? themePopover('深色主题', darkTokens) : themePopover('浅色主题', lightTokens) + themePopover('深色主题', darkTokens))
+    : themeBlock('浅色主题', lightTokens) + themeBlock('深色主题', darkTokens))
 
-writeFileSync(OUT, html)
-console.log('已写出：' + OUT)
+writeFileSync(outArg, html)
+console.log('已写出：' + outArg)
 console.log('字节：' + html.length)

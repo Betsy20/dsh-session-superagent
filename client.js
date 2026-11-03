@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.134'
+    const CLIENT_VERSION = '0.9.135'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -634,7 +634,7 @@ window.__ModuleLoader__.load({
       return ageText(value)
     }
 
-    const PANEL_W = 344
+    const PANEL_W = 368
     const BORDER = '1px solid var(--dsw-alias-border-l2, rgba(128,128,128,.22))'
 
     /** Dock entry: the machine-wide ring plus its click-through detail list. */
@@ -753,7 +753,7 @@ window.__ModuleLoader__.load({
       // 摘要行（官方弹层的写法）：主名一行 + 一行 muted 细节，细节超长就省略号。
       // 以前每条守最多 5 行提示挤在一起（goal / 时段 / 隔离 / 错误 / 历史），弹层读不动。
       const shortSub = (w) => {
-        const parts = ['每 ' + (Number(w.intervalSec) || 60) + 's']
+        const parts = ['#' + sessionTag(w.sessionId), '每 ' + (Number(w.intervalSec) || 60) + 's']
         if (w.lastPoll) parts.push(ageText(w.lastPoll) + '前')
         if (w.activeHours) parts.push('时段 ' + w.activeHours)
         return parts.join(' · ')
@@ -783,8 +783,6 @@ window.__ModuleLoader__.load({
           h('div', { className: 'sa-dock-body' },
             h('div', { className: 'sa-dock-line' },
               h('span', { className: 'sa-dock-name' }, String(w.repo || '?')),
-              // 同一个仓库可能有多条守（不同会话），会话后缀必须露出来才分得清
-              h('span', { className: 'sa-dock-session sa-mono' }, sessionTag(w.sessionId)),
               h('span', { className: 'dt-tag', 'data-tone': tone }, STATE_TEXT[state])),
             h('div', { className: 'sa-dock-sub' }, shortSub(w)),
             w.lastError
@@ -801,10 +799,11 @@ window.__ModuleLoader__.load({
       })
 
       // 比例条：和官方的「上下文已用」同一种表达（一眼看出多少在跑）
-      const bar = list.length === 0 ? null : h('div', { className: 'sa-dock-bar', 'aria-hidden': 'true' },
-        h('span', { 'data-tone': 'ok', style: { flexGrow: Math.max(running, 0.001) } }),
-        h('span', { 'data-tone': 'warn', style: { flexGrow: Math.max(list.length - running - broken, 0.001) } }),
-        h('span', { 'data-tone': 'err', style: { flexGrow: Math.max(broken, 0.001) } }))
+      // 为 0 的类别不画那一小截（以前用 0.001 撑出 1px 细丝，看着像脏点）
+      const rest = list.length - running - broken
+      const barCounts = [['ok', running], ['warn', rest], ['err', broken]].filter(([, n]) => n > 0)
+      const bar = barCounts.length === 0 ? null : h('div', { className: 'sa-dock-bar', 'aria-hidden': 'true' },
+        barCounts.map(([tone, n]) => h('span', { key: tone, 'data-tone': tone, style: { flexGrow: n } })))
 
       const panel = h('div', {
         ref: panelRef, role: 'dialog', 'aria-label': summary, className: 'dt-card sa-dock-panel',

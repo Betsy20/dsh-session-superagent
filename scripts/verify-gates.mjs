@@ -281,7 +281,8 @@ const record = (name, detected, detail) => {
   const path = join(root, 'scripts', 'render-preview.mjs')
   const original = readFileSync(path, 'utf8')
   try {
-    writeFileSync(path, original.replace('浅色主题', '浅色（注入）'))
+    // 必须替换**全部**出现：只换第一处的话，别处还留着原来的字，注入就注不进去（本轮真踩）
+    writeFileSync(path, original.split('浅色主题').join('浅色（注入）'))
     const res = run(['scripts/audit-preview.mjs'])
     record('双主题预览可渲染（注入缺主题）', res.code !== 0)
   } finally {

@@ -100,7 +100,7 @@ test('点击展开的面板逐条列出仓库 / 会话 / 间隔 / 轮询 / 状�
   const panel = nodes.find((n) => n.props && n.props.role === 'dialog')
   assert.ok(panel, '面板没有渲染')
   assert.equal(panel.props.style.position, 'fixed')
-  assert.equal(panel.props.style.width, 344)
+  assert.equal(panel.props.style.width, 368, '弹层宽度：344 会把 MYCF711/dsh-go 这类仓库名截掉')
   const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
   const needles = [
     '主理鱼', '2 主理中', 'a/b', 'c/d', '主理中', '异常', '每 30s', '401 bad credentials',
@@ -1168,4 +1168,26 @@ test('默认值提示从 /state 的 defaults 读，不是写死的 12/3/6', () =
   const dflt = text({}, 'settings')
   // 至少验证：面板不会因为 defaults 缺省而崩，且触发页占位符跟着 defaults 走
   assert.ok(!/undefined/.test(all), '默认值不能渲染成 undefined：' + all.slice(0, 200))
+})
+
+test('比例条不为 0 的类别画线段（避免 1px 脏点），并保持总段数正确', () => {
+  const { registrations, render } = loadClient()
+  const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
+  const one = [watcher('a/b', { id: 'a/b#s1', enabled: true })]
+  const nodes = walk(render(orbit, [one, true, { x: 500, y: 700 }]))
+  const bar = nodes.find((n) => n.props && n.props.className === 'sa-dock-bar')
+  assert.ok(bar, '有守时要有比例条')
+  const segs = (bar.props.children || []).filter((c) => c && c.props && c.props['data-tone'])
+  assert.equal(segs.length, 1, '只有运行中一种状态时，只该画 1 段（实际 ' + segs.length + '）')
+  assert.equal(segs[0].props['data-tone'], 'ok')
+
+  const mixed = [
+    watcher('a/b', { id: 'a/b#s1', enabled: true }),
+    watcher('c/d', { id: 'c/d#s2', enabled: false }),
+    watcher('e/f', { id: 'e/f#s3', enabled: true, lastError: 'gh: HTTP 502（网关）', lastErrorKind: 'gateway' }),
+  ]
+  const segs2 = walk(render(orbit, [mixed, true, { x: 500, y: 700 }]))
+    .find((n) => n.props && n.props.className === 'sa-dock-bar').props.children
+    .filter((c) => c && c.props && c.props['data-tone'])
+  assert.equal(segs2.length, 3, '三种状态都有时画 3 段')
 })

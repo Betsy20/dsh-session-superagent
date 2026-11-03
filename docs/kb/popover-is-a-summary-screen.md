@@ -39,6 +39,25 @@ NN/g《Progressive Disclosure》（Jakob Nielsen）：
 ## 是否已落地
 ✅ 0.9.134。5 个弹层用例按新信息架构改写，信息仍全部断言在 `title` 里。
 
+## 怎么"真的看一眼"（0.9.135 补的验收手段）
+结构断言抓不到"糙"。可复用的离线出图流程：
+
+```bash
+node scripts/render-preview.mjs --popover --dark shot-dark.html   # 只出弹层，深色
+msedge --headless=new --disable-gpu --hide-scrollbars   --window-size=520,560 --screenshot=shot-dark.png "file:///<abs>/shot-dark.html"
+```
+
+图来自**真实 `client.js` 渲染出的 DOM + 移植的官方 token**，不是手写 mock。
+
+### 看图后立刻发现的三处
+| 图里看到 | 改法 |
+|---|---|
+| 仓库名 `MYCF711/dsh-g…` 被截 | 宽度 344 → **368** |
+| 同一仓库两条守分不清 | 会话后缀挪到副行 `#c0a5847a · 每 120s · 83 秒前` |
+| 比例条里 0 的类别还画 1px 细丝 | 0 的类别不画段 |
+
+**结论：能出图就一定要出图。** 这三条没有一条是断言能发现的。
+
 ## 还没做的
-- 真机肉眼核对（深浅两套主题、弹层在窄屏下的换行）；
+- 真机宿主下的实拍（字体、窄屏换行、hover 动作）；
 - 面板各 tab 的视觉层级还没逐一按官方对齐（下一项）。
