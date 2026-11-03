@@ -1262,3 +1262,28 @@ test('判定页事件行两行封顶：仓库 + 右对齐时间，第二行结�
   assert.ok(texts.includes('#12 #13'), '第二行要带编号：' + texts.slice(0, 240))
   assert.ok(texts.includes('10 分钟前'), '时间要在行内（右对齐）：' + texts.slice(0, 240))
 })
+
+test('判定页时间线按天分组：今天 / 昨天 有分节标题', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const hours = (n) => new Date(Date.now() - n * 3600000).toISOString()
+  const snap = {
+    loading: false, error: null,
+    body: {
+      sessionGoal: null, sessionTitle: 's', credentials: {}, watchers: [
+        watcher('a/b', {
+          id: 'a/b#s1',
+          history: [
+            { at: hours(0.5), numbers: [12], ok: true, reason: null },
+            { at: hours(26), numbers: [10], ok: true, reason: null },
+            { at: hours(50), numbers: [9], ok: false, reason: 'cap-session' },
+          ],
+        }),
+      ],
+    },
+  }
+  const nodes = walk(render(desk, deskQueue(snap, null, {}, 'judge')))
+  const days = nodes.filter((n) => n.props && n.props.className === 'dt-timeline-day').map((n) => String((n.props.children || []).join('')))
+  assert.ok(days.includes('今天'), '要有「今天」分组：' + days.join('|'))
+  assert.ok(days.some((d) => d === '昨天' || /月/.test(d)), '更早的要单独分组：' + days.join('|'))
+})

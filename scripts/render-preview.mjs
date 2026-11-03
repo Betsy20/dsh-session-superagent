@@ -111,6 +111,9 @@ const snapshot = {
         history: [
           { at: iso(300000), numbers: [12], ok: true, reason: null },
           { at: iso(600000), numbers: [11], ok: false, reason: 'observe' },
+          // 跨天：用来验「今天 / 昨天 / 具体日期」分组
+          { at: iso(26 * 3600000), numbers: [10], ok: true, reason: null },
+          { at: iso(50 * 3600000), numbers: [9], ok: false, reason: 'cap-session' },
         ],
         filteredLog: [{ number: 7, title: '机器人提的依赖升级', reason: '机器人', at: iso(120000) }],
       },
