@@ -2,6 +2,38 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.131] - 2026-11-03 —— 403 被我们一律当成"限流"，其实一半是权限问题
+
+### 学到什么（出处）
+GitHub 排障文档里 403 有两种截然不同的含义，其中一个专节叫 **"Resource not accessible"**：
+- 限流 → 等着就行；
+- **权限不足 / 集成无权访问** → 要改 token 作用域或仓库权限。
+
+<https://docs.github.com/en/rest/using-the-rest-api/troubleshooting-the-rest-api#resource-not-accessible>
+
+### 现场
+我们的分类器只有一条：
+
+```js
+if (/HTTP 403|rate limit|API rate limit exceeded/i.test(text)) return { kind: 'ratelimit', … }
+```
+
+于是 `HTTP 403: Resource not accessible by integration` 会显示「被 GitHub 限流：等几分钟」——
+客户会一直等，而真正要做的是去加权限。**又是"等一等"与"动手修"的混淆。**
+
+### 改法
+1. 先判限流关键词（`rate limit` / `secondary rate limit` / `abuse detection`）；
+2. 其余 403 归新分类 `permission`：`（权限不足：检查 token 作用域或这个仓库的访问权限）`；
+3. 面板给 `permission` 配按钮「去填 token」（指向设置页）。
+
+### 测试
+新增 1 例：403 限流 / `Resource not accessible` / `Must have admin rights` 三种文本各归其类。
+合计 **246 例**。
+
+### 说明
+`gh api` 本轮可用过一阵（成功取到文档大小与 base64 片段），随后再次不可达；
+上面的判据来自本会话早前成功抓取的同一份文档。
+
 ## [0.9.130] - 2026-11-03 —— 重启后真机复验：新代码生效了，但"暂停的守还挂着旧错误"
 
 ### 真机复验（重启后）

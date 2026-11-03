@@ -1325,3 +1325,16 @@ test('找不到 gh 的报法要认全（Windows 的 cmd 措辞与 Node 的 ENOEN
     assert.ok(why.hint.includes('PATH'), '要指向 PATH：' + why.hint)
   }
 })
+
+test('403 要分成两件事：限流（等着）与权限不足（要改 token/仓库权限）', () => {
+  const rate = watchModule.classifyGhError('gh: HTTP 403: API rate limit exceeded for 1.2.3.4')
+  assert.equal(rate.kind, 'ratelimit')
+  assert.ok(rate.hint.includes('等'), '限流只要等：' + rate.hint)
+
+  const perm = watchModule.classifyGhError('HTTP 403: Resource not accessible by integration')
+  assert.equal(perm.kind, 'permission', '权限问题不能算限流')
+  assert.ok(/token|权限/.test(perm.hint), '要指向 token/权限：' + perm.hint)
+
+  const admin = watchModule.classifyGhError('HTTP 403: Must have admin rights to Repository.')
+  assert.equal(admin.kind, 'permission')
+})
