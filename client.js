@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.122'
+    const CLIENT_VERSION = '0.9.123'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1100,7 +1100,12 @@ window.__ModuleLoader__.load({
             const wait = Math.max(0, Date.now() - Date.parse(watcher.nextAt))
             const left = Date.parse(watcher.nextAt) - Date.now()
             const mins = Math.max(0, Math.round((left > 0 ? left : wait) / 60000))
-            const slow = fails >= 6 ? '（已放慢到 2 小时档）' : ''
+            // 档位文案从后端给的 retryPolicy 算：写死「2 小时」会在有人改常量后变成谎话
+            const policy = (body && body.retryPolicy) || {}
+            const budget = Number(policy.budgetAttempts) || 6
+            const capMin = Number(policy.slowCapMinutes) || 120
+            const capText = capMin >= 60 ? (capMin / 60) + ' 小时' : capMin + ' 分钟'
+            const slow = fails >= budget ? '（已放慢到 ' + capText + '档）' : ''
             return h('div', { className: 'dt-hint' },
               '已连续失败 ' + fails + ' 次 · ' + (left > 0 ? '下次重试约 ' + mins + ' 分钟后' : '等待重试') + slow)
           })(),

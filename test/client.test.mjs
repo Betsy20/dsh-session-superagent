@@ -1127,3 +1127,22 @@ test('连续失败时面板要显示「第几次失败 + 下次重试」', () =>
   assert.ok(/下次重试约 \d+ 分钟后/.test(text), '要说明下次重试时间：' + text.slice(0, 300))
   assert.ok(text.includes('2 小时档'), '超过预算要说明已放慢')
 })
+
+test('「已放慢到 X 小时档」从后端 retryPolicy 算，不是写死的', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const at = (mins) => new Date(Date.now() - mins * 60000).toISOString()
+  const soon = (mins) => new Date(Date.now() + mins * 60000).toISOString()
+  const snap = (policy) => ({
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: 'x', credentials: {}, sessionUsage: { used: 1, cap: 12, capped: 0 },
+      retryPolicy: policy,
+      watchers: [watcher('a/b', { id: 'a/b#s1', lastWake: at(10), consecutiveFailures: 8, nextAt: soon(60) })] },
+  })
+  const text = (policy) => walk(render(desk, deskQueue(snap(policy)))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+
+  assert.ok(text({ budgetAttempts: 6, slowCapMinutes: 120 }).includes('2 小时档'), '默认应是 2 小时档')
+  assert.ok(text({ budgetAttempts: 6, slowCapMinutes: 90 }).includes('1.5 小时档'), '改成 90 分钟要跟着变：' + text({ budgetAttempts: 6, slowCapMinutes: 90 }).slice(0, 200))
+  // 预算调大后，8 次还没超预算，就不该说"已放慢"
+  assert.ok(!text({ budgetAttempts: 20, slowCapMinutes: 120 }).includes('已放慢'), '没超预算就不该提放慢')
+})

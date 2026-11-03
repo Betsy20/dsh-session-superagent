@@ -2,6 +2,30 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.123] - 2026-11-03 —— 「已放慢到 2 小时档」不该是写死的文案
+
+### 学到什么（出处）
+Kubernetes Job 的做法：重试策略写在 `spec`（`backoffLimit`、退避上限），**状态由控制器按它算出来再写进 `status`**：
+
+> The `.spec.backoffLimit` is set by default to 6 … The number of retries is calculated in two ways …
+
+<https://kubernetes.io/docs/concepts/workloads/controllers/job/>
+
+政策只有一处定义，派生的数字另算 —— 而不是在 UI 里再抄一份。
+
+### 现场
+0.9.122 的面板写着「已放慢到 **2 小时**档」，而这个 2 小时是 `nextDelayMs` 里的字面量。
+一旦有人把上限改成 90 分钟（或把预算从 6 改掉），**这句话立刻变成谎话，而且没有任何门禁会红**。
+
+### 改法
+1. `lib/watch.js` 导出 `RETRY_SLOW_CAP_MINUTES = 120`，`nextDelayMs` 用它算上限；
+2. `/state` 顶层新增 `retryPolicy: { budgetAttempts, slowCapMinutes }`（一次请求，逐守可用）；
+3. 面板的档位文案由这三个数字算出来（≥60 分钟显示小时，否则显示分钟）。
+
+### 测试
+新增 1 例：默认 → 「2 小时档」；改成 90 分钟 → 「1.5 小时档」；预算调到 20 → 8 次失败**不该**说"已放慢"。
+合计 **233 例**。
+
 ## [0.9.122] - 2026-11-03 —— 面板上写出「第几次失败 + 下次什么时候重试」
 
 ### 学到什么（出处）
