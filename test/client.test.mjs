@@ -1349,10 +1349,10 @@ test('弹层指标用官方「数值强 + 单位弱」两段（不是一句 1 / 
   const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
   const list = [watcher('a/b', { id: 'a/b#s1', enabled: true }), watcher('c/d', { id: 'c/d#s2', enabled: false })]
   const nodes = walk(render(orbit, [list, true, { x: 700, y: 800 }]))
-  const main = nodes.find((n) => n.props && n.props.className === 'sa-dock-metric-main')
-  const unit = nodes.find((n) => n.props && n.props.className === 'sa-dock-metric-unit')
-  assert.ok(main, '要有主数值（等宽数字）')
-  assert.ok(unit, '要有弱化单位')
-  assert.equal(String((main.props.children || []).join('')), '1 / 2')
-  assert.equal(String((unit.props.children || []).join('')), '主理中')
+  // 0.9.155 起不再自造 sa-dock-metric-main/-unit，直接用官方 dt-stat / dt-stat-value
+  const stat = nodes.find((n) => n.props && String(n.props.className || '') === 'dt-stat sa-dock-metric')
+  assert.ok(stat, '指标要用官方 dt-stat')
+  const value = nodes.find((n) => n.props && n.props.className === 'dt-stat-value')
+  assert.ok(value, '要有 dt-stat-value（数值强）')
+  assert.equal(String((value.props.children || []).join('')), '1 / 2')
 })

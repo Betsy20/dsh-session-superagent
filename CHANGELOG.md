@@ -2,6 +2,34 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.155] - 2026-11-03 —— 弹层指标改用官方 dt-stat，删掉自造的 sa-dock-metric-*
+
+### 为什么
+上一轮把弹层指标拆成 `sa-dock-metric-main` / `-unit` 两段 —— 结构对了，但**类名是自造的**。
+面板统计条用的是官方 `dt-stat` / `dt-stat-value`，于是同一件事有了两套实现。
+
+### 改法
+```jsx
+// 改前：自造两段
+h('span', { className: 'sa-dock-metric' },
+  h('span', { className: 'sa-dock-metric-main' }, '1 / 3'),
+  h('span', { className: 'sa-dock-metric-unit' }, '主理中'))
+
+// 改后：官方素材
+h('span', { className: 'dt-stat sa-dock-metric' },
+  h('span', { className: 'dt-stat-value' }, '1 / 3'),
+  h('span', null, '主理中'))
+```
+CSS 只留 `.sa-dock-metric { margin-left: auto }`（靠右），其余字号/字重/颜色全由 `dt-stat` 决定。
+
+### 收益
+- 视觉零变化（出图对比一致）；
+- **以后官方改了 `dt-stat`，两处一起变**，不会只改一半；
+- `ui-audit` 的「官方结构采用数」不再有自造替代。
+
+### 测试
+指标用例从断言 `sa-dock-metric-main/-unit` 改为断言 `dt-stat sa-dock-metric` + `dt-stat-value`。合计 **261 例**。
+
 ## [0.9.154] - 2026-11-03 —— 弹层显示「会话名」而不是只有编号；指标按官方 dt-stat 拆分
 
 ### 你的两条反馈

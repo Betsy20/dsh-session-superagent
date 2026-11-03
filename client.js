@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.154'
+    const CLIENT_VERSION = '0.9.155'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -130,9 +130,7 @@ window.__ModuleLoader__.load({
 .sa-dock-panel { display: flex; flex-direction: column; gap: 0; padding: 0; overflow: hidden; background: var(--dsw-alias-bg-layer-2); box-shadow: var(--dsw-elevation-prominent); border-radius: 16px; font-size: 12px; line-height: 18px; max-width: calc(100vw - 16px); box-sizing: border-box; }
 .sa-dock-head { display: flex; align-items: baseline; gap: 8px; padding: 12px 14px 8px; }
 .sa-dock-title { font-size: 13px; line-height: 20px; font-weight: 500; color: var(--dsw-alias-label-primary); }
-.sa-dock-metric { margin-left: auto; display: inline-flex; align-items: baseline; gap: 4px; }
-.sa-dock-metric-main { font-size: 14px; line-height: 20px; font-weight: 500; color: var(--dsw-alias-label-primary); font-variant-numeric: tabular-nums; }
-.sa-dock-metric-unit { font-size: 12px; color: var(--dsw-alias-label-caption); }
+.sa-dock-metric { margin-left: auto; }
 .sa-dock-bar { display: flex; gap: 2px; height: 4px; margin: 0 14px 8px; border-radius: 2px; overflow: hidden; background: var(--dsw-alias-bg-module-platform); }
 .sa-dock-bar > span { display: block; height: 100%; border-radius: 2px; }
 .sa-dock-bar > span[data-tone='ok'] { background: var(--dsw-alias-state-success-primary); }
@@ -836,9 +834,10 @@ window.__ModuleLoader__.load({
       },
         h('div', { className: 'sa-dock-head' },
           h('span', { className: 'sa-dock-title' }, '主理鱼'),
-          h('span', { className: 'sa-dock-metric' },
-            h('span', { className: 'sa-dock-metric-main' }, String(running) + ' / ' + list.length),
-            h('span', { className: 'sa-dock-metric-unit' }, '主理中'))),
+          // 和面板统计条同一套官方素材：dt-stat（数值强 + 单位弱），不再自己发明 sa-dock-metric-*
+          h('span', { className: 'dt-stat sa-dock-metric' },
+            h('span', { className: 'dt-stat-value' }, String(running) + ' / ' + list.length),
+            h('span', null, '主理中'))),
         bar,
         list.length === 0
           ? h('div', { className: 'sa-dock-empty' }, '还没有。在「主理鱼」标签页填 owner/name 加一条。')
