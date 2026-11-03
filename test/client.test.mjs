@@ -628,7 +628,7 @@ test('判定页要能看见时间线（"为什么没叫醒我"要有据可查）
   }
   // 时间线在「判定」页：切 tab 再渲染
   const text = walk(render(desk, deskQueue(snap, null, {}, 'judge'))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
-  assert.ok(text.includes('时间线'), '要有时间线区块：' + text.slice(0, 160))
+  assert.ok(text.includes('运行时事件'), '要有运行时事件区块：' + text.slice(0, 160))
   assert.ok(text.includes('cap-session'), '要显示事件类型')
   assert.ok(text.includes('已被唤醒 12 次'), '要显示人话内容')
 })

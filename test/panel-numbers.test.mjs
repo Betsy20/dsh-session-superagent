@@ -32,7 +32,7 @@ test('面板「最近 5 次唤醒」= /state 里 filteredLog 的切片', () => {
 })
 
 test('面板「最近 20 条」= history 的推送上限', () => {
-  const shown = num(/时间线（最近 (\d+) 条）/, client, '时间线条数')
+  const shown = num(/运行时事件（最近 (\d+) 条）/, client, '运行时事件条数')
   const code = num(/export function pushHistory\(history, record, max = (\d+)\)/, watchLib, 'pushHistory 上限')
   assert.equal(shown, code, '面板写 ' + shown + '，pushHistory 上限 ' + code)
 })
