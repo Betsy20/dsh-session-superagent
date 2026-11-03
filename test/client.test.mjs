@@ -1356,3 +1356,26 @@ test('弹层指标用官方「数值强 + 单位弱」两段（不是一句 1 / 
   assert.ok(value, '要有 dt-stat-value（数值强）')
   assert.equal(String((value.props.children || []).join('')), '1 / 2')
 })
+
+test('面板统计条与弹层指标共用同一个 Stat（都是 dt-stat + dt-stat-value）', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = {
+    loading: false, error: null,
+    body: {
+      sessionGoal: null, sessionTitle: 's', credentials: {}, watchers: [
+        watcher('a/b', { id: 'a/b#s1', enabled: true }),
+        watcher('c/d', { id: 'c/d#s2', enabled: false }),
+      ],
+    },
+  }
+  const nodes = walk(render(desk, deskQueue(snap)))
+  const strip = nodes.filter((n) => n.props && n.props.className === 'dt-stats')
+  assert.equal(strip.length, 1, '总览应有一个统计条')
+  // 只算统计单元本身：className === 'dt-stat' 或以 'dt-stat ' 开头（dt-stat-value 不算）
+  const isStatUnit = (c) => c === 'dt-stat' || c.startsWith('dt-stat ')
+  const stats = nodes.filter((n) => n.props && isStatUnit(String(n.props.className || '')))
+  assert.ok(stats.length >= 3, '统计条至少有 3 个统计单元，实际 ' + stats.length)
+  const values = nodes.filter((n) => n.props && n.props.className === 'dt-stat-value')
+  assert.ok(values.length >= stats.length, '每个统计单元都要有 dt-stat-value：' + values.length + ' vs ' + stats.length)
+})

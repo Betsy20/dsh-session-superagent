@@ -2,6 +2,32 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.156] - 2026-11-03 —— 抽出 Stat 组件：数值+单位只剩一处定义
+
+### 为什么
+0.9.155 把弹层指标换成了官方 `dt-stat`，但**渲染代码仍是两份**：
+面板总览的统计条写 5 遍 `h('div', { className: 'dt-stat' }, h(span.dt-stat-value), h(span, 单位))`，
+弹层又写一遍。改样式只改一处，就会出现"同一页两种数字排版"。
+
+### 改法
+```jsx
+function Stat({ value, unit, className }) {
+  return h('span', { className: 'dt-stat' + (className ? ' ' + className : '') },
+    h('span', { className: 'dt-stat-value' }, String(value)),
+    h('span', null, unit))
+}
+```
+- 总览统计条：`h(Stat, { value: watchers.length, unit: '条主理鱼' })` ×4（+ 时段外按需）；
+- 弹层指标：`h(Stat, { className: 'sa-dock-metric', value: '1 / 3', unit: '主理中' })`。
+
+### 测试
+新增 1 例：总览必须有统计条，且**每个统计单元都配一个 `dt-stat-value`**。
+（写这条时踩了个过滤条件的坑：`startsWith('dt-stat')` 会把 `dt-stat-value` 也算进去，
+改成精确匹配 `dt-stat` 或 `dt-stat <附加类>`。）合计 **262 例**。
+
+### 出图
+面板总览与弹层各一张，与改前一致（纯重构）。
+
 ## [0.9.155] - 2026-11-03 —— 弹层指标改用官方 dt-stat，删掉自造的 sa-dock-metric-*
 
 ### 为什么

@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.155'
+    const CLIENT_VERSION = '0.9.156'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -280,6 +280,17 @@ window.__ModuleLoader__.load({
     }
 
     // 官方 Section 还支持 hint（说明）与 action（右上角动作），我们之前只有 title/count。
+    /**
+     * 官方统计单元：数值强（`dt-stat-value`）+ 单位弱（caption）。
+     * 面板总览的统计条与弹层顶部指标共用 —— 以前是两份渲染代码，
+     * 改一处忘一处就会变成"同一页两种数字排版"。
+     */
+    function Stat({ value, unit, className }) {
+      return h('span', { className: 'dt-stat' + (className ? ' ' + className : '') },
+        h('span', { className: 'dt-stat-value' }, String(value)),
+        h('span', null, unit))
+    }
+
     function Section({ title, count, hint, action, children }) {
       return h('section', { className: 'dt-section' },
         title
@@ -835,9 +846,7 @@ window.__ModuleLoader__.load({
         h('div', { className: 'sa-dock-head' },
           h('span', { className: 'sa-dock-title' }, '主理鱼'),
           // 和面板统计条同一套官方素材：dt-stat（数值强 + 单位弱），不再自己发明 sa-dock-metric-*
-          h('span', { className: 'dt-stat sa-dock-metric' },
-            h('span', { className: 'dt-stat-value' }, String(running) + ' / ' + list.length),
-            h('span', null, '主理中'))),
+          h(Stat, { className: 'sa-dock-metric', value: running + ' / ' + list.length, unit: '主理中' })),
         bar,
         list.length === 0
           ? h('div', { className: 'sa-dock-empty' }, '还没有。在「主理鱼」标签页填 owner/name 加一条。')
@@ -1326,11 +1335,11 @@ window.__ModuleLoader__.load({
 
       const overview = [
         h('div', { className: 'dt-stats', key: 'stats' },
-          h('div', { className: 'dt-stat' }, h('span', { className: 'dt-stat-value' }, String(watchers.length)), h('span', null, '条主理鱼')),
-          h('div', { className: 'dt-stat' }, h('span', { className: 'dt-stat-value' }, String(running)), h('span', null, '主理中')),
-          h('div', { className: 'dt-stat' }, h('span', { className: 'dt-stat-value' }, String(paused)), h('span', null, '已暂停')),
-          h('div', { className: 'dt-stat' }, h('span', { className: 'dt-stat-value' }, String(broken)), h('span', null, '异常')),
-          dormant > 0 ? h('div', { className: 'dt-stat' }, h('span', { className: 'dt-stat-value' }, String(dormant)), h('span', null, '时段外')) : null),
+          h(Stat, { key: 'all', value: watchers.length, unit: '条主理鱼' }),
+          h(Stat, { key: 'run', value: running, unit: '主理中' }),
+          h(Stat, { key: 'pause', value: paused, unit: '已暂停' }),
+          h(Stat, { key: 'err', value: broken, unit: '异常' }),
+          dormant > 0 ? h(Stat, { key: 'dormant', value: dormant, unit: '时段外' }) : null),
         watchers.some((w) => (w.filteredLog || []).length > 0)
           ? h(Section, { key: 'filtered', title: '最近被过滤' },
             h(CollapsibleList, {
