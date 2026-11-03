@@ -282,7 +282,7 @@ const orbitSection = (() => {
   hookIndex = 0
   const tree = Orbit()
   return '<h2 class="preview-title">卫星环弹层（点开状态栏圆环后的样子）</h2>'
-    + '<div class="preview-popover">' + render(tree) + '</div>'
+    + '<div class="preview-popover">' + render(tree) + '<div class="preview-mask">宿主里弹层浮在这层内容之上</div></div>'
 })()
 
 const ONLY_POPOVER = process.argv.includes('--popover')
@@ -314,6 +314,9 @@ const html = '<!doctype html><meta charset="utf-8"><title>主理鱼面板预览�
   + '.preview-popover svg{width:20px;height:20px;display:block}'
   + '.preview-popover button{height:20px}'
   + (process.argv.includes('--mobile') ? '.preview-popover{width:360px !important;padding:12px !important}' : '')
+  + '.preview-popover .sa-dock-row{background:var(--dsw-alias-bg-layer-2)}'
+  + '.preview-popover .sa-dock-row + .sa-dock-row{border-top:0.5px solid var(--dsw-alias-border-l2)}'
+  + '.preview-mask{position:absolute;inset:0;background:rgba(128,128,128,.35);border-radius:12px;display:flex;align-items:center;justify-content:center;color:#fff;font:12px system-ui}'
   + '.preview-popover{position:relative;width:400px;margin:8px 0 4px;padding:24px;background:var(--dsw-alias-bg-base);border:1px solid var(--dsw-alias-border-l3);border-radius:12px}'
   + '.preview-popover .sa-dock-panel{position:static!important;left:auto!important;bottom:auto!important;width:368px!important}'
   + DOCK_CSS
