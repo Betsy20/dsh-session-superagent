@@ -109,3 +109,27 @@ test('主文件和备份都坏时：留证据、从空状态开始（不静默�
   const files = readdirSync(dir)
   assert.ok(files.some((name) => name.includes('.corrupt-')), '坏文件要留证据：' + files.join(','))
 })
+
+test('暂停的守读出来就不该带旧错误（老版本暂停时留下的）', async () => {
+  const dir = tempDir('zhuli-paused-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const mod = await import('../lib/index.js?paused=' + Date.now())
+
+  // 直接写一份"老版本留下的"状态：已暂停，但还挂着错误
+  writeFileSync(join(dir, 'watchers.json'), JSON.stringify({
+    watchers: {
+      'a/b#s1': {
+        id: 'a/b#s1', repo: 'a/b', sessionId: 's1', enabled: false,
+        lastError: '返回内容不是合法 JSON（可能是代理干扰）',
+        lastErrorAt: '2026-11-03T05:53:57.327Z', consecutiveFailures: 1,
+      },
+    },
+  }, null, 2))
+
+  const state = mod.__test.readState()
+  const entry = state.watchers['a/b#s1']
+  assert.equal(entry.lastError, null, '暂停的守不该带旧错误')
+  assert.equal(entry.lastErrorAt, null)
+  assert.equal(entry.consecutiveFailures, 0)
+})

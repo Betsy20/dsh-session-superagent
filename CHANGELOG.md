@@ -2,6 +2,33 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.130] - 2026-11-03 —— 重启后真机复验：新代码生效了，但"暂停的守还挂着旧错误"
+
+### 真机复验（重启后）
+```
+GET /state → serverVersion 0.9.129
+defaults: { sessionMaxWakes: 12, maxWakesPerHour: 6, isolateKeepDays: 3 }
+retryPolicy: { budgetAttempts: 6, slowCapMinutes: 120 }
+```
+说明 0.9.12x 的新字段与短路逻辑都已上线。`gh auth status` 也已恢复正常（`✓ Logged in`），
+`gh api repos/MYCF711/dsh-go` 返回正常。
+
+启用的那条守在 07:02:50Z 完成了一轮成功轮询：`lastError` 已清空、`nextAt` 归 null。
+
+**但另一条（已暂停，来自更早的会话）仍然挂着**：
+`lastError: 返回内容不是合法 JSON（可能是代理干扰）` + `consecutiveFailures: 1`。
+
+### 根因
+0.9.111 只在**暂停动作发生时**清错误。这条守是在那之前就暂停的，所以旧错误一直冻在状态文件里 ——
+面板上永远显示「异常」，而它其实只是"停着"。
+
+### 改法
+`normalizePaused()`：`readState()` 读出来时，对 `enabled === false` 的条目清掉
+`lastError` / `lastErrorAt` / `consecutiveFailures` / `needsReauth`（幂等、无副作用，下次写盘自然带走）。
+
+### 测试
+新增 1 例：手写一份"老版本留下的（暂停 + 旧错误）"状态，读出来后错误为空。合计 **245 例**。
+
 ## [0.9.129] - 2026-11-03 —— Windows 上找不到 gh 会说"不是命令"，我们原来不认
 
 ### 学到什么（出处）
