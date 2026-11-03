@@ -1274,6 +1274,11 @@ test('判定页时间线按天分组：今天 / 昨天 有分节标题', () => {
   const { registrations, render } = loadClient()
   const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
   const hours = (n) => new Date(Date.now() - n * 3600000).toISOString()
+  // 今天某个时刻（若还没到，就用一分钟前），保证「今天」分组与运行时区无关
+  const todayAt = (h, m) => {
+    const d = new Date(); d.setHours(h, m, 0, 0)
+    return (d.getTime() > Date.now() ? new Date(Date.now() - 60000) : d).toISOString()
+  }
   const snap = {
     loading: false, error: null,
     body: {
@@ -1281,7 +1286,8 @@ test('判定页时间线按天分组：今天 / 昨天 有分节标题', () => {
         watcher('a/b', {
           id: 'a/b#s1',
           history: [
-            { at: hours(0.5), numbers: [12], ok: true, reason: null },
+            // 「今天」这一条不能写死「半小时前」：凌晨 00:18 跑测试时它会掉到昨天（真发生过）
+            { at: todayAt(0, 30), numbers: [12], ok: true, reason: null },
             { at: hours(26), numbers: [10], ok: true, reason: null },
             { at: hours(50), numbers: [9], ok: false, reason: 'cap-session' },
           ],

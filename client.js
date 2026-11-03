@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.164'
+    const CLIENT_VERSION = '0.9.165'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -127,12 +127,12 @@ window.__ModuleLoader__.load({
     const DOCK_CSS = `
 /* 弹层：卡片 + 一行摘要 + 比例条，全部走 dt-* 与 --dsw-alias-* token（官方弹层的做法） */
 /* dt-card 只有边框没有底色，弹层叠在聊天内容上会透字 —— 官方弹层是实心 layer-2 */
-.sa-dock-panel { display: flex; flex-direction: column; gap: 0; padding: 0; overflow: hidden; background: var(--dsw-alias-bg-layer-2); box-shadow: var(--dsw-elevation-prominent); border-radius: 16px; font-size: 12px; line-height: 18px; max-width: calc(100vw - 16px); box-sizing: border-box; }
-.sa-dock-head { display: flex; align-items: baseline; gap: 8px; padding: 12px 14px 8px; }
+.sa-dock-panel { display: flex; flex-direction: column; gap: 0; padding: 0; overflow: hidden; border: 0.5px solid var(--dsw-alias-border-l3); background: var(--dsw-alias-bg-layer-2); box-shadow: var(--dsw-elevation-prominent); border-radius: 16px; font-size: 12px; line-height: 18px; max-width: calc(100vw - 16px); box-sizing: border-box; }
+.sa-dock-head { display: flex; align-items: baseline; gap: 8px; padding: 12px 14px 10px; border-bottom: 0.5px solid var(--dsw-alias-border-l3); }
 .sa-dock-title { font-size: 13px; line-height: 20px; font-weight: 500; color: var(--dsw-alias-label-primary); }
 .sa-dock-metric { margin-left: auto; }
-.sa-dock-bar { display: flex; gap: 2px; height: 4px; margin: 0 14px 8px; border-radius: 2px; overflow: hidden; background: var(--dsw-alias-bg-module-platform); }
-.sa-dock-bar > span { display: block; height: 100%; border-radius: 2px; }
+.sa-dock-bar { display: flex; gap: 2px; height: 2px; margin: 0; border-radius: 0; overflow: hidden; background: var(--dsw-alias-bg-module-platform); }
+.sa-dock-bar > span { display: block; height: 100%; border-radius: 0; }
 .sa-dock-bar > span[data-tone='ok'] { background: var(--dsw-alias-state-success-primary); }
 .sa-dock-bar > span[data-tone='warn'] { background: var(--dsw-alias-border-l4); }
 .sa-dock-bar > span[data-tone='err'] { background: var(--dsw-alias-state-error-primary); }
