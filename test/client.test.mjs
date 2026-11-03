@@ -8,6 +8,7 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { deskForm, deskQueue, loadClient, walk, watcher } from './fixtures/panel-harness.mjs'
 
 test('client.js 注册主理鱼与 composer dock 上的轨道环', () => {
@@ -1402,8 +1403,19 @@ test('点统计数字能筛选：stateFilter=error 时只剩异常那条，并�
   assert.ok(text.includes('bad/one'), '异常那条要留下')
   assert.ok(!text.includes('ok/one'), '健康那条应被筛掉：' + text.slice(0, 200))
   // 筛选要有可见提示，并且能一键清掉
-  assert.ok(text.includes('只看「异常」的守'), '要有筛选提示：' + text.slice(0, 200))
+  // 提示文案按「文本块拼接」断言（横跨多个文本节点时要归一化空白再比）
+  const flat = text.replace(/\s+/g, '')
+  assert.ok(flat.includes('只看异常'), '要有筛选提示：' + text.slice(0, 200))
+  assert.ok(flat.includes('的守（1条）'), '提示要说清剩几条：' + text.slice(0, 200))
   const labels = nodes.filter((n) => n.type === 'button')
     .map((b) => (b.props.children || []).filter((c) => typeof c === 'string').join(''))
-  assert.ok(labels.includes('清除'), '要能一键清除：' + labels.join('|'))
+  assert.ok(labels.some((l) => l.includes('异常')), '筛选标签要能单独清掉：' + labels.join('|'))
+})
+
+test('状态栏圆环单独挂载也要注入样式表（否则弹层是无样式裸文字）', () => {
+  const src = readFileSync(new URL('../client.js', import.meta.url), 'utf8')
+  const start = src.indexOf('function StatusOrbit')
+  assert.ok(start > 0, '找不到 StatusOrbit')
+  const seg = src.slice(start, start + 2500)
+  assert.ok(seg.includes('ensurePortedCss'), 'StatusOrbit 的挂载副作用里必须调 ensurePortedCss')
 })

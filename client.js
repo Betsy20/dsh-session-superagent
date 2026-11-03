@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.158'
+    const CLIENT_VERSION = '0.9.159'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -676,6 +676,10 @@ window.__ModuleLoader__.load({
       const [anchor, setAnchor] = useState(null)
       const btnRef = useRef(null)
       const panelRef = useRef(null)
+
+      // 弹层的样式（DOCK_CSS）挂在 PORTED_CSS 同一张 <style> 里，而那张表以前只有「主理鱼」面板挂载时才注入。
+      // 用户从没打开过面板就直接点状态栏圆环时，弹层就是一堆无样式的裸文字（真机复现过）。
+      useEffect(() => { ensurePortedCss() }, [])
 
       useEffect(() => {
         let alive = true
@@ -1349,7 +1353,36 @@ window.__ModuleLoader__.load({
         && (!problemsOnly || hasProblem(watcher))
         && (!deferFilter || watcher.deferReason === deferFilter))
 
+      const filterSummary = (() => {
+        // 筛选汇总：叠加时用一行说清「应用了哪几个」，而不是每条各占一行。
+        // 只有一个筛选时仍然是一句「只看 X 的守（N 条）：清除」。
+          const chips = []
+          if (badgeFilter) chips.push({ label: badgeFilter, clear: () => setBadgeFilter(null) })
+          if (stateFilter) chips.push({ label: STATE_TEXT[stateFilter], clear: () => setStateFilter(null) })
+          if (needle) chips.push({ label: '搜索「' + needle + '」', clear: () => setSearch('') })
+          if (problemsOnly) chips.push({ label: '有问题', clear: () => setProblemsOnly(false) })
+          if (deferFilter) chips.push({ label: '暂停原因「' + (DEFER_LABELS[deferFilter] || deferFilter) + '」', clear: () => setDeferFilter(null) })
+          if (chips.length === 0) return null
+          return h('div', { className: 'dt-row-meta', key: 'filter-summary' },
+            (() => {
+              // 拼成一个文本节点：拆成多段会让文案断言断在标签边界上
+              const head = chips.length > 1
+                ? '已应用 ' + chips.length + ' 个筛选'
+                : '只看 ' + chips.map((c) => c.label).join('、')
+              return h('span', null, head + ' 的守（' + visible.length + ' 条）：')
+            })(),
+            ...chips.map((chip) => h(Pill, { key: chip.label, onClick: chip.clear }, chip.label + ' ✕')),
+            chips.length > 1
+              ? h(Pill, {
+                key: '__all', onClick: () => {
+                  setBadgeFilter(null); setStateFilter(null); setSearch(''); setProblemsOnly(false); setDeferFilter(null)
+                },
+              }, '全部清除')
+              : null)
+      })()
+
       const overview = [
+        filterSummary,
         h('div', { className: 'dt-stats', key: 'stats' },
           h(Stat, {
             key: 'all', value: watchers.length, unit: '条主理鱼',
@@ -1397,17 +1430,6 @@ window.__ModuleLoader__.load({
           ? h('div', { className: 'dt-banner dt-danger', key: 'restart-needed' },
             '代码已更新到 ' + body.installedVersion + '，但宿主还在跑 ' + body.runningVersion
             + ' —— 服务端改动需要重启宿主才生效（客户端部分已生效，所以界面可能看起来是新的）。')
-          : null,
-        badgeFilter
-          ? h('div', { className: 'dt-row-meta', key: 'badge-filter' },
-            h('span', null, '只看 ' + badgeFilter + ' 的守（' + visible.length + ' 条）：'),
-            h(Pill, { onClick: () => setBadgeFilter(null) }, '清除'))
-          : null,
-        // 状态筛选（点统计数字触发）：光靠按钮按下态暗示太弱，这里给一条能一键清掉的提示
-        stateFilter
-          ? h('div', { className: 'dt-row-meta', key: 'state-filter' },
-            h('span', null, '只看「' + STATE_TEXT[stateFilter] + '」的守（' + visible.length + ' 条）：'),
-            h(Pill, { onClick: () => setStateFilter(null) }, '清除'))
           : null,
         h(Section, { key: 'list', title: needle ? '搜索结果' : '主理鱼', count: visible.length },
           watchers.length === 0
