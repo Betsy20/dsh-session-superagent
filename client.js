@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.160'
+    const CLIENT_VERSION = '0.9.161'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -154,9 +154,23 @@ window.__ModuleLoader__.load({
 .sa-dock-foot { padding: 8px 14px 10px; border-top: 0.5px solid var(--dsw-alias-border-l3); color: var(--dsw-alias-label-caption); }
 `
 
-    function ensurePortedCss() {
+    /**
+     * 注入设计系统样式表。
+     *
+     * `force = true` 时**无条件重建**：弹层每次打开都调一次，用来兜住
+     * 「宿主热重载 / 路由切换把 <head> 清掉」这种情况 —— 那时标签不在了，
+     * 弹层就会变成一堆无样式裸文字（2026-11-03 真机复现过）。
+     * 正常渲染路径用默认的幂等模式，只有"就快显示了"时才付出重建代价。
+     */
+    function ensurePortedCss(force) {
       try {
-        if (document.getElementById('dsh-zhuli-ported-css')) return
+        if (!force) {
+          const existing = document.getElementById('dsh-zhuli-ported-css')
+          if (existing) return
+        } else {
+          const stale = document.getElementById('dsh-zhuli-ported-css')
+          if (stale && stale.parentNode) stale.parentNode.removeChild(stale)
+        }
         const style = document.createElement('style')
         style.id = 'dsh-zhuli-ported-css'
         style.textContent = PORTED_CSS + DOCK_CSS
@@ -696,6 +710,10 @@ window.__ModuleLoader__.load({
         const timer = setInterval(load, POLL_MS)
         return () => { alive = false; clearInterval(timer) }
       }, [])
+
+      // 弹层每次打开都把样式表钉一遍：宿主热重载可能把 <style> 清掉，
+      // 而弹层是"一开就要好看"的东西，不能等到下次渲染才发现没样式
+      useEffect(() => { if (open) ensurePortedCss(true) }, [open])
 
       useEffect(() => {
         if (!open) return undefined
