@@ -1185,3 +1185,28 @@ test('已知凭证失效时，工具直接拒绝发起请求（断路器的意�
   const ok = String(await tools.find((t) => t.name === 'github').execute({ path: 'repos/o/r' }))
   assert.ok(!ok.includes('凭证已失效'), '缓存清掉后不该再短路：' + ok.slice(0, 120))
 })
+
+test('断路器在 run() 里统一生效：ack 打标签等内部调用也一并短路', async () => {
+  const tools = []
+  const dir = tempDir('zhuli-breaker2-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: () => () => {} },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-breaker2' }) },
+    get: () => null, on() {}, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?breaker2=' + Date.now())
+  mod.apply(ctx)
+  await tools.find((t) => t.name === 'watch_start').execute({ repo: 'acme/b2' })
+
+  mod.__test.setAuthStatusCache('  - The token in keyring is invalid.')
+
+  // ack 要给 GitHub 打标签：凭证坏的情况下不该真的尝试，且要说明原因
+  const ack = JSON.parse(await tools.find((t) => t.name === 'watch_ack').execute({ repo: 'acme/b2', number: 7, format: 'json' }))
+  const text = JSON.stringify(ack)
+  assert.ok(/凭证已失效|auth/i.test(text), 'ack 的结果要体现凭证失效：' + text.slice(0, 200))
+
+  mod.__test.setAuthStatusCache('')
+})

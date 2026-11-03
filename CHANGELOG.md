@@ -2,6 +2,32 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.126] - 2026-11-03 —— 断路器下沉到 `run()`：一处生效，所有调用点都覆盖
+
+### 为什么
+0.9.125 只给 `github` / `repo_here` 两个工具加了短路。但**真正会发请求的地方有七八处**
+（轮询、`watch_ack` 打标签、仓库体检、评论查询…），漏掉任何一处，"明知凭证坏了还去调"就还在。
+
+上一轮刚立下的规矩（`policy-numbers-have-one-home.md`）同样适用：**政策只该有一处**。
+
+### 改法
+把断路器移进 `run()` —— 所有 `gh` 调用的唯一出口：
+
+```js
+if (file === 'gh' && !argv.includes('--version') && argv[1] !== 'auth') {
+  if (isAuthBroken(authStatusCache.text) && fresh) {
+    resolve({ code: 1, stdout: '', stderr: '凭证已失效，本次没有发起请求：跑 gh auth login 重新登录后再试' })
+  }
+}
+```
+
+- `gh auth status` 与 `--version` **豁免**（否则无法自检、也永远解不开）；
+- 顺序放在**离线模式之前**，让"凭证坏了"的语义在测试里也一致；
+- 工具层那两处重复短路随之删除，死常量 `AUTH_BROKEN_REPLY` 一并清掉。
+
+### 测试
+新增 1 例：凭证失效时 `watch_ack`（要打标签的内部调用）也走短路。合计 **236 例**。
+
 ## [0.9.125] - 2026-11-03 —— 凭证坏了就别再发请求：断路器式短路
 
 ### 学到什么（出处）
