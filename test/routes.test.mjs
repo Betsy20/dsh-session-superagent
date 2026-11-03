@@ -1210,3 +1210,49 @@ test('断路器在 run() 里统一生效：ack 打标签等内部调用也一并
 
   mod.__test.setAuthStatusCache('')
 })
+
+test('/state 顶层给 defaults：面板的默认值提示要从这里读', async () => {
+  const tools = []
+  const localRoutes = new Map()
+  const dir = tempDir('zhuli-defaults-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: (route) => { localRoutes.set(route.path, route); return () => {} } },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-defaults' }) },
+    get: () => null, on() {}, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?defaults=' + Date.now())
+  mod.apply(ctx)
+  const route = localRoutes.get('/session-superagent/state')
+  const res = makeRes()
+  await route.handler(makeReq('GET', '/session-superagent/state', undefined, {}), res)
+  const body = JSON.parse(res.chunks.join(''))
+  assert.deepEqual(body.defaults, { sessionMaxWakes: 12, maxWakesPerHour: 6, isolateKeepDays: 3 })
+})
+
+test('面板术语表里写死的 6/12 必须等于服务端默认值（两边不能各写一份）', async () => {
+  const tools = []
+  const localRoutes = new Map()
+  const dir = tempDir('zhuli-glossary-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: (route) => { localRoutes.set(route.path, route); return () => {} } },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-gloss' }) },
+    get: () => null, on() {}, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?gloss=' + Date.now())
+  mod.apply(ctx)
+  const res = makeRes()
+  await localRoutes.get('/session-superagent/state').handler(makeReq('GET', '/session-superagent/state', undefined, {}), res)
+  const body = JSON.parse(res.chunks.join(''))
+  const { readFileSync } = await import('node:fs')
+  const client = readFileSync(new URL('../client.js', import.meta.url), 'utf8')
+  const glossary = (client.match(/'两种：单条守每小时最多 (\d+) 次、整条会话 (\d+) 次/) || [])
+  assert.ok(glossary.length === 3, '术语表那句必须还在（否则这条守卫失效）')
+  assert.equal(Number(glossary[1]), body.defaults.maxWakesPerHour, '单守上限要与默认值一致')
+  assert.equal(Number(glossary[2]), body.defaults.sessionMaxWakes, '会话上限要与默认值一致')
+})

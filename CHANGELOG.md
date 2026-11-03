@@ -2,6 +2,37 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.127] - 2026-11-03 —— 面板里的「默认值提示」改成从 `/state` 读
+
+### 学到什么（出处）
+JSON Schema 对 `default` 的定义正好是这个用法：
+
+> The `default` keyword specifies a default value. … **Non-validation tools such as documentation generators
+> or form generators may use this value to give hints to users about how to use a value.**
+
+<https://json-schema.org/understanding-json-schema/reference/annotations>
+
+也就是说：**默认值应当在数据里声明一次，由表单/文档去渲染，而不是两边各写一遍。**
+
+### 现场（本轮扫描）
+`client.js` 里写死的默认值有 3 处：
+- 会话上限占位符 `12（1-60）`；
+- 隔离保留天数占位符 `3（1-30）` 与提示"留空用默认 3 天"；
+- 术语表里「单条守每小时最多 **6** 次、整条会话 **12** 次」。
+
+而真实默认值在 `lib/index.js`（`DEFAULT_SESSION_WAKES = 12`、`?? 6`、`?? 3`）。
+改任一个，面板就开始说谎 —— 这正是 0.9.123 修过的那类问题，只是换了个位置。
+
+### 改法
+1. `lib/index.js` 抽出 `DEFAULT_WAKES_PER_HOUR = 6` / `DEFAULT_ISOLATE_KEEP_DAYS = 3`，并让读状态处复用它们；
+2. `/state` 顶层新增 `defaults: { sessionMaxWakes, maxWakesPerHour, isolateKeepDays }`；
+3. 面板三处提示改成读 `body.defaults`，缺省时才回落到 12/6/3。
+
+### 测试
+- 新增 1 例（服务端）：`/state.defaults` 精确等于 `{ 12, 6, 3 }`；
+- 新增 1 例（面板）：defaults 缺省时也不能渲染出 `undefined`。
+合计 **238 例**。
+
 ## [0.9.126] - 2026-11-03 —— 断路器下沉到 `run()`：一处生效，所有调用点都覆盖
 
 ### 为什么

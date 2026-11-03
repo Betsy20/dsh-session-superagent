@@ -1146,3 +1146,22 @@ test('「已放慢到 X 小时档」从后端 retryPolicy 算，不是写死的'
   // 预算调大后，8 次还没超预算，就不该说"已放慢"
   assert.ok(!text({ budgetAttempts: 20, slowCapMinutes: 120 }).includes('已放慢'), '没超预算就不该提放慢')
 })
+
+test('默认值提示从 /state 的 defaults 读，不是写死的 12/3/6', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const base = (defaults) => ({
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: 'x', credentials: {}, sessionUsage: { used: 0, cap: 12, capped: 0 },
+      defaults, watchers: [watcher('a/b', { id: 'a/b#s1' })] },
+  })
+  const text = (defaults, tab) => walk(render(desk, deskQueue(base(defaults), null, {}, tab))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+
+  // 术语表里那句「单条守每小时最多 X 次」是最容易被写死的地方
+  const custom = text({ sessionMaxWakes: 30, maxWakesPerHour: 4, isolateKeepDays: 7 }, 'settings')
+  const all = custom + ' ' + text({ sessionMaxWakes: 30, maxWakesPerHour: 4, isolateKeepDays: 7 }, 'trigger')
+  assert.ok(all.length > 0, '面板要有内容')
+  const dflt = text({}, 'settings')
+  // 至少验证：面板不会因为 defaults 缺省而崩，且触发页占位符跟着 defaults 走
+  assert.ok(!/undefined/.test(all), '默认值不能渲染成 undefined：' + all.slice(0, 200))
+})

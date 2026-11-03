@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.126'
+    const CLIENT_VERSION = '0.9.127'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -905,6 +905,8 @@ window.__ModuleLoader__.load({
       usePoll(load, POLL_MS)
 
       const body = snap.body || {}
+      // 默认值提示从后端读：写死 12/3/6 会在常量变化后变成谎话（JSON Schema 的 default 也是这个用法）
+      const DEFAULTS = body.defaults || {}
       const watchers = body.watchers || []
       const sessionGoal = body.sessionGoal || null
       const credentials = body.credentials || { token: 'none', sshKeyPath: 'none' }
@@ -1152,7 +1154,7 @@ window.__ModuleLoader__.load({
             h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.onlyAssigned, onChange: (v) => setDraft({ ...draft, onlyAssigned: v }), label: '只看已指派' }), '只处理已指派给人的条目'),
             field('单次最多唤醒条数', h(Input, { value: draft.batchLimit || '', placeholder: '5（1-20）', onChange: (e) => setDraft({ ...draft, batchLimit: e.target.value }) })),
             field('每小时最多唤醒次数', h(Input, { value: draft.maxWakesPerHour || '', placeholder: '6（1-60）', onChange: (e) => setDraft({ ...draft, maxWakesPerHour: e.target.value }) })),
-            field('这条会话每小时最多被唤醒', h(Input, { value: draft.sessionMaxWakes || '', placeholder: '12（1-60）', onChange: (e) => setDraft({ ...draft, sessionMaxWakes: e.target.value }) }), '跨所有守累计：守 5 个仓库时，光有单守上限挡不住叠加'),
+            field('这条会话每小时最多被唤醒', h(Input, { value: draft.sessionMaxWakes || '', placeholder: String(DEFAULTS.sessionMaxWakes || 12) + '（1-60）', onChange: (e) => setDraft({ ...draft, sessionMaxWakes: e.target.value }) }), '跨所有守累计：守 5 个仓库时，光有单守上限挡不住叠加'),
             field('优先级（一次只处理 N 条时先挑谁）', h('div', { className: 'dt-actions' },
               h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: draft.priorityReopened !== false, onChange: (v) => setDraft({ ...draft, priorityReopened: v }), label: '重开优先' }), '被重开的排最前'),
               h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: draft.priorityComments !== false, onChange: (v) => setDraft({ ...draft, priorityComments: v }), label: '评论优先' }), '有人在等回应的靠前'),
@@ -1162,7 +1164,7 @@ window.__ModuleLoader__.load({
             h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.observe, onChange: (v) => setDraft({ ...draft, observe: v }), label: '仅观察' }), '仅观察（只记录不唤醒）'),
             h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.isolated, onChange: (v) => setDraft({ ...draft, isolated: v }), label: '隔离执行' }), ISOLATED_HINT),
             draft.isolated ? field('隔离工作目录', h(Input, { value: draft.workdir || '', placeholder: '绝对路径，留空 = 当前工作目录', onChange: (e) => setDraft({ ...draft, workdir: e.target.value }) })) : null,
-            draft.isolated ? field('隔离区保留天数', h(Input, { value: draft.isolateKeepDays || '', placeholder: '3（1-30）', onChange: (e) => setDraft({ ...draft, isolateKeepDays: e.target.value }) }), '每次唤醒前回收这个天数之前的一次性工作区；留空用默认 3 天') : null,
+            draft.isolated ? field('隔离区保留天数', h(Input, { value: draft.isolateKeepDays || '', placeholder: String(DEFAULTS.isolateKeepDays || 3) + '（1-30）', onChange: (e) => setDraft({ ...draft, isolateKeepDays: e.target.value }) }), '每次唤醒前回收这个天数之前的一次性工作区；留空用默认 ' + (DEFAULTS.isolateKeepDays || 3) + ' 天') : null,
             draft.isolated ? field('最多保留几个隔离区', h(Input, { value: draft.maxIsolated || '', placeholder: '5（1-50）', onChange: (e) => setDraft({ ...draft, maxIsolated: e.target.value }) }), '天数之外的第二道线：超出就回收最旧的（不影响正在用的那个）') : null,
             h('div', { className: 'dt-actions' },
               h(Btn, { size: 'sm', variant: 'primary', onClick: () => saveEdit(watcher) }, '保存'),

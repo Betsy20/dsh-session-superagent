@@ -37,9 +37,9 @@ const sessionCap = Number((indexSource.match(/const DEFAULT_SESSION_WAKES = (\d+
 expect('会话上限', sessionCap === 12 && readme.includes('12 次/小时'), '代码 ' + sessionCap + ' / README ' + (readme.includes('12 次/小时') ? '12' : '没写'))
 
 // ④ 单守上限 6 次/小时
-const perWatcher = Number((watchSource.match(/maxWakesPerHour\s*=\s*(\d+)/) || [])[1] || NaN)
-expect('单守上限', (perWatcher === 6 || indexSource.includes('maxWakesPerHour ?? 6')) && readme.includes('6 次/小时'),
-  '代码 ' + (perWatcher || '??6') + ' / README ' + (readme.includes('6 次/小时') ? '6' : '没写'))
+const perWatcher = Number((indexSource.match(/const DEFAULT_WAKES_PER_HOUR = (\d+)/) || [])[1] || NaN)
+expect('单守上限', (perWatcher === 6) && readme.includes('6 次/小时'),
+  '代码 ' + (perWatcher || '??') + ' / README ' + (readme.includes('6 次/小时') ? '6' : '没写'))
 
 // ⑤ 隔离区默认 5 个 / 3 天
 expect('隔离区默认', indexSource.includes('maxIsolated: w.maxIsolated ?? 5') && indexSource.includes('isolateKeepDays: w.isolateKeepDays ?? 3')
