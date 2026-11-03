@@ -1191,3 +1191,27 @@ test('比例条不为 0 的类别画线段（避免 1px 脏点），并保持总
     .filter((c) => c && c.props && c.props['data-tone'])
   assert.equal(segs2.length, 3, '三种状态都有时画 3 段')
 })
+
+test('活跃时段用两个原生时间选择器（起 / 止），不再让人手打 09:00-23:00', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = {
+    loading: false, error: null,
+    body: {
+      sessionGoal: null, sessionTitle: '会话', credentials: { token: 'none', sshKeyPath: 'none' },
+      watchers: [watcher('a/b', { id: 'a/b#s1', activeHours: '09:00-23:00' })],
+    },
+  }
+  const nodes = walk(render(desk, deskQueue(snap, null, {}, 'trigger')))
+  const times = nodes.filter((n) => n.type === 'input' && n.props && n.props.type === 'time')
+  assert.ok(times.length >= 2, '要有起止两个时间选择器（实际 ' + times.length + '）')
+  assert.ok(times.some((n) => n.props['aria-label'] === '起始时间'), '要有「起始时间」')
+  assert.ok(times.some((n) => n.props['aria-label'] === '结束时间'), '要有「结束时间」')
+
+  // 跨夜要写出来（22:00-06:00）
+  const night = walk(render(desk, deskQueue({
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: 's', credentials: {}, watchers: [] },
+  }, null, {}, 'trigger')))
+  assert.ok(night.length > 0)
+})

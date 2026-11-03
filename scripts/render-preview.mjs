@@ -144,7 +144,7 @@ function render(node) {
   const parts = []
   if (props.className) parts.push(attr('class', props.className))
   if (props.style) parts.push(attr('style', styleToCss(props.style)))
-  for (const key of ['data-tone', 'data-state', 'data-open', 'role', 'title', 'aria-label', 'aria-selected', 'aria-pressed', 'aria-modal', 'type', 'placeholder', 'value', 'disabled']) {
+  for (const key of ['data-tone', 'data-state', 'data-open', 'data-stage', 'role', 'title', 'aria-label', 'aria-current', 'aria-selected', 'aria-pressed', 'aria-expanded', 'aria-checked', 'aria-modal', 'aria-hidden', 'type', 'placeholder', 'value', 'disabled']) {
     if (props[key] !== undefined && props[key] !== false) parts.push(attr(key, props[key]))
   }
   if (keyIsVoid(tag)) return '<' + tag + parts.join('') + '>'
@@ -290,7 +290,10 @@ const html = '<!doctype html><meta charset="utf-8"><title>主理鱼面板预览�
   + '.preview-popover .sa-dock-panel{position:static!important;left:auto!important;bottom:auto!important;width:368px!important}'
   + DOCK_CSS
   + PORTED_CSS
+  + '* { outline: 0; }'
+  + (process.argv.includes('--outline') ? '.dt-page > * { outline: 1px dashed #f0f !important; }' : '')
   + '</style>'
+  + (process.argv.includes('--measure') ? '<script>window.addEventListener("load", function () { var t = document.querySelector(".dt-page > .dt-section > .dt-section-title"); var cs = getComputedStyle(t); var rows = [cs.display + "/" + cs.flexDirection + "/w" + Math.round(t.getBoundingClientRect().width)]; Array.prototype.forEach.call(t.children, function (el) { var r = el.getBoundingClientRect(), c = getComputedStyle(el); rows.push(el.className + "@" + Math.round(r.top) + "h" + Math.round(r.height) + "w" + Math.round(r.width) + " " + c.display); }); var pre = document.createElement("pre"); pre.id = "measure"; pre.textContent = rows.join(" | "); document.body.insertBefore(pre, document.body.firstChild); });</script>' : '')
   + '<div style="font:13px/1.5 system-ui;opacity:.75">主理鱼面板静态预览 —— 真实 client.js 渲染的 DOM + 移植的官方 CSS。'
   + '兜底色值只是近似（真机以宿主注入的 --dsw-alias-* 为准），这里用来发现「某个主题下颜色写死或漏 token」。</div>'
   + (ONLY_POPOVER

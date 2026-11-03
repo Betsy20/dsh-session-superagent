@@ -2,6 +2,68 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.138] - 2026-11-03 —— 活跃时段改成两个时间选择器（起 / 止），不用再手打
+
+### 为什么
+你提的：「起始时间和终止时间让 user 自己选」。此前是**一个文本框**，placeholder 写着
+`09:00-23:00，留空 = 全天` —— 客户得自己记住格式、冒号、连字符，打错就是"永远不唤醒"，
+而且没有任何校验会告诉他打错了。
+
+### 学到的（出处）
+MDN 对 `<input type="time">` 的说明：
+
+> The value is always a 24-hour `HH:mm` (or `HH:mm:ss`) formatted time, **with leading zeros**,
+> regardless of the UI's input format.
+
+<https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input/time>
+
+也就是说：**浏览器替我们保证格式**，我们只需要拼成 `HH:mm-HH:mm`。
+
+### 改法
+新增 `HoursField`（新增表单与编辑表单共用）：
+- 两个原生 `<input type="time">`（`aria-label` 分别是「起始时间」「结束时间」）；
+- 中止 <= 起始 时显示「跨夜窗口」（22:00-06:00 这种是合法的）；
+- 有值时给「全天」按钮（一键清空 = 全天）；空值时显示「留空 = 全天」；
+- 回写仍是 `HH:mm-HH:mm`，服务端解析器不用改。
+
+### 测试
+新增 1 例：触发页必须渲染出两个 `type=time` 的输入，且带「起始/结束」无障碍名。合计 **251 例**。
+
+### 门禁又抓到一次
+我把 `.dt-hours` 等样式写进了 `DOCK_CSS`，`client.js 用到的 dt-* 类名必须在移植来的 CSS 里存在`
+当场报红（4 个类名缺失）—— 挪进 `PORTED_CSS` 才过。**移植的设计系统只有一份，别另开一套。**
+
+## [0.9.137] - 2026-11-03 —— 量出来一个真 bug：带图标的分节标题比正常高 4 倍
+
+### 怎么发现的
+看图觉得「判定日志」上方空了一大截，但 DOM 是干净的。于是给预览工装加了 `--measure`：
+在无头浏览器里量 `getBoundingClientRect`，把结果写进 DOM 再 `--dump-dom` 读回来。
+
+```
+dt-section-title@405h89 | dt-section@502h78 | dt-timeline@588h185      ← 修前：标题行 89px
+dt-section-name@405h22 | dt-count@405h22 | dt-subhead-actions@405h16   ← 修后：标题行 22px
+```
+
+**89px 对一行 22px 的文字**，4 倍。根因：`.dt-section-title` 用 `align-items: baseline`，
+而「ⓘ」按钮是**没有文字的内联 flex 盒** —— 它的基线落在盒子底部，把整行撑高了。
+所有带 `action` 的 `Section`（判定日志、需要关注…）都被撑高。
+
+### 改法
+`.dt-section-title` 的 `align-items: baseline` → **`center`**（标题与计数、图标垂直居中）。
+
+### 顺带（设置页 + 工装）
+- 设置页正文改成**卡片**（`bg-layer-1` + 边框 + 圆角 16 + padding 16），左侧导航 14 → **13px**，
+  正文小节标题 → **15px** —— 此前导航与正文标题同字号，读起来像「来源 来源」重复。
+- 预览工装新增：`--measure`（量元素位置/尺寸）、`--outline`（给每块画虚线）；
+  **并修好一个让截图不可信的 bug**：`aria-current` 不在属性白名单里，导致设置页导航
+  「没有选中态」——那是预览的假象，不是产品缺陷（真机一直是对的）。
+
+### 证据
+```
+node --test → 250/250；ui-audit → 11/11 = 100；audit-preview → PASS 20 块（含弹层）
+出图：设置页 / 判定页 改动前后各一张；标题行高度 89px → 22px（量出来的）
+```
+
 ## [0.9.136] - 2026-11-03 —— 总览页对齐官方：页头分栏、指标上提、块间节奏
 
 ### 为什么
