@@ -10,3 +10,7 @@ preview-panel.html
 shot-*.png
 shot-*.html
 preview-*.html
+tmp-*.html
+tmp-*.json
+tmp-*.txt
+tmp-*.md
