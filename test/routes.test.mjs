@@ -1157,3 +1157,31 @@ test('gh 返回空内容时先查凭证，再谈代理（真机：令牌失效�
   // 有内容就不该报诊断
   assert.equal(diagnoseEmptyBody({ bodyText: '[]', authStatusText: invalidToken }), null)
 })
+
+test('已知凭证失效时，工具直接拒绝发起请求（断路器的意思）', async () => {
+  const tools = []
+  const dir = tempDir('zhuli-breaker-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: () => () => {} },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-breaker' }) },
+    get: () => null, on() {}, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?breaker=' + Date.now())
+  mod.apply(ctx)
+
+  // 把一个"凭证失效"的结论塞进缓存（模拟刚才轮询时已经发现）
+  mod.__test.setAuthStatusCache('X Failed to log in to github.com account u (keyring)' + String.fromCharCode(10) + '  - The token in keyring is invalid.')
+
+  const out = String(await tools.find((t) => t.name === 'github').execute({ path: 'repos/o/r' }))
+  assert.ok(out.includes('凭证已失效'), '要直接说凭证失效：' + out.slice(0, 200))
+  assert.ok(out.includes('gh auth login'), '要给出修复动作')
+  assert.ok(out.includes('没有发起请求'), '要说清这次没有真的调用')
+
+  // 缓存清空后恢复正常调用路径（离线模式下会拿到桩数据，不再短路）
+  mod.__test.setAuthStatusCache('')
+  const ok = String(await tools.find((t) => t.name === 'github').execute({ path: 'repos/o/r' }))
+  assert.ok(!ok.includes('凭证已失效'), '缓存清掉后不该再短路：' + ok.slice(0, 120))
+})

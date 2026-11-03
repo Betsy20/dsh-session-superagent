@@ -2,6 +2,35 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.125] - 2026-11-03 —— 凭证坏了就别再发请求：断路器式短路
+
+### 学到什么（出处）
+Martin Fowler《CircuitBreaker》：
+
+> Once the failures reach a certain threshold, the circuit breaker trips, and **all further calls to the
+> circuit breaker return with an error, without the protected call being made at all.**
+
+<https://martinfowler.com/bliki/CircuitBreaker.html>
+
+我们上一版（0.9.124）已经把"凭证失效"识别出来了，但**只有轮询路径**用它：
+`github` 工具和 `repo_here` 仍然会照常 spawn `gh`，拿到空内容再走一遍诊断 —— 这就是"明知会失败还去调"。
+
+### 改法
+1. 抽出 `isAuthBroken()`（`diagnoseEmptyBody` 复用它，避免两处正则各写一份）；
+2. `gh auth status` 的结论缓存 60 秒，`github` / `repo_here` 在**已知凭证失效**时直接返回：
+   `[error: 凭证已失效，本次没有发起请求] 跑 gh auth login 重新登录后再试`
+3. 缓存为空/过期时照常调用。
+
+### 真机背景（本轮实测）
+```
+- MYCF711/dsh-go | fails 4 | nextAt 2026-11-03T02:40:27.997Z
+  lastError: gh: HTTP 502（GitHub 或本地代理短暂故障）
+```
+外部网络此刻也不健康（502），所以"不发起这次调用"对客户更友好：少一次必然失败的进程。
+
+### 测试
+新增 1 例：缓存里是失效结论 → 两个工具短路且提示修复动作；清空缓存 → 恢复调用。合计 **235 例**。
+
 ## [0.9.124] - 2026-11-03 —— 真机实测：令牌失效时我们却在怪代理
 
 ### 现场（09:00 时段开门后的真实轮询）
