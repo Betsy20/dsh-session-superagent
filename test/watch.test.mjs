@@ -1311,3 +1311,17 @@ test('重试预算：连续失败到第 6 次就放慢到 2 小时一次（不�
   assert.ok(at(6) >= 60, '到预算后明显放慢（实际 ' + at(6) + ' 分钟）')
   assert.equal(at(20), 120, '最多 2 小时一次')
 })
+
+test('找不到 gh 的报法要认全（Windows 的 cmd 措辞与 Node 的 ENOENT）', () => {
+  // 出处：https://nodejs.org/api/errors.html#common-system-errors
+  const cases = [
+    'spawn gh ENOENT',
+    'gh: command not found',
+    "'gh' is not recognized as an internal or external command,",
+  ]
+  for (const text of cases) {
+    const why = watchModule.classifyGhError(text)
+    assert.equal(why.kind, 'nogh', text + ' → ' + why.kind)
+    assert.ok(why.hint.includes('PATH'), '要指向 PATH：' + why.hint)
+  }
+})

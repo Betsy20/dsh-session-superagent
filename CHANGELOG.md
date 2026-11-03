@@ -2,6 +2,35 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.129] - 2026-11-03 —— Windows 上找不到 gh 会说"不是命令"，我们原来不认
+
+### 学到什么（出处）
+Node 的错误页把系统级错误码（`ENOENT`、`EACCES`…）列成一张表，指出**同一个失败在不同平台上措辞不同**：
+
+> Common system errors … `ENOENT` (No such file or directory) …
+
+<https://nodejs.org/api/errors.html#common-system-errors>
+
+我们的 `classifyGhError` 只认 `ENOENT` / `gh: command not found`，**不认 Windows cmd 的措辞**：
+
+```
+spawn gh ENOENT                                        → nogh ✅
+gh: command not found                                  → nogh ✅
+'gh' is not recognized as an internal or external ...  → other ❌（提示"没归类的错误"）
+```
+
+也就是说：Windows 客户没装 gh 时，看到的是"没归类的错误"，而不是"找不到 gh：确认已安装且在 PATH"。
+
+### 改法
+1. `classifyGhError` 认全三种措辞（补 `not recognized as an internal or external command`）；
+2. 顺手把 `watch_doctor` 里写死的「最多每 **2 小时**一次」改成从 `RETRY_SLOW_CAP_MINUTES` 算 ——
+   上一轮立的规矩（数字要能指回来源）还没覆盖到 `lib/` 自己的中文提示。
+
+### 测试
+- 新增 1 例：三种措辞都归 `nogh` 且提示指向 PATH；
+- 更新 1 例：doctor 的"X 小时"改为按常量断言（常量改了用例自动跟随）。
+合计 **244 例**。
+
 ## [0.9.128] - 2026-11-03 —— 面板上写死的四个数字，各自绑到真实来源
 
 ### 学到什么（出处）

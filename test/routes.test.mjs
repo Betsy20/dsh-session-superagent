@@ -1138,7 +1138,8 @@ test('连续失败很多次时，doctor 要解释「间隔已放慢」而不是�
 
   const doctor = String(await tools.find((t) => t.name === 'watch_doctor').execute({}))
   assert.ok(doctor.includes('已连续失败 8 次'), '要报出失败次数：' + doctor.slice(0, 300))
-  assert.ok(doctor.includes('2 小时'), '要说明间隔已放慢到 2 小时')
+  const { RETRY_SLOW_CAP_MINUTES } = await import('../lib/watch.js')
+  assert.ok(doctor.includes(String(RETRY_SLOW_CAP_MINUTES / 60) + ' 小时'), '间隔文案要来自常量 ' + RETRY_SLOW_CAP_MINUTES)
 })
 
 test('gh 返回空内容时先查凭证，再谈代理（真机：令牌失效却怪代理）', async () => {
