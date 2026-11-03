@@ -2,6 +2,53 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.167] - 2026-11-04 —— 修好「明明有 2 条主理鱼，面板却显示 0 条」
+
+### 现象
+
+状态栏明明写着「1 / 2 主理中」，点开「主理鱼」页面却是：
+
+- 统计条 `0 条主理鱼 / 0 主理中 / 0 已暂停 / 0 异常`
+- 列表是空态「三步让这个会话开始盯办」
+- 底下还挂着「正在读取…」
+
+点右上角「刷新」也没用。可同一时刻 `/session-superagent/state` 返回的确实是两条 watcher。
+
+### 根因
+
+`client.js` 里 `stateEtag` 是**模块级**变量，被两个组件共享：
+
+1. 状态栏圆环（`StatusOrbit`）每 5 秒 `call('/state')`，**不带条件头**，
+   成功后 `call()` 把模块级 `stateEtag` 刷成服务端最新 etag；
+2. 「主理鱼」页面的 `load()` 会带 `if-none-match: stateEtag`。
+
+面板挂载晚于圆环，首帧就带着「刚刚才拿到的」etag 去问 → 服务端必回 304 空响应 →
+旧代码 `if (payload && payload.notModified) return null` 直接返回，**从不 setSnap** →
+`snap` 永远停在初始值 `{ loading: true, body: null }` → 全 0 + 空态 + 正在读取。
+
+304 的本意是「内容没变，别白白重渲染」，前提是**本地已经有一份能渲染的 body**。
+首帧这个前提不成立，于是它把面板永久锁死在 loading；这也解释了为什么只有页面坏、
+状态栏圆环和版本横幅（走独立的 `/update`）都正常。
+
+### 改法
+
+`load()` 加一个 `hasBodyRef`：本地有 body 时 304 照旧直接返回（保持原来的省流语义）；
+本地没有 body 时，清掉 `stateEtag` 重取一次全量。
+
+### 证据
+
+假 React 沙箱（`test/fixtures/panel-harness.mjs`）里让带 `if-none-match` 的请求回 304：
+
+```
+旧：首次 /state（无条件头）→ 200；面板重新挂载后只发 1 次（带 W/"v1"）→ 304 → load() 返回 null
+新：面板重新挂载后共 3 次 —— 带 W/"v1" → 304 → 清 etag 重取 → 200 → load() 返回 body（2 条 watcher）
+
+# 旧实现 + 新用例
+AssertionError [ERR_ASSERTION]: 304 之后必须重取一次全量，不能停在 loading
+```
+
+`node --test` → 全绿。
+
 ## [0.9.165] - 2026-11-04 —— 弹层表面按官方 Token 用量卡片对齐（描边 / 分隔线 / 细进度条）
 
 ### 你指出的两处

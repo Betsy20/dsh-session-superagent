@@ -8,8 +8,13 @@ import vm from 'node:vm'
 
 const SOURCE = readFileSync(fileURLToPath(new URL('../../client.js', import.meta.url)), 'utf8')
 
-/** 把 client.js 装进一个最小浏览器沙箱，返回它注册的槽位条目。 */
-export function loadClient() {
+/**
+ * 把 client.js 装进一个最小浏览器沙箱，返回它注册的槽位条目。
+ *
+ * options.fetch：替换沙箱里的 fetch，用来复现「服务端回 304 / 报错」这类分支。
+ * 不传时保持老行为（永远 200 + `{}`），已有用例不受影响。
+ */
+export function loadClient(options = {}) {
   let mod = null
   const sandbox = {
     window: {
@@ -26,7 +31,7 @@ export function loadClient() {
       addEventListener() {},
       removeEventListener() {},
     },
-    fetch: () => Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve('{}') }),
+    fetch: options.fetch || (() => Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve('{}') })),
     setInterval: () => 0,
     clearInterval: () => {},
     console,

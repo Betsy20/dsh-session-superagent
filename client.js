@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.165'
+    const CLIENT_VERSION = '0.9.167'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -989,12 +989,26 @@ window.__ModuleLoader__.load({
       const [stateFilter, setStateFilter] = useState(null)
       // 建议规则弹层：给"叫醒了没回音"一个下一步动作（只提供可复制的规则，不替客户写仓库文件）
 
+      // 本实例手上是否已经有一份**能渲染**的 body。
+      //
+      // 304 只说明「服务端内容没变」，不说明「我本地有数据」：状态栏圆环（StatusOrbit）
+      // 每 5 秒全量拉一次 `/state`，会把模块级 stateEtag 刷成最新；面板首次挂载时正好
+      // 带着这个 etag 去问，首帧就命中 304 —— 旧代码在这里直接 return，从不 setSnap，
+      // 于是面板永远停在初始 {loading:true, body:null}：统计条全 0、列表是空态、
+      // 底下还挂着「正在读取…」。真机现象：2 条主理鱼，页面显示 0 条。
+      const hasBodyRef = useRef(false)
       const load = useCallback(async () => {
         try {
           const payload = await call('/state', stateEtag ? { headers: { 'if-none-match': stateEtag } } : undefined)
-          // 304：内容没变，别白白重渲染
-          if (payload && payload.notModified) return null
+          // 304：内容没变，别白白重渲染 —— 前提是本地已经有一份能渲染的 body
+          if (payload && payload.notModified) {
+            if (hasBodyRef.current) return null
+            // 本地没有数据：这次 304 是被状态栏的 etag 带出来的，清掉 etag 重取一次全量
+            stateEtag = null
+            return load()
+          }
           const body = payload
+          hasBodyRef.current = true
           setSnap({ loading: false, error: null, body })
           return body
         } catch (error) {
