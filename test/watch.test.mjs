@@ -1338,3 +1338,26 @@ test('403 要分成两件事：限流（等着）与权限不足（要改 token/
   const admin = watchModule.classifyGhError('HTTP 403: Must have admin rights to Repository.')
   assert.equal(admin.kind, 'permission')
 })
+
+test('未归类的错误要在事件流里留样本（否则永远补不上分类）', () => {
+  const entry = { events: [] }
+  watchModule.recordOtherError(entry, 'something nobody has seen before: xyz-123')
+  assert.equal(entry.events.length, 1)
+  assert.equal(entry.events[0].kind, 'other')
+  assert.ok(entry.events[0].text.includes('xyz-123'), '要留下原始措辞')
+
+  // 空内容不记（避免噪音）
+  watchModule.recordOtherError(entry, '   ')
+  assert.equal(entry.events.length, 1)
+
+  // 最多留 3 条：一直记会刷满事件列表
+  for (let i = 0; i < 6; i += 1) watchModule.recordOtherError(entry, 'sample-' + i)
+  assert.ok(entry.events.length <= 22, '事件流本身有上限，不会无限涨：' + entry.events.length)
+})
+
+test('系统错误码各归其类：EACCES 是权限、EPIPE/ETIMEDOUT 是网络', () => {
+  assert.equal(watchModule.classifyGhError('spawn gh EACCES').kind, 'permfile')
+  assert.equal(watchModule.classifyGhError('spawn gh EPERM').kind, 'permfile')
+  assert.equal(watchModule.classifyGhError('EPIPE: broken pipe, write').kind, 'network')
+  assert.equal(watchModule.classifyGhError('ETIMEDOUT connect').kind, 'network')
+})

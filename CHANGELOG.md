@@ -2,6 +2,33 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.133] - 2026-11-03 —— 系统错误码各归其类；没见过的措辞自动留样本
+
+### 学到什么（出处）
+Node 的系统错误表把每个码的含义写得很具体（本轮用 `gh api` 直接取到 `doc/api/errors.md`）：
+
+> `EACCES` (Permission denied): An attempt was made to access a file in a way forbidden by its file access permissions.
+> `EPIPE` (Broken pipe): A write on a pipe, socket, or FIFO for which there is no process to read the data.
+
+<https://nodejs.org/api/errors.html#common-system-errors>
+
+### 现场
+这四类原本全落 `other`（"没归类的错误：已按退避自动重试"）：
+
+| 文本 | 改前 | 改后 |
+|---|---|---|
+| `spawn gh EACCES` | other | `permfile`（检查安装权限或重装） |
+| `spawn gh EPERM` | other | `permfile` |
+| `EPIPE: broken pipe` | other | `network`（连接被中断，不需要手动处理） |
+| `ETIMEDOUT connect` | other | `network` |
+
+### 还有一个更根本的问题
+分类器只认**我们见过的措辞**。没见过的如果只显示"没归类的错误"，下次还是收集不到 —— 死循环。
+所以新增 `recordOtherError()`：`other` 时把原始措辞（≤120 字）记进事件流，最多保留到事件上限。
+
+### 测试
+新增 2 例：系统错误码分类；`other` 留样本（空内容不记、事件流不无限增长）。合计 **249 例**。
+
 ## [0.9.132] - 2026-11-03 —— 代理塞回一个网页时，说清"是网页不是 JSON"
 
 ### 真机复验（重启后）
