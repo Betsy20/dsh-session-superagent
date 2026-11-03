@@ -501,7 +501,11 @@ test('空态不是白屏：三步引导 + 一个能直接开始的动作', () =>
   const nodes = walk(render(desk, deskQueue(snapshot)))
   const text = nodes.filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
   assert.ok(text.includes('三步'), '空态要给出上手路径：' + text.slice(0, 160))
-  assert.ok(text.includes('①') && text.includes('③'), '三步都要在')
+  // 0.9.152 起不再用「①」字符：列表符号和步骤号重复，改成圆形步骤号 + 标题 + 说明
+  const steps = nodes.filter((n) => n.props && n.props.className === 'dt-step')
+  assert.equal(steps.length, 3, '三步都要在，实际 ' + steps.length)
+  const nums = nodes.filter((n) => n.props && n.props.className === 'dt-step-num').map((n) => String((n.props.children || []).join('')))
+  assert.deepEqual(nums, ['1', '2', '3'], '步骤号要连号：' + nums.join(','))
   const labels = nodes.filter((n) => n.type === 'button')
     .map((b) => (b.props.children || []).filter((c) => typeof c === 'string').join(''))
   assert.ok(labels.some((l) => l.includes('去添加第一条')), '要有一个直接开始的按钮：' + labels.join('|'))
