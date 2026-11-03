@@ -2,6 +2,39 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.149] - 2026-11-03 —— 动作行并入徽章行：行高 154 → 125（-19%）
+
+### 上一轮为什么失败、这一轮为什么成
+上一轮想剪贴那块 12 行的 `h()`，两次都在 5 层嵌套的收尾括号上错位。
+这一轮换了办法：**不改 JSX，改组合** —— 在 `bodyChildren` 拼完之后把 actions 节点挪进 meta 的 children：
+
+```js
+const actionsAt = bodyChildren.findIndex((n) => has(n, 'dt-ticket-actions'))
+const metaAt = bodyChildren.findIndex((n) => has(n, 'dt-ticket-meta'))
+bodyChildren[metaAt] = { ...meta, props: { ...meta.props, children: [...meta.props.children, actions] } }
+bodyChildren.splice(actionsAt, 1)
+```
+
+零括号改动，`node --check` 一次过。
+
+### 数字（同一台机器、同一个渲染器）
+```
+改前：body h154 | title20 | meta21 | note20 | note20 | note20 | actions30
+改后：body h125 | title20 | meta28 | note20 | note20 | note20
+```
+**每条守矮 29px（-19%）**，一屏能多看到近一半条目。
+
+### 窄屏
+600px 出图确认：徽章行与动作仍在一行（右对齐），没有溢出；
+`@container (max-width: 640px)` 里补了 `flex-wrap: wrap`，极窄时会折行而不是截断。
+
+### 证据
+```
+node --test → 258/258（结构保护用例：每条守 3 个动作控件，仍然通过）
+preflight 全量 → 36/36；ui-audit → 11/11 = 100
+出图：1000px 与 600px 各一张
+```
+
 ## [0.9.148] - 2026-11-03 —— 量出一行 154px 花在哪；合并动作行的尝试**失败并回滚**
 
 ### 量出来的（本轮唯一新增的观测手段）

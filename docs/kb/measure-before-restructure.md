@@ -34,10 +34,34 @@ body h154 | title h20 | meta h21 | note h20 | note h20 | note h20 | actions h30
 新增结构保护用例：**每条守必须有 3 个动作控件**（立刻 / 暂停或恢复 / 删除）。
 下次再动这一块，测试会先拦住。
 
+## 后续（0.9.149）：换个改法就成功了
+
+上一轮结论是"必须整块重写"，这一轮发现还有第三条路：**不改 JSX，改组合**。
+
+```js
+// bodyChildren 拼完之后，把 actions 节点挪进 meta 的 children
+const actionsAt = bodyChildren.findIndex((n) => has(n, 'dt-ticket-actions'))
+const metaAt = bodyChildren.findIndex((n) => has(n, 'dt-ticket-meta'))
+bodyChildren[metaAt] = { ...meta, props: { ...meta.props, children: [...meta.props.children, actions] } }
+bodyChildren.splice(actionsAt, 1)
+```
+
+零括号改动、`node --check` 一次过。结果：
+
+```
+改前：body h154 | actions 独占一行 30px
+改后：body h125 | actions 并进 meta（meta 21 -> 28）
+```
+
+**每条守矮 29px（-19%）。**
+
+> 判据升级：**结构难改时，先问"能不能不改结构"** —— 把节点在数据层拼装，
+> 比在源码里剪贴安全一个数量级。剪贴怕括号，组合不怕。
+
 ## 是否已落地
-✅ 0.9.148：`--measure` 可按行量、结构保护用例、浅色主题 判定/触发 核对。
-❌ "动作行并入徽章行" **没做**（两次失败后回滚），留待整块重写。
+✅ 0.9.149：动作行并入徽章行（-19% 行高），600px 窄屏确认不溢出。
+✅ 0.9.148：`--measure` 按行量、结构保护用例（每条守 3 个动作控件）。
 
 ## 还没做的
-- 动作行合并（需整块重写，估 1 轮）；
+- 行内"标题 + 徽章行 + 三行说明"仍有进一步压缩空间（目标行高 ≤ 110px）；
 - 判定/触发页的浅色主题只做了肉眼核对，没有像素级对比。
