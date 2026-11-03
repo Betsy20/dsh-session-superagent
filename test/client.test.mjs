@@ -762,7 +762,9 @@ test('面板显示本会话用量，到上限时给出可执行的建议', () =>
 
   const half = walk(render(desk, deskQueue({ loading: false, error: null, body: { ...base, sessionUsage: { used: 3, cap: 12, capped: 0 } } })))
     .filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
-  assert.ok(half.includes('唤醒 3/12'), '要有用量：' + half.slice(0, 200))
+  // 0.9.164 起用量也是 Stat（数值 3 / 12 + 单位「本会话近一小时唤醒」），断言两者都在
+  assert.ok(half.includes('3 / 12'), '要有用量数值：' + half.slice(0, 200))
+  assert.ok(half.includes('本会话近一小时唤醒'), '要有单位说明：' + half.slice(0, 200))
   assert.ok(!half.includes('已到上限'), '没用满时不该报警')
 
   const full = walk(render(desk, deskQueue({ loading: false, error: null, body: { ...base, sessionUsage: { used: 12, cap: 12, capped: 2, suggest: 24 } } })))

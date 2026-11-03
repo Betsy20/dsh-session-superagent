@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.163'
+    const CLIENT_VERSION = '0.9.164'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1612,7 +1612,8 @@ window.__ModuleLoader__.load({
           problemsOnly ? h(Pill, { onClick: () => setProblemsOnly(false) }, '全部') : null),
         body.sessionUsage
           ? h('div', { className: 'dt-row-meta' },
-            h('span', null, '本会话近一小时唤醒 ' + body.sessionUsage.used + '/' + body.sessionUsage.cap),
+            // 和统计条同一套官方素材：数值强（dt-stat-value）+ 单位弱
+            h(Stat, { value: body.sessionUsage.used + ' / ' + body.sessionUsage.cap, unit: '本会话近一小时唤醒' }),
             body.sessionUsage.used >= body.sessionUsage.cap
               ? h('span', { className: 'dt-error-text' },
                 '已到上限：新条目会攒到下一小时' +
