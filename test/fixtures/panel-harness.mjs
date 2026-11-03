@@ -77,7 +77,9 @@ export function loadClient() {
     hooks.index = 0
     return registration.Component(props)
   }
-  return { id: mod.id, registrations, render }
+  // 改视口宽度：窄屏相关的断言要靠它，别让测试自己去碰沙箱内部
+  const setViewport = (width) => { sandbox.window.innerWidth = width }
+  return { id: mod.id, registrations, render, setViewport }
 }
 
 /** 展开函数组件，收集整棵树（文本节点记为 #text）。 */

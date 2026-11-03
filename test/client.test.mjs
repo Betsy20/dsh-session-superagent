@@ -1225,3 +1225,20 @@ test('弹层键盘可达：带 tabIndex=-1 且 role=dialog（打开后可聚焦�
   assert.equal(panel.props.tabIndex, -1, '弹层要能被程序聚焦（tabIndex=-1）')
   assert.ok(panel.props['aria-label'], '弹层要有 aria-label（读屏能念出概况）')
 })
+
+test('窗口很窄时弹层不能溢出屏幕（368 -> 视口宽 - 16）', () => {
+  const { registrations, render, setViewport } = loadClient()
+  const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
+  try {
+    setViewport(360)
+    const nodes = walk(render(orbit, [[watcher('a/b')], true, { x: 180, y: 700 }]))
+    const panel = nodes.find((n) => n.props && n.props.role === 'dialog')
+    assert.ok(panel, '弹层没渲染')
+    assert.equal(panel.props.style.width, 344, '360 视口下应该是 344（360-16）')
+    const left = Number(panel.props.style.left)
+    assert.ok(left >= 8, '左边距不能为负：' + left)
+    assert.ok(left + 344 <= 360, '右边也不能溢出：' + (left + 344))
+  } finally {
+    setViewport(1440)
+  }
+})

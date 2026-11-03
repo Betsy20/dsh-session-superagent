@@ -307,6 +307,7 @@ const html = '<!doctype html><meta charset="utf-8"><title>主理鱼面板预览�
   + '.dt-page{height:auto!important;max-height:none!important}'
   + '.preview-popover svg{width:20px;height:20px;display:block}'
   + '.preview-popover button{height:20px}'
+  + (process.argv.includes('--mobile') ? '.preview-popover{width:360px !important;padding:12px !important}' : '')
   + '.preview-popover{position:relative;width:400px;margin:8px 0 4px;padding:24px;background:var(--dsw-alias-bg-base);border:1px solid var(--dsw-alias-border-l3);border-radius:12px}'
   + '.preview-popover .sa-dock-panel{position:static!important;left:auto!important;bottom:auto!important;width:368px!important}'
   + DOCK_CSS

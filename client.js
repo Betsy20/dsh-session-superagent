@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.142'
+    const CLIENT_VERSION = '0.9.143'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -127,7 +127,7 @@ window.__ModuleLoader__.load({
     const DOCK_CSS = `
 /* 弹层：卡片 + 一行摘要 + 比例条，全部走 dt-* 与 --dsw-alias-* token（官方弹层的做法） */
 /* dt-card 只有边框没有底色，弹层叠在聊天内容上会透字 —— 官方弹层是实心 layer-2 */
-.sa-dock-panel { display: flex; flex-direction: column; gap: 0; padding: 0; overflow: hidden; background: var(--dsw-alias-bg-layer-2); box-shadow: var(--dsw-elevation-prominent); border-radius: 16px; font-size: 12px; line-height: 18px; }
+.sa-dock-panel { display: flex; flex-direction: column; gap: 0; padding: 0; overflow: hidden; background: var(--dsw-alias-bg-layer-2); box-shadow: var(--dsw-elevation-prominent); border-radius: 16px; font-size: 12px; line-height: 18px; max-width: calc(100vw - 16px); box-sizing: border-box; }
 .sa-dock-head { display: flex; align-items: baseline; gap: 8px; padding: 12px 14px 8px; }
 .sa-dock-title { font-size: 13px; line-height: 20px; font-weight: 500; color: var(--dsw-alias-label-primary); }
 .sa-dock-metric { margin-left: auto; display: inline-flex; align-items: baseline; gap: 2px; color: var(--dsw-alias-label-tertiary); font-variant-numeric: tabular-nums; }
@@ -735,7 +735,9 @@ window.__ModuleLoader__.load({
       if (!open) return button
 
       // 空态没什么内容，窄一点更像提示而不是一张空表格
-      const width = list.length === 0 ? 252 : PANEL_W
+      // 弹层宽度是固定的，但窗口可能更窄：按可视宽度夹一下，别溢出屏幕
+      const viewport = Number(window && window.innerWidth) || 1200
+      const width = Math.min(list.length === 0 ? 252 : PANEL_W, Math.max(240, viewport - 16))
       const left = anchor
         ? Math.max(8, Math.min(anchor.x - width / 2, (window.innerWidth || 1200) - width - 8))
         : 8
