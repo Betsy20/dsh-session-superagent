@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.139'
+    const CLIENT_VERSION = '0.9.140'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1204,7 +1204,7 @@ window.__ModuleLoader__.load({
             field('单次最多唤醒条数', h(Input, { value: draft.batchLimit || '', placeholder: '5（1-20）', onChange: (e) => setDraft({ ...draft, batchLimit: e.target.value }) })),
             field('每小时最多唤醒次数', h(Input, { value: draft.maxWakesPerHour || '', placeholder: '6（1-60）', onChange: (e) => setDraft({ ...draft, maxWakesPerHour: e.target.value }) })),
             field('这条会话每小时最多被唤醒', h(Input, { value: draft.sessionMaxWakes || '', placeholder: String(DEFAULTS.sessionMaxWakes || 12) + '（1-60）', onChange: (e) => setDraft({ ...draft, sessionMaxWakes: e.target.value }) }), '跨所有守累计：守 5 个仓库时，光有单守上限挡不住叠加'),
-            field('优先级（一次只处理 N 条时先挑谁）', h('div', { className: 'dt-actions' },
+            field('优先级（在「单次最多唤醒条数」内先挑谁）', h('div', { className: 'dt-actions' },
               h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: draft.priorityReopened !== false, onChange: (v) => setDraft({ ...draft, priorityReopened: v }), label: '重开优先' }), '被重开的排最前'),
               h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: draft.priorityComments !== false, onChange: (v) => setDraft({ ...draft, priorityComments: v }), label: '评论优先' }), '有人在等回应的靠前'),
               h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: draft.priorityLabels !== false, onChange: (v) => setDraft({ ...draft, priorityLabels: v }), label: '标签优先' }), '带标签的靠前'),
@@ -1571,7 +1571,7 @@ window.__ModuleLoader__.load({
               },
             }, '复制诊断信息'))),
         h(Section, { key: 'diagnose', title: '分诊信号与取舍' },
-          h(Hint, null, '一次只处理 N 条时，这些信号的加权决定先后。事实默认展示，判断默认关闭。'),
+          h(Hint, null, '一次只处理上限条数之内，这些信号的加权决定先后。事实默认展示，判断默认关闭。'),
           h('div', { className: 'dt-rows' }, (body.triageSignals || []).map((sig) => h('div', { key: sig.key, className: 'dt-row' },
             h('div', { className: 'dt-row-main' },
               h('div', { className: 'dt-row-title' },

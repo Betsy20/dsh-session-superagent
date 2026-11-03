@@ -81,6 +81,14 @@ const snapshot = {
   body: {
     sessionTitle: 'README 收尾与发布',
     sessionGoal: null,
+    // 诊断页要用：分诊信号（事实/判断 + 权重 + 是否默认开）
+    triageSignals: [
+      { key: 'reopened', label: '被重新打开', kind: 'fact', weight: 100, default: true, why: 'state_reason=reopened' },
+      { key: 'comments', label: '有人评论', kind: 'fact', weight: 10, default: true, why: '在等回应' },
+      { key: 'labels', label: '带标签', kind: 'fact', weight: 5, default: true, why: '命中过某个分类' },
+      { key: 'unassigned', label: '无人认领', kind: 'judgment', weight: 3, default: false, why: '团队经验，无官方依据' },
+      { key: 'stale', label: '长期没动静', kind: 'fact', weight: 2, default: false, why: 'open 且超过 30 天没更新' },
+    ],
     gh: { ok: true, version: 'gh version 2.101.0' },
     credentials: { token: 'configured', sshKeyPath: 'none' },
     watchers: [
@@ -183,6 +191,7 @@ const scenarios = [
   { name: '判定', hooks: deskHooks({ tab: 'judge' }) },
   { name: '触发', hooks: deskHooks({ tab: 'trigger' }) },
   { name: '设置（来源）', hooks: deskHooks({ tab: 'settings' }) },
+  { name: '设置（诊断）', hooks: deskHooks({ tab: 'settings', settingsSection: 'diagnose' }) },
   { name: '设置（版本与更新）', hooks: deskHooks({ tab: 'settings', settingsSection: 'update', update: { current: '0.8.45', latest: '0.9.0', hasUpdate: true, command: 'dsh plugin add dsh-session-superagent@0.9.0' } }) },
   { name: '有新版本横幅', hooks: deskHooks({ update: { current: '0.8.45', latest: '0.9.0', hasUpdate: true } }) },
   { name: 'Toast（保存成功）', hooks: deskHooks({ notice: { id: 't1', text: '已保存：MYCF711/dsh-session-superagent', tone: 'info' } }) },
