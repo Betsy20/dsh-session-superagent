@@ -2,6 +2,60 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.166] - 2026-11-04 —— 修好「返回内容不是合法 JSON：可能是代理干扰」（头体分隔只认 LF）
+
+### 现象
+
+主理鱼面板持续报：
+
+> （返回内容不是合法 JSON：可能是代理干扰） —— 已按退避自动重试；持续出现请跑 watch_doctor
+
+可同一条 `gh api` 命令在终端里跑得好好的（200 + 正常 JSON），`watch_doctor` 也全绿；
+同机器上另一条主理鱼（一直 304）还完全正常。
+
+### 根因
+
+`lib/gh-format.js` 的 `parseGhInclude` 用 `"\n\n"` 找头/体分隔，但真机 gh 2.103.3 的
+`--include` 输出行尾是**混的**：
+
+```
+$ gh api --include ... | head -c 20 | od -c
+H T T P / 2 . 0   2 0 0   O K \n        ← 状态行：LF
+A c c e s s - C o n t r o l ... \r \n   ← 响应头：CRLF
+```
+
+所以头体之间是 `"\r\n\r\n"`，而它里面**没有**连续两个 LF —— `indexOf("\n\n")` 返回 -1，
+`body` 落到 `text.trim()`，把「状态行 + 全部响应头 + JSON 正文」整段当成正文丢给
+`JSON.parse`。解析必然失败，而 `diagnoseBadBody()` 只看「正文像不像网页 / 是不是空」，
+认不出这是本地切分错误，于是落到兜底文案「可能是代理干扰」——
+**把人往代理和网络上游带，实际一行都不用查**。
+
+另一条主理鱼为什么没事：它一直 304，`gh` 退出码非 0，走的是「未变化」分支，
+根本不进 JSON 解析。只有真取到 issue 列表（正文非空）才会踩到。
+
+### 为什么测试没拦住
+
+`test/routes.test.mjs` 那条用例只断言 `body.includes('number')` ——
+没切开的整段输出当然也含 `number`，bug 一路绿灯。
+
+### 改法
+
+`parseGhInclude` 同时认 `"\r\n\r\n"` 与 `"\n\n"`，取**最先出现**的那个；
+测试断言收紧成 `body` 严格等于正文，并补一条「状态行 LF + 响应头 CRLF」的混合行尾用例。
+
+### 证据
+
+```
+# 旧实现 + 新断言
+AssertionError [ERR_ASSERTION]: body 要只剩正文，不能把状态行/响应头带进来
+# 修复后
+✔ 非错误状态码聚一遍：200/204/304 都不该被当成失败
+
+# 同一份真实输出（一个 90 KB 的 issue 列表）
+旧：JSON.parse => Unexpected token 'H', "HTTP/2.0 2"... is not valid JSON
+新：status=200，JSON.parse 成功，16 条 issue
+```
+
 ## [0.9.165] - 2026-11-04 —— 弹层表面按官方 Token 用量卡片对齐（描边 / 分隔线 / 细进度条）
 
 ### 你指出的两处
