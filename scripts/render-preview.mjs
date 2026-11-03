@@ -176,6 +176,8 @@ const deskHooks = ({ tab = 'overview', notice = null, glossary = false, update =
   snapshot, tab, notice, blankForm, '', '', false, [], null, {}, '', glossary, update, false, settingsSection, null, null,
 ]
 
+const ONLY_NAME = (process.argv.find((a) => a.startsWith('--only=')) || '').slice('--only='.length)
+
 const scenarios = [
   { name: '总览', hooks: deskHooks({}) },
   { name: '判定', hooks: deskHooks({ tab: 'judge' }) },
@@ -194,8 +196,8 @@ const orbitWatchers = [
   { repo: 'acme/web', sessionId: 'session-7f7155cf-20f0-4d9a', title: '前端修 bug', enabled: true, intervalSec: 60, lastPoll: new Date(Date.now() - 5000).toISOString(), consecutiveFailures: 2, nextAt: new Date(Date.now() + 45000).toISOString(), lastError: 'GitHub API 请求: 401（gh 登录失效：跑 gh auth login，或在面板填 token）' },
 ]
 
-const sections = scenarios.map((scenario) => {
-  hookQueue = scenario.hooks
+const shown = ONLY_NAME ? scenarios.filter((s) => s.name.includes(ONLY_NAME)) : scenarios
+const sections = shown.map((scenario) => {
   hookIndex = 0
   const tree = Desk({ sessionId: 'preview-session' })
   return '<h2 class="preview-title">' + scenario.name + '</h2>\n<div class="preview-frame">' + render(tree) + '</div>'
@@ -242,7 +244,7 @@ const darkTokens = `
 `
 
 // 两套主题各出一份：左边浅色、右边深色，方便一眼看出「只在某个主题下才错」的地方。
-const sectionsForTheme = scenarios.map((scenario) => {
+const sectionsForTheme = shown.map((scenario) => {
   hookQueue = scenario.hooks
   hookIndex = 0
   const tree = Desk({ sessionId: 'preview-session' })
@@ -269,7 +271,7 @@ const themePopover = (label, tokens) => '<section>'
 const themeBlock = (label, tokens) => '<section>'
   + '<h1 class="theme-name">' + label + '</h1>'
   + '<div class="themed" style="' + tokens.split(String.fromCharCode(10)).join(' ') + '">'
-  + orbitSection + sectionsForTheme
+  + (ONLY_NAME ? '' : orbitSection) + sectionsForTheme
   + '</div></section>'
 
 
@@ -293,7 +295,7 @@ const html = '<!doctype html><meta charset="utf-8"><title>主理鱼面板预览�
   + '兜底色值只是近似（真机以宿主注入的 --dsw-alias-* 为准），这里用来发现「某个主题下颜色写死或漏 token」。</div>'
   + (ONLY_POPOVER
     ? (process.argv.includes('--dark') ? themePopover('深色主题', darkTokens) : themePopover('浅色主题', lightTokens) + themePopover('深色主题', darkTokens))
-    : themeBlock('浅色主题', lightTokens) + themeBlock('深色主题', darkTokens))
+    : (process.argv.includes('--dark') ? themeBlock('深色主题', darkTokens) : themeBlock('浅色主题', lightTokens) + themeBlock('深色主题', darkTokens)))
 
 writeFileSync(outArg, html)
 console.log('已写出：' + outArg)
