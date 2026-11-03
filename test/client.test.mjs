@@ -1287,3 +1287,26 @@ test('判定页时间线按天分组：今天 / 昨天 有分节标题', () => {
   assert.ok(days.includes('今天'), '要有「今天」分组：' + days.join('|'))
   assert.ok(days.some((d) => d === '昨天' || /月/.test(d)), '更早的要单独分组：' + days.join('|'))
 })
+
+test('总览每条守都带三个动作按钮（立刻 / 暂停或恢复 / 删除）', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = {
+    loading: false, error: null,
+    body: {
+      sessionGoal: null, sessionTitle: 's', credentials: {}, watchers: [
+        watcher('a/b', { id: 'a/b#s1', enabled: true }),
+        watcher('c/d', { id: 'c/d#s2', enabled: false }),
+      ],
+    },
+  }
+  const nodes = walk(render(desk, deskQueue(snap)))
+  // 每个 dt-ticket-actions 容器里都要有 3 个可点控件（暂停/恢复按状态二选一）
+  const groups = nodes.filter((n) => n.props && String(n.props.className || '').includes('dt-ticket-actions'))
+  assert.equal(groups.length, 2, '两条守应该有两个动作容器，实际 ' + groups.length)
+  for (const group of groups) {
+    const buttons = walk({ type: 'div', props: group.props })
+      .filter((n) => n.type === 'button' || (n.props && typeof n.props.onClick === 'function'))
+    assert.ok(buttons.length >= 3, '每个动作容器至少 3 个控件，实际 ' + buttons.length)
+  }
+})

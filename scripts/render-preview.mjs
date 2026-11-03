@@ -318,7 +318,7 @@ const html = '<!doctype html><meta charset="utf-8"><title>主理鱼面板预览�
   + '* { outline: 0; }'
   + (process.argv.includes('--outline') ? '.dt-page > * { outline: 1px dashed #f0f !important; }' : '')
   + '</style>'
-  + (process.argv.includes('--measure') ? '<script>window.addEventListener("load", function () { var t = document.querySelector(".dt-page > .dt-section > .dt-section-title"); var cs = getComputedStyle(t); var rows = [cs.display + "/" + cs.flexDirection + "/w" + Math.round(t.getBoundingClientRect().width)]; Array.prototype.forEach.call(t.children, function (el) { var r = el.getBoundingClientRect(), c = getComputedStyle(el); rows.push(el.className + "@" + Math.round(r.top) + "h" + Math.round(r.height) + "w" + Math.round(r.width) + " " + c.display); }); var pre = document.createElement("pre"); pre.id = "measure"; pre.textContent = rows.join(" | "); document.body.insertBefore(pre, document.body.firstChild); });</script>' : '')
+  + (process.argv.includes('--measure') ? '<script>window.addEventListener("load", function () { var body = document.querySelector(".dt-page .dt-ticket-body"); var rows = []; rows.push("body h" + Math.round(body.getBoundingClientRect().height)); Array.prototype.forEach.call(body.children, function (el) { var r = el.getBoundingClientRect(); rows.push((el.className.split(" ")[0] || el.tagName) + " h" + Math.round(r.height)); }); var pre = document.createElement("pre"); pre.id = "measure"; pre.textContent = rows.join(" | "); document.body.insertBefore(pre, document.body.firstChild); });</script>' : '')
   + '<div style="font:13px/1.5 system-ui;opacity:.75">主理鱼面板静态预览 —— 真实 client.js 渲染的 DOM + 移植的官方 CSS。'
   + '兜底色值只是近似（真机以宿主注入的 --dsw-alias-* 为准），这里用来发现「某个主题下颜色写死或漏 token」。</div>'
   + (ONLY_POPOVER
