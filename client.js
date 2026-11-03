@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.149'
+    const CLIENT_VERSION = '0.9.150'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1135,11 +1135,15 @@ window.__ModuleLoader__.load({
           // 三行，各管一件事：① 是谁 ② 节律与最近结果 ③ 目标
           // 原来六段用 ' · ' 串成一行（会话 · 每 60s · 轮询 · 唤醒 · 上次唤醒 · 目标），
           // 出图时那行在浅色主题下折成两行、读起来像一堵墙。
+          // 标题行已经写了仓库名；这里只补「会话 + 间隔」，并把最近一次结果并进来
+          // （原来这一行和下面那行各占 20px，其实说的是同一件事：这个守在干什么、最近怎么样）
           h('div', { className: 'dt-ticket-note' },
-            (watcher.title || '未命名会话') + ' · ' + sessionTag(watcher.sessionId) + ' · 每 ' + watcher.intervalSec + 's'),
-          h('div', { className: 'dt-ticket-note' },
-            ['轮询 ' + ageText(watcher.lastPoll), '唤醒 ' + wakeText(watcher.lastWake), historyText(watcher)]
-              .filter(Boolean).join(' · ')),
+            (watcher.title || '未命名会话') + ' · ' + sessionTag(watcher.sessionId) + ' · 每 ' + watcher.intervalSec + 's'
+            + ' · 轮询 ' + ageText(watcher.lastPoll)),
+          watcher.lastWake
+            ? h('div', { className: 'dt-ticket-note' },
+              '唤醒 ' + wakeText(watcher.lastWake) + (historyText(watcher) ? ' · ' + historyText(watcher) : ''))
+            : null,
           watcher.note ? h('div', { className: 'dt-ticket-note' }, '目标: ' + String(watcher.note).slice(0, 40)) : null,
           watcher.lastDeferred ? h('div', { className: 'dt-ticket-note' }, watcher.lastDeferred) : null,
           (watcher.otherSessions && watcher.otherSessions.length > 0)
