@@ -2,6 +2,32 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.141] - 2026-11-03 —— 给"截图骗人"装上自动门禁
+
+### 为什么
+0.9.140 的教训：诊断页看着空，查了半天样式，结果是**预览快照没写 `triageSignals`**。
+这种问题肉眼才能发现，而且极易被误判成 UI 缺陷。
+
+### 改法
+1. 预览快照补齐 client.js 读的全部 16 个 `body.*` 字段（此前只有 6 个）：
+   `serverVersion / runningVersion / installedVersion / routeBase / defaults / retryPolicy /
+   sessionUsage / tokenScopes / isolation / error`；
+2. 新增 `test/preview-contract.test.mjs` 两条断言：
+   - 顶层字段：`client.js 里出现的每一个 body.X` 都必须在快照里有同名键；
+   - 嵌套字段：`isolation.roots[].{count,bytes}`、`isolation.totalBytes`、`sessionUsage.{used,cap,capped}`、
+     `defaults.*`、`retryPolicy.*` 必须出现。
+
+### 顺手抓到自己的错
+我第一版快照写的是 `isolation.roots[].sizeBytes`，而服务端与客户端用的是 **`bytes` / `totalBytes`**，
+出图显示「2 个 · **0 B**」。字段名一错，界面就是一行错数据 —— 正是这条门禁要防的东西。
+改正后出图：`2 个 · 256.0 KB（合计 256.0 KB）`。
+
+### 证据
+```
+node --test → 254/254（新增 2 例）
+out: 设置（来源）出图，隔离占用 256.0 KB 显示正确
+```
+
 ## [0.9.140] - 2026-11-03 —— 诊断页出图核对：把客户能读到的「N」换成具体说法
 
 ### 现场（出图）
