@@ -1242,3 +1242,23 @@ test('窗口很窄时弹层不能溢出屏幕（368 -> 视口宽 - 16）', () =>
     setViewport(1440)
   }
 })
+
+test('判定页事件行两行封顶：仓库 + 右对齐时间，第二行结果带编号', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const at = new Date(Date.now() - 600000).toISOString()
+  const snap = {
+    loading: false, error: null,
+    body: {
+      sessionGoal: null, sessionTitle: 's', credentials: {}, watchers: [
+        watcher('a/b', { id: 'a/b#s1', history: [{ at, numbers: [12, 13], ok: true, reason: null }] }),
+      ],
+    },
+  }
+  const nodes = walk(render(desk, deskQueue(snap, null, {}, 'judge')))
+  const head = nodes.find((n) => n.props && n.props.className === 'dt-event-head')
+  assert.ok(head, '事件行要有 dt-event-head（仓库 + 时间同一行）')
+  const texts = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
+  assert.ok(texts.includes('#12 #13'), '第二行要带编号：' + texts.slice(0, 240))
+  assert.ok(texts.includes('10 分钟前'), '时间要在行内（右对齐）：' + texts.slice(0, 240))
+})
