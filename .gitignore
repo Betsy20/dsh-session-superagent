@@ -6,3 +6,7 @@ tmp/
 
 # 本地预览产物（node scripts/render-preview.mjs 生成）
 preview-panel.html
+# 本地视觉核对产物（无头浏览器截图 / 预览 HTML）
+shot-*.png
+shot-*.html
+preview-*.html
