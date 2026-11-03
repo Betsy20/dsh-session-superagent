@@ -1257,3 +1257,19 @@ test('面板术语表里写死的 6/12 必须等于服务端默认值（两边�
   assert.equal(Number(glossary[1]), body.defaults.maxWakesPerHour, '单守上限要与默认值一致')
   assert.equal(Number(glossary[2]), body.defaults.sessionMaxWakes, '会话上限要与默认值一致')
 })
+
+test('代理返回网页而不是 JSON：要明说是"被拦截"，不是"代理干扰"这种含糊话', async () => {
+  const { diagnoseBadBody } = await import('../lib/gh-format.js')
+  const html = '<!DOCTYPE html><html><body><h1>502 Bad Gateway</h1></body></html>'
+  const why = diagnoseBadBody({ bodyText: html })
+  assert.equal(why.kind, 'gateway')
+  assert.ok(why.hint.includes('网页'), '要说清收到的是网页：' + why.hint)
+  assert.ok(why.hint.includes('代理'), '要指向代理设置')
+
+  // 合法 JSON 不该报
+  assert.equal(diagnoseBadBody({ bodyText: '[]' }), null)
+
+  // 空内容仍然走原来的判断（凭证优先）
+  const auth = diagnoseBadBody({ bodyText: '', authStatusText: 'token in keyring is invalid' })
+  assert.equal(auth.kind, 'auth')
+})

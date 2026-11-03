@@ -2,6 +2,31 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.132] - 2026-11-03 —— 代理塞回一个网页时，说清"是网页不是 JSON"
+
+### 真机复验（重启后）
+```
+serverVersion: 0.9.131
+- MYCF711/dsh-go | 启用 | fails 1 | lastError: （返回内容不是合法 JSON：可能是代理干扰）
+- MYCF711/dsh-go | 已暂停 | fails 0 | lastError: 无        ← 0.9.130 的归一在真机上生效了
+```
+
+紧跟着手动跑一次 `gh api --include ...`：`HTTP/2.0 200 OK` + body `[]`（2 字节）—— 说明网络此刻是通的，
+那条错误是代理 502 期间留下的。
+
+### 学到什么 / 改了什么
+1. **坏 body 也要分类**：新增 `diagnoseBadBody()` —— 有内容但不是 JSON 时，
+   若像 HTML/网关页（`<!DOCTYPE`、`<body`、`Bad Gateway`…）→ 归 `gateway`，
+   提示「**返回的是网页而不是 JSON：本地代理/网关拦了请求 —— 检查代理设置**」；
+2. **限流要等够一分钟**：GitHub 对 secondary/abuse 限流要求至少等 1 分钟，
+   服务端没给 `Retry-After` 时现在我们兜底 60 秒（此前会立刻重试）；
+3. 顺带修一个**自己刚写出的 bug**：先算了 `wait` 才定义 `classified`，
+   会在每次失败时抛 `ReferenceError` —— 已把分类提到最前（注释里记了这次顺序错误）；
+4. `deferReason` 直接用分类名（此前 auth 也会被写成 `notfound`）。
+
+### 测试
+新增 1 例（HTML 坏 body → gateway；合法 JSON 不报；空内容仍先判凭证）。合计 **247 例**。
+
 ## [0.9.131] - 2026-11-03 —— 403 被我们一律当成"限流"，其实一半是权限问题
 
 ### 学到什么（出处）
