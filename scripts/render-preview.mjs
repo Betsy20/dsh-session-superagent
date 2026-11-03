@@ -301,6 +301,7 @@ const html = '<!doctype html><meta charset="utf-8"><title>主理鱼面板预览�
   + 'body{font:14px/1.45 -apple-system,"Segoe UI",system-ui,sans-serif;background:#eef1f4;margin:0;padding:24px;color:#1f2328}'
   + '.theme-name{font-size:18px;margin:28px 0 4px}'
   + '.preview-title{margin:20px 0 8px;font-size:15px;opacity:.7;color:inherit}'
+  + (process.argv.includes('--mobile') ? '.preview-frame{width:600px !important}' : '')
   + '.preview-frame{width:900px;background:var(--dsw-alias-bg-base);border:1px solid var(--dsw-alias-border-l3);'
   + 'border-radius:12px;min-height:120px;max-height:820px;overflow:auto;color:var(--dsw-alias-label-primary)}'
   + '.dt-page{height:auto!important;max-height:none!important}'
