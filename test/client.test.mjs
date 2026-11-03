@@ -1418,4 +1418,8 @@ test('状态栏圆环单独挂载也要注入样式表（否则弹层是无样�
   assert.ok(start > 0, '找不到 StatusOrbit')
   const seg = src.slice(start, start + 2500)
   assert.ok(seg.includes('ensurePortedCss'), 'StatusOrbit 的挂载副作用里必须调 ensurePortedCss')
+  // 更根本的一道：模块 apply() 里就要注入一次，任何槽位都能用上样式表
+  const applyAt = src.indexOf('apply(ctx) {')
+  assert.ok(applyAt > 0, '找不到 apply')
+  assert.ok(src.slice(applyAt, applyAt + 600).includes('ensurePortedCss'), 'apply() 里必须有 ensurePortedCss')
 })

@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.159'
+    const CLIENT_VERSION = '0.9.160'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -2015,6 +2015,9 @@ window.__ModuleLoader__.load({
       apply(ctx) {
         try { noteOnce('client-version', CLIENT_VERSION) } catch {}
         try { note('apply', 'start') } catch {}
+        // 样式表在这里注入一次就够了：任何槽位（面板 / 圆环 / 将来的入口）都用得上。
+        // 之前只在面板组件挂载时注入，没打开过面板就直接点圆环 → 弹层没有样式（0.9.159 才补上那次调用）。
+        try { ensurePortedCss() } catch {}
 
         // ① the 主理鱼 tab in the centre-column view ring
         ctx.effect(() => {
