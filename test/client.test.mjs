@@ -1379,3 +1379,26 @@ test('面板统计条与弹层指标共用同一个 Stat（都是 dt-stat + dt-s
   const values = nodes.filter((n) => n.props && n.props.className === 'dt-stat-value')
   assert.ok(values.length >= stats.length, '每个统计单元都要有 dt-stat-value：' + values.length + ' vs ' + stats.length)
 })
+
+test('点统计数字能筛选：stateFilter=error 时只剩异常那条，并且「异常」是按下态', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = {
+    loading: false, error: null,
+    body: {
+      sessionGoal: null, sessionTitle: 's', credentials: {}, watchers: [
+        watcher('ok/one', { id: 'ok/one#s1', enabled: true }),
+        watcher('bad/one', { id: 'bad/one#s2', enabled: true, lastError: 'gh: HTTP 502（网关）', lastErrorKind: 'gateway' }),
+      ],
+    },
+  }
+  const queue = deskQueue(snap)
+  queue[18] = 'error'
+  const nodes = walk(render(desk, queue))
+  const pressed = nodes.filter((n) => n.type === 'button' && n.props && n.props['aria-pressed'] === true)
+  const pressedText = pressed.map((b) => (b.props.children || []).map((c) => (c && c.props && c.props.children) || c).flat(2).join(''))
+  assert.ok(pressedText.some((t) => String(t).includes('异常')), '「异常」统计要显示为按下：' + pressedText.join('|'))
+  const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
+  assert.ok(text.includes('bad/one'), '异常那条要留下')
+  assert.ok(!text.includes('ok/one'), '健康那条应被筛掉：' + text.slice(0, 200))
+})

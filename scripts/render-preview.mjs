@@ -194,7 +194,7 @@ const DOCK_CSS = clientSrc.slice(dockHead, dockTail)
 // glossary, update, checking, settingsSection
 const blankForm = { repo: '', intervalSec: '60', goal: '', labels: '', onlyAssigned: false, activeHours: '', isolated: false, workdir: '' }
 const deskHooks = ({ tab = 'overview', notice = null, glossary = false, update = null, settingsSection = 'source' } = {}) => [
-  snapshot, tab, notice, blankForm, '', '', false, [], null, {}, '', glossary, update, false, settingsSection, null, null,
+  snapshot, tab, notice, blankForm, '', '', false, [], null, {}, '', glossary, update, false, settingsSection, null, null, false, null,
 ]
 
 const ONLY_NAME = (process.argv.find((a) => a.startsWith('--only=')) || '').slice('--only='.length)
