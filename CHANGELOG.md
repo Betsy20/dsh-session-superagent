@@ -2,6 +2,37 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.134] - 2026-11-03 —— 卫星环弹层重做：从"一坨文字"到官方那种摘要卡
+
+### 现场（用户截图）
+点开状态栏卫星环后，弹层是这样一个东西：
+- 每条守最多 **5 行**说明（goal / 会话 / 每 120s · 轮询 · 唤醒 / 时段 · 隔离 · workdir · 304 / 错误）；
+- 按钮「立刻 暂停 删除」和正文抢同一行；
+- **弹层没有实心底色**（`.dt-card` 只定义了边框），叠在聊天内容上直接透字 —— 截图里文字互相压着；
+- `.dt-card` 自带 `gap: 12px` 也没有被覆盖，块间被撑得更散。
+
+### 学到什么（出处）
+NN/g《Progressive Disclosure》：
+
+> Progressive disclosure defers advanced or rarely used features to a secondary screen,
+> making applications easier to learn and less error-prone.
+
+<https://www.nngroup.com/articles/progressive-disclosure/>
+
+弹层是**摘要屏**，不是详情屏 —— 细节该去「主理鱼」标签页。
+
+### 改法（对齐官方 Token 用量 / 上下文弹层的语言）
+1. **实心卡片**：`background: var(--dsw-alias-bg-layer-2)` + `box-shadow: prominent` + 圆角 16，`gap: 0`；
+2. **头部**：标题「主理鱼」+ 右对齐等宽指标 `1 / 2 主理中`；
+3. **比例条**：4px 细条，按 运行中 / 其他 / 异常 比例分段（官方「上下文已用」同款表达）；
+4. **每行只有两行字**：`● repo  c0a5847a  [主理中]` + 副行 `每 120s · 83 秒前 · 时段 09:00-23:00`；
+   错误时多一行红色单行（省略号截断）；
+5. **动作收进悬停**：`立刻 / 暂停 / 删除` 只在 hover 或 focus 时出现（触屏设备常显），不再抢占信息区；
+6. **其余细节进 title**：goal、过滤、退避、隔离、上次唤醒等放进 `title`，悬停可读，行内不再堆。
+
+### 测试
+5 个弹层用例按新信息架构改写（信息没丢：goal / 过滤 / 退避 / 隔离 / 历史都断言在 `title` 里）。合计 **249 例**。
+
 ## [0.9.133] - 2026-11-03 —— 系统错误码各归其类；没见过的措辞自动留样本
 
 ### 学到什么（出处）

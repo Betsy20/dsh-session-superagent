@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.133'
+    const CLIENT_VERSION = '0.9.134'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -125,11 +125,34 @@ window.__ModuleLoader__.load({
      * 以前这里是一整套自成体系的 inline style，和原生界面放一起能看出断层。
      */
     const DOCK_CSS = `
-.sa-dock-panel { box-shadow: var(--dsw-elevation-prominent); padding: 10px 12px 8px; font-size: 12px; line-height: 1.55; }
-.sa-dock-row { padding: 6px 0; }
-.sa-dock-row + .sa-dock-row { border-top: 0.5px solid var(--dsw-alias-border-l3, currentColor); }
-.sa-dock-foot { margin-top: 8px; padding-top: 8px; border-top: 0.5px solid var(--dsw-alias-border-l3, currentColor); color: var(--dsw-alias-label-caption, inherit); }
-.sa-mono { font-family: ui-monospace, Consolas, monospace; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 弹层：卡片 + 一行摘要 + 比例条，全部走 dt-* 与 --dsw-alias-* token（官方弹层的做法） */
+/* dt-card 只有边框没有底色，弹层叠在聊天内容上会透字 —— 官方弹层是实心 layer-2 */
+.sa-dock-panel { display: flex; flex-direction: column; gap: 0; padding: 0; overflow: hidden; background: var(--dsw-alias-bg-layer-2); box-shadow: var(--dsw-elevation-prominent); border-radius: 16px; font-size: 12px; line-height: 18px; }
+.sa-dock-head { display: flex; align-items: baseline; gap: 8px; padding: 12px 14px 8px; }
+.sa-dock-title { font-size: 13px; line-height: 20px; font-weight: 500; color: var(--dsw-alias-label-primary); }
+.sa-dock-metric { margin-left: auto; display: inline-flex; align-items: baseline; gap: 2px; color: var(--dsw-alias-label-tertiary); font-variant-numeric: tabular-nums; }
+.sa-dock-metric b { font-size: 14px; line-height: 20px; font-weight: 600; color: var(--dsw-alias-label-primary); }
+.sa-dock-bar { display: flex; gap: 2px; height: 4px; margin: 0 14px 8px; border-radius: 2px; overflow: hidden; background: var(--dsw-alias-bg-module-platform); }
+.sa-dock-bar > span { display: block; height: 100%; border-radius: 2px; }
+.sa-dock-bar > span[data-tone='ok'] { background: var(--dsw-alias-state-success-primary); }
+.sa-dock-bar > span[data-tone='warn'] { background: var(--dsw-alias-border-l4); }
+.sa-dock-bar > span[data-tone='err'] { background: var(--dsw-alias-state-error-primary); }
+.sa-dock-rows { display: flex; flex-direction: column; gap: 2px; padding: 0 6px 4px; max-height: 264px; overflow: auto; }
+.sa-dock-row { display: flex; align-items: flex-start; gap: 8px; padding: 7px 8px; border-radius: 10px; }
+.sa-dock-row:hover, .sa-dock-row:focus-within { background: var(--dsw-alias-interactive-bg-hover); }
+.sa-dock-row > .dt-state-dot { margin-top: 5px; }
+.sa-dock-body { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.sa-dock-line { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.sa-dock-session { flex: none; font-size: 11px; line-height: 18px; color: var(--dsw-alias-label-tertiary); }
+.sa-dock-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; line-height: 18px; font-weight: 500; color: var(--dsw-alias-label-primary); }
+.sa-dock-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dsw-alias-label-tertiary); }
+.sa-dock-err { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dsw-alias-state-error-primary); }
+.sa-dock-actions { display: flex; flex: none; gap: 2px; opacity: 0; transition: opacity 120ms ease; }
+.sa-dock-row:hover .sa-dock-actions, .sa-dock-row:focus-within .sa-dock-actions { opacity: 1; }
+@media (hover: none) { .sa-dock-actions { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .sa-dock-actions { transition: none; } }
+.sa-dock-empty { padding: 4px 14px 12px; color: var(--dsw-alias-label-tertiary); }
+.sa-dock-foot { padding: 8px 14px 10px; border-top: 0.5px solid var(--dsw-alias-border-l3); color: var(--dsw-alias-label-caption); }
 `
 
     function ensurePortedCss() {
@@ -727,40 +750,47 @@ window.__ModuleLoader__.load({
 
       // 悬浮面板也走移植来的 dt-* 设计系统（以前这里是一套自成体系的 inline style，
       // 和原生界面放在一起能看出断层；ui-audit ⑥ 就是在盯这件事）。
+      // 摘要行（官方弹层的写法）：主名一行 + 一行 muted 细节，细节超长就省略号。
+      // 以前每条守最多 5 行提示挤在一起（goal / 时段 / 隔离 / 错误 / 历史），弹层读不动。
+      const shortSub = (w) => {
+        const parts = ['每 ' + (Number(w.intervalSec) || 60) + 's']
+        if (w.lastPoll) parts.push(ageText(w.lastPoll) + '前')
+        if (w.activeHours) parts.push('时段 ' + w.activeHours)
+        return parts.join(' · ')
+      }
+      const detailTitle = (w) => [
+        w.title || '未命名会话',
+        '会话 ' + sessionTag(w.sessionId),
+        filterText(w.filters),
+        isolationText(w),
+        backoffText(w),
+        historyText(w),
+        w.lastDeferred,
+        w.goal && w.goal.objective ? 'goal · ' + String(w.goal.objective).slice(0, 80) : '',
+        w.lastError || '',
+      ].filter(Boolean).join('\n')
+
       const rows = list.map((w) => {
         const state = orbitStateOf(w)
-        const extra = [
-          filterText(w.filters),
-          w.activeHours ? '时段 ' + w.activeHours : '',
-          isolationText(w),
-          backoffText(w),
-          historyText(w),
-          w.lastDeferred,
-        ].filter(Boolean).join(' · ')
+        const dotState = state === 'active' ? 'done' : state === 'paused' ? 'warning' : state === 'error' ? 'error' : 'idle'
+        const tone = state === 'active' ? 'success' : state === 'paused' ? 'neutral' : state === 'error' ? 'danger' : 'quiet'
         return h('div', {
           key: String(w.repo || '') + '#' + String(w.sessionId || ''),
-          className: 'dt-row sa-dock-row',
+          className: 'sa-dock-row',
+          title: detailTitle(w),
         },
-          h('div', { className: 'dt-row-main' },
-            h('div', { className: 'dt-row-title' },
-              h('span', { className: 'dt-dot-wrap' },
-                h('span', { className: 'dt-state-dot', 'data-state': state === 'active' ? 'done' : state === 'paused' ? 'warning' : state === 'error' ? 'error' : 'idle' })),
-              h('span', { className: 'sa-mono' }, String(w.repo || '?')),
-              h('span', { className: 'dt-row-meta' }, STATE_TEXT[state])),
-            h('div', { className: 'dt-hint' }, (w.title || '未命名会话') + ' · ' + sessionTag(w.sessionId)),
-            h('div', { className: 'dt-hint' }, '每 ' + w.intervalSec + 's · 轮询 ' + ageText(w.lastPoll) + ' · 唤醒 ' + wakeText(w.lastWake)),
-            extra ? h('div', { className: 'dt-hint' }, extra) : null,
-            w.goal && w.goal.objective
-              ? h('div', { className: 'dt-hint' }, 'goal · ' + String(w.goal.objective).slice(0, 60))
-              : null,
-            w.lastError ? (() => {
-              // 之前整串 slice(0,160)：错误一长就先切掉后面的建议 —— 恰好是最有用的部分
-              const parts = splitErrorText(w.lastError)
-              return h('div', { className: 'dt-error' },
-                parts.main.slice(0, 120) + (parts.main.length > 120 ? '…' : ''),
-                parts.hint ? h('div', { className: 'dt-hint' }, parts.hint) : null)
-            })() : null),
-          h('div', { className: 'dt-row-actions' },
+          h('span', { className: 'dt-state-dot', 'data-state': dotState }),
+          h('div', { className: 'sa-dock-body' },
+            h('div', { className: 'sa-dock-line' },
+              h('span', { className: 'sa-dock-name' }, String(w.repo || '?')),
+              // 同一个仓库可能有多条守（不同会话），会话后缀必须露出来才分得清
+              h('span', { className: 'sa-dock-session sa-mono' }, sessionTag(w.sessionId)),
+              h('span', { className: 'dt-tag', 'data-tone': tone }, STATE_TEXT[state])),
+            h('div', { className: 'sa-dock-sub' }, shortSub(w)),
+            w.lastError
+              ? h('div', { className: 'sa-dock-err' }, splitErrorText(w.lastError).main)
+              : null),
+          h('div', { className: 'sa-dock-actions' },
             h(Btn, { size: 'sm', variant: 'ghost', onClick: () => act(w, 'poll') }, '立刻'),
             h(Btn, { size: 'sm', variant: 'ghost', onClick: () => act(w, w.enabled ? 'pause' : 'resume') },
               w.enabled ? '暂停' : '恢复'),
@@ -770,19 +800,29 @@ window.__ModuleLoader__.load({
             })))
       })
 
+      // 比例条：和官方的「上下文已用」同一种表达（一眼看出多少在跑）
+      const bar = list.length === 0 ? null : h('div', { className: 'sa-dock-bar', 'aria-hidden': 'true' },
+        h('span', { 'data-tone': 'ok', style: { flexGrow: Math.max(running, 0.001) } }),
+        h('span', { 'data-tone': 'warn', style: { flexGrow: Math.max(list.length - running - broken, 0.001) } }),
+        h('span', { 'data-tone': 'err', style: { flexGrow: Math.max(broken, 0.001) } }))
+
       const panel = h('div', {
         ref: panelRef, role: 'dialog', 'aria-label': summary, className: 'dt-card sa-dock-panel',
-        style: { position: 'fixed', left, bottom, width, zIndex: 2147483000, maxHeight: 360, overflow: 'auto' },
+        style: { position: 'fixed', left, bottom, width, zIndex: 2147483000 },
       },
-        h('div', { className: 'dt-card-head' },
-          h('span', { className: 'dt-card-title' }, '主理鱼'),
-          h('span', { className: 'dt-count' }, list.length === 0 ? '0 条' : running + '/' + list.length + ' 主理中')),
+        h('div', { className: 'sa-dock-head' },
+          h('span', { className: 'sa-dock-title' }, '主理鱼'),
+          h('span', { className: 'sa-dock-metric' },
+            h('b', null, String(running)),
+            h('span', null, ' / ' + list.length + ' 主理中'))),
+        bar,
         list.length === 0
-          ? h('div', { className: 'dt-hint' }, '在「主理鱼」页填 owner/name 加一条。')
-          : h('div', { className: 'dt-rows' }, rows),
+          ? h('div', { className: 'sa-dock-empty' }, '还没有。在「主理鱼」标签页填 owner/name 加一条。')
+          : h('div', { className: 'sa-dock-rows' }, rows),
         list.length > 0
-          ? h('div', { className: 'sa-dock-foot' }, '点「暂停 / 删除」直接停掉；「主理鱼」标签页可新增与配置凭证')
+          ? h('div', { className: 'sa-dock-foot' }, '详细状态与凭证在「主理鱼」标签页')
           : null)
+
 
       return h(React.Fragment, null, button, panel)
     }

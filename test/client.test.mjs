@@ -43,7 +43,7 @@ test('空态点开面板显示引导文案', () => {
   const panel = nodes.find((n) => n.props && n.props.role === 'dialog')
   assert.ok(panel, '空态也要能展开面板')
   const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
-  assert.ok(text.includes('0 条'), text.slice(0, 120))
+  assert.ok(text.includes('0 主理中'), '空态指标要写成 0 主理中：' + text.slice(0, 120))
   assert.ok(text.includes('主理鱼') && text.includes('owner/name'), '空态要告诉人去哪加：' + text.slice(0, 120))
   assert.ok(!text.includes('暂停'), '没有主理鱼时不该出现暂停/删除的说明')
   assert.equal(panel.props.style.width, 252, '空态面板要比常规面板窄')
@@ -103,13 +103,14 @@ test('点击展开的面板逐条列出仓库 / 会话 / 间隔 / 轮询 / 状�
   assert.equal(panel.props.style.width, 344)
   const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
   const needles = [
-    '主理鱼', '1/2 主理中', 'a/b', 'c/d', '主理中', '异常', '每 30s', '401 bad credentials',
+    '主理鱼', '2 主理中', 'a/b', 'c/d', '主理中', '异常', '每 30s', '401 bad credentials',
     // 会话标题可能重名，所以每行必须带 8 位会话后缀
     '1e82afca', '7f7155cf',
-    // 有 goal 的 superagent 要显示 goal 摘要
-    'goal · 让主理鱼实时同步 goal',
   ]
   for (const needle of needles) assert.ok(text.includes(needle), '面板缺少「' + needle + '」：' + text.slice(0, 240))
+  // 细节（goal / 过滤 / 退避 / 历史）进 title，鼠标悬停可读，不再挤占行内
+  const titles = nodes.filter((n) => n.props && n.props.className === 'sa-dock-row').map((n) => String(n.props.title || ''))
+  assert.ok(titles.some((t) => t.includes('goal · 让主理鱼实时同步 goal')), 'goal 要在悬停详情里：' + titles.join(' | '))
   assert.ok(!text.includes('[object Object]'), 'goal 被当成对象直接拼进了文案')
 })
 
@@ -185,9 +186,10 @@ test('面板显示过滤器与失败退避', () => {
   })]
   const nodes = walk(render(orbit, [list, true, { x: 720, y: 860 }]))
   const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
-  assert.ok(text.includes('标签: ai-fix'), '要显示标签白名单：' + text.slice(0, 200))
-  assert.ok(text.includes('排除: wontfix'), '要显示排除标签')
-  assert.ok(/退避 \d+s/.test(text), '要显示退避剩余秒数：' + text.slice(0, 200))
+  const titles = nodes.filter((n) => n.props && n.props.className === 'sa-dock-row').map((n) => String(n.props.title || '')).join(' | ')
+  assert.ok(titles.includes('标签: ai-fix'), '悬停详情要含标签白名单：' + titles.slice(0, 200))
+  assert.ok(titles.includes('排除: wontfix'), '悬停详情要含排除标签')
+  assert.ok(/退避 \d+s/.test(titles), '悬停详情要含退避剩余秒数：' + titles.slice(0, 200))
 })
 
 test('面板显示隔离执行状态与活跃时段', () => {
@@ -201,9 +203,10 @@ test('面板显示隔离执行状态与活跃时段', () => {
   })]
   const nodes = walk(render(orbit, [list, true, { x: 720, y: 860 }]))
   const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
-  assert.ok(text.includes('隔离 · '), '要显示隔离状态：' + text.slice(0, 200))
-  assert.ok(text.includes('dsh-zhuli/a-b-123'), '要显示上次的 worktree 尾段')
-  assert.ok(text.includes('时段 09:00-23:00'), '要显示活跃时段')
+  assert.ok(text.includes('时段 09:00-23:00'), '活跃时段要留在行内副行：' + text.slice(0, 200))
+  const titles = nodes.filter((n) => n.props && n.props.className === 'sa-dock-row').map((n) => String(n.props.title || '')).join(' | ')
+  assert.ok(titles.includes('隔离'), '悬停详情要含隔离状态：' + titles.slice(0, 200))
+  assert.ok(titles.includes('dsh-zhuli/a-b-123'), '悬停详情要含上次 worktree 尾段')
 })
 
 test('值守台有全部暂停/全部恢复按钮', () => {
@@ -231,12 +234,13 @@ test('面板显示最近一次唤醒的结果', () => {
   const list = [watcher('a/b', { history: [{ at, numbers: [12, 13], ok: true, reason: null }] })]
   const nodes = walk(render(orbit, [list, true, { x: 720, y: 860 }]))
   const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
-  assert.ok(text.includes('上次唤醒 #12 #13'), text.slice(0, 220))
-  assert.ok(text.includes('2 分钟前'), text.slice(0, 220))
+  const titles = () => nodes.filter((n) => n.props && n.props.className === 'sa-dock-row').map((n) => String(n.props.title || '')).join(' | ')
+  assert.ok(titles().includes('上次唤醒 #12 #13'), titles().slice(0, 220))
+  assert.ok(titles().includes('2 分钟前'), titles().slice(0, 220))
 
   const failed = render(orbit, [[watcher('a/b', { history: [{ at, numbers: [7], ok: false, reason: 'session not live' }] })], true, { x: 720, y: 860 }])
-  const failedText = walk(failed).filter((n) => n.type === '#text').map((n) => n.text).join(' ')
-  assert.ok(failedText.includes('上次唤醒失败 #7'), failedText.slice(0, 220))
+  const failedTitles = walk(failed).filter((n) => n.props && n.props.className === 'sa-dock-row').map((n) => String(n.props.title || '')).join(' | ')
+  assert.ok(failedTitles.includes('上次唤醒失败 #7'), failedTitles.slice(0, 220))
 })
 
 test('主理鱼面板：失败会在「需要关注」里变成一条可读问题', () => {
