@@ -104,7 +104,7 @@ test('点击展开的面板逐条列出仓库 / 会话 / 间隔 / 轮询 / 状�
   const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
   const needles = [
     '主理鱼', '2 主理中', 'a/b', 'c/d', '主理中', '异常', '每 30s', '401 bad credentials',
-    // 会话标题可能重名，所以每行必须带 8 位会话后缀
+    // 会话名优先显示标题（客户认得出的那个），同时保留 8 位后缀去重
     '1e82afca', '7f7155cf',
   ]
   for (const needle of needles) assert.ok(text.includes(needle), '面板缺少「' + needle + '」：' + text.slice(0, 240))
@@ -1313,4 +1313,46 @@ test('总览每条守都带三个动作按钮（立刻 / 暂停或恢复 / 删�
       .filter((n) => n.type === 'button' || (n.props && typeof n.props.onClick === 'function'))
     assert.ok(buttons.length >= 3, '每个动作容器至少 3 个控件，实际 ' + buttons.length)
   }
+})
+
+test('判定页空态也给路径：说明 + 去添加按钮（不是一句「还没有主理鱼」）', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = {
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: 's', credentials: {}, watchers: [] },
+  }
+  const nodes = walk(render(desk, deskQueue(snap, null, {}, 'judge')))
+  const empty = nodes.find((n) => n.props && n.props.className === 'dt-empty')
+  assert.ok(empty, '判定页空态要有引导块')
+  const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
+  assert.ok(text.includes('还没有可判定的记录'), text.slice(0, 200))
+  assert.ok(text.includes('每轮判定都会记在这里'), '要说清加一条之后会发生什么：' + text.slice(0, 240))
+  const labels = nodes.filter((n) => n.type === 'button')
+    .map((b) => (b.props.children || []).filter((c) => typeof c === 'string').join(''))
+  assert.ok(labels.some((l) => l.includes('去添加第一条')), '要能一键去添加：' + labels.join('|'))
+})
+
+test('弹层副行显示会话标题（不是只有 8 位 ID）', () => {
+  const { registrations, render } = loadClient()
+  const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
+  const list = [watcher('a/b', { title: '修复登录过期', intervalSec: 60 })]
+  const nodes = walk(render(orbit, [list, true, { x: 700, y: 800 }]))
+  const subs = nodes.filter((n) => n.props && n.props.className === 'sa-dock-sub').map((n) => (n.props.children || []).join(''))
+  assert.ok(subs.length === 1, '应有一行副标题')
+  assert.ok(subs[0].includes('修复登录过期'), '先给客户认得出的会话名：' + subs[0])
+  assert.ok(subs[0].includes('#'), '同时保留短 ID 去重：' + subs[0])
+})
+
+test('弹层指标用官方「数值强 + 单位弱」两段（不是一句 1 / 2 主理中）', () => {
+  const { registrations, render } = loadClient()
+  const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
+  const list = [watcher('a/b', { id: 'a/b#s1', enabled: true }), watcher('c/d', { id: 'c/d#s2', enabled: false })]
+  const nodes = walk(render(orbit, [list, true, { x: 700, y: 800 }]))
+  const main = nodes.find((n) => n.props && n.props.className === 'sa-dock-metric-main')
+  const unit = nodes.find((n) => n.props && n.props.className === 'sa-dock-metric-unit')
+  assert.ok(main, '要有主数值（等宽数字）')
+  assert.ok(unit, '要有弱化单位')
+  assert.equal(String((main.props.children || []).join('')), '1 / 2')
+  assert.equal(String((unit.props.children || []).join('')), '主理中')
 })

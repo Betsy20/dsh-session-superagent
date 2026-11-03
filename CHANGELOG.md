@@ -2,6 +2,63 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.154] - 2026-11-03 —— 弹层显示「会话名」而不是只有编号；指标按官方 dt-stat 拆分
+
+### 你的两条反馈
+1. **"还是显示的会话编号，而不是会话的中文名"** —— 弹层副行以前是 `#c0a5847a · 每 120s · 77 秒前`，
+   客户根本认不出这是哪个会话；
+2. **"看看官方的会话统计、token 用量用的是哪些素材"** —— 去翻了移植来的官方 CSS（224 个类）。
+
+### 官方统计素材（从 PORTED_CSS 逐条抽出，不是我编的）
+```
+.dt-stats      { display:flex; flex-wrap:wrap; gap:6px 24px; padding:10px 14px;
+                 border:.5px solid border-l3; border-radius:12px; background:bg-module-platform }
+.dt-stat       { display:inline-flex; align-items:baseline; gap:6px; font-size:12px; color:label-caption }
+.dt-stat-value { font-size:14px; font-weight:500; color:label-primary; font-variant-numeric:tabular-nums }
+.dt-count      { font-size:14px; color:label-caption; font-variant-numeric:tabular-nums; font-weight:400 }
+.dt-status-text{ margin-left:auto; font-size:12px; color:label-secondary }
+```
+规律很明确：**数值 14px/500/主色 + 数字等宽；单位 12px/弱色；两者基线对齐**。
+
+### 改法
+1. 副行：`会话标题 · #短ID · 每 120s · 77 秒前`（有标题才带 ID；无标题退回「会话 短ID」）；
+2. 弹层顶部指标拆成两段：`1 / 3`（14px/500/主色/等宽）+ `主理中`（12px/caption），
+   与 `.dt-stat` 完全同构 —— 以前是「<b>1</b> / 3 主理中」混排。
+
+### 测试
+- 新增：副行必须出现会话标题且保留 `#` 短 ID；
+- 新增：指标必须是 `sa-dock-metric-main` + `sa-dock-metric-unit` 两段，值分别是 `1 / 2` 与 `主理中`。
+合计 **261 例**。
+
+## [0.9.153] - 2026-11-03 —— 判定页空态补齐：从一句「还没有主理鱼」到可执行的引导
+
+### 为什么
+上一轮把总览的空态做成了三步引导，判定页却还是**一句话**：
+
+```
+还没有主理鱼。
+```
+
+客户切到判定页看到这行，不知道「这里以后会出现什么」，也没有入口。
+
+### 改法
+```
+┌ 还没有可判定的记录 ─────────────────────┐
+│ 添加一条主理鱼之后，每轮判定都会记在这里：   │
+│ 唤醒、仅观察，或跳过及其原因。              │
+│ [ 去添加第一条 ]                          │
+└───────────────────────────────────────┘
+```
+
+- 标题说**当前状态**，正文说**加一条之后会发生什么**（这是判定页的"空表格"最缺的信息）；
+- 按钮直接切到「触发」页，不用客户自己找。
+
+### 测试
+新增 1 例：判定页空态必须有 `dt-empty` 引导块、说明文案、以及「去添加第一条」按钮。合计 **259 例**。
+
+### 出图
+1000px 与 600px 浅色各一张，卡片边框与按钮在窄屏下不折行。
+
 ## [0.9.152] - 2026-11-03 —— 空态的三步引导：别让「①」和列表符号重复
 
 ### 为什么
