@@ -1215,3 +1215,13 @@ test('活跃时段用两个原生时间选择器（起 / 止），不再让人�
   }, null, {}, 'trigger')))
   assert.ok(night.length > 0)
 })
+
+test('弹层键盘可达：带 tabIndex=-1 且 role=dialog（打开后可聚焦进去）', () => {
+  const { registrations, render } = loadClient()
+  const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
+  const nodes = walk(render(orbit, [[watcher('a/b')], true, { x: 720, y: 860 }]))
+  const panel = nodes.find((n) => n.props && n.props.role === 'dialog')
+  assert.ok(panel, '弹层没渲染')
+  assert.equal(panel.props.tabIndex, -1, '弹层要能被程序聚焦（tabIndex=-1）')
+  assert.ok(panel.props['aria-label'], '弹层要有 aria-label（读屏能念出概况）')
+})

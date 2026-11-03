@@ -188,6 +188,7 @@ const scenarios = [
   { name: 'Toast（保存成功）', hooks: deskHooks({ notice: { id: 't1', text: '已保存：MYCF711/dsh-session-superagent', tone: 'info' } }) },
   { name: 'Toast（错误）', hooks: deskHooks({ notice: { id: 't2', text: '保存失败：gh: Not Found (HTTP 404)', tone: 'error' } }) },
   { name: '术语表', hooks: deskHooks({ glossary: true }) },
+  { name: '读取失败', hooks: [{ loading: false, error: 'Failed to fetch', body: null }, 'overview', null, blankForm, '', '', false, [], null, {}, '', false, null, false, 'source', null, null] },
 ]
 
 const orbitWatchers = [
