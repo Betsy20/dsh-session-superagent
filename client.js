@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.165'
+    const CLIENT_VERSION = '0.9.166'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -816,7 +816,8 @@ window.__ModuleLoader__.load({
       const whoId = (w) => (String(w.title || '').trim() ? ' · #' + sessionTag(w.sessionId) : '')
       const shortSub = (w) => {
         const parts = [whoName(w) + whoId(w), '每 ' + (Number(w.intervalSec) || 60) + 's']
-        if (w.lastPoll) parts.push(ageText(w.lastPoll) + '前')
+        // ageText 自己已经带「前」（「76 秒前」），别再拼一个 —— 真机上显示成「76 秒前前」
+        if (w.lastPoll) parts.push(ageText(w.lastPoll))
         if (w.activeHours) parts.push('时段 ' + w.activeHours)
         return parts.join(' · ')
       }

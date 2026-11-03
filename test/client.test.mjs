@@ -1432,3 +1432,17 @@ test('状态栏圆环单独挂载也要注入样式表（否则弹层是无样�
   assert.ok(applyAt > 0, '找不到 apply')
   assert.ok(src.slice(applyAt, applyAt + 600).includes('ensurePortedCss'), 'apply() 里必须有 ensurePortedCss')
 })
+
+test('弹层副行不出现「秒前前」这种重复后缀（真机看到过）', () => {
+  const { registrations, render } = loadClient()
+  const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
+  const list = [watcher('a/b', {
+    id: 'a/b#s1', title: '修个 bug', intervalSec: 60,
+    lastPoll: new Date(Date.now() - 76000).toISOString(), activeHours: '09:00-23:00',
+  })]
+  const nodes = walk(render(orbit, [list, true, { x: 700, y: 800 }]))
+  const subs = nodes.filter((n) => n.props && n.props.className === 'sa-dock-sub').map((n) => (n.props.children || []).join(''))
+  assert.equal(subs.length, 1)
+  assert.ok(!subs[0].includes('前前'), '重复后缀：' + subs[0])
+  assert.ok(subs[0].includes('76 秒前') || subs[0].includes('秒前'), '要有相对时间：' + subs[0])
+})
