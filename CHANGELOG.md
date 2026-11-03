@@ -2,6 +2,32 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.128] - 2026-11-03 —— 面板上写死的四个数字，各自绑到真实来源
+
+### 学到什么（出处）
+这一轮没有可用的新外部来源（`en.wikipedia.org`/`raw.githubusercontent.com` 仍超时或 502），
+所以直接把上两轮提炼的判据**做成守卫**：*要么同源，要么同测*
+（见 KB `policy-numbers-have-one-home.md`、`defaults-are-data-not-copy.md`）。
+
+### 现场（扫描 `client.js` 里含数字的中文文案，共 14 条）
+真正有"漂移风险"的是这 4 个，其余都是示例值（`如 42`、`09:00-23:00`）或 HTTP 码（401/404/5xx）：
+
+| 面板文案 | 真实来源 |
+|---|---|
+| `最小 30 秒` | `Math.max(30, Math.min(3600, …))`（watch_start 的夹紧） |
+| `判定日志（最近 5 次唤醒）` | `/state` 里 `filteredLog.slice(-5)` |
+| `时间线（最近 20 条）` | `pushHistory(history, record, max = 20)` |
+| `连续 2 次就会在「需要关注」里提示` | 面板判断 `silentWakes >= 2` |
+
+### 改法
+新增 `test/panel-numbers.test.mjs`：从 `client.js` 抽出这四处数字，和 `lib/` 里的真实阈值逐条比对。
+
+### 验证它会红
+把面板文案改成「最小 **15** 秒」→ `pass 3 / fail 1`；还原后 `4/4` 通过。
+
+### 测试
+新增 4 例，合计 **243 例**。
+
 ## [0.9.127] - 2026-11-03 —— 面板里的「默认值提示」改成从 `/state` 读
 
 ### 学到什么（出处）
