@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.157'
+    const CLIENT_VERSION = '0.9.158'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1402,6 +1402,12 @@ window.__ModuleLoader__.load({
           ? h('div', { className: 'dt-row-meta', key: 'badge-filter' },
             h('span', null, '只看 ' + badgeFilter + ' 的守（' + visible.length + ' 条）：'),
             h(Pill, { onClick: () => setBadgeFilter(null) }, '清除'))
+          : null,
+        // 状态筛选（点统计数字触发）：光靠按钮按下态暗示太弱，这里给一条能一键清掉的提示
+        stateFilter
+          ? h('div', { className: 'dt-row-meta', key: 'state-filter' },
+            h('span', null, '只看「' + STATE_TEXT[stateFilter] + '」的守（' + visible.length + ' 条）：'),
+            h(Pill, { onClick: () => setStateFilter(null) }, '清除'))
           : null,
         h(Section, { key: 'list', title: needle ? '搜索结果' : '主理鱼', count: visible.length },
           watchers.length === 0

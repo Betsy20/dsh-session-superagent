@@ -210,6 +210,7 @@ const scenarios = [
   { name: 'Toast（保存成功）', hooks: deskHooks({ notice: { id: 't1', text: '已保存：MYCF711/dsh-session-superagent', tone: 'info' } }) },
   { name: 'Toast（错误）', hooks: deskHooks({ notice: { id: 't2', text: '保存失败：gh: Not Found (HTTP 404)', tone: 'error' } }) },
   { name: '术语表', hooks: deskHooks({ glossary: true }) },
+  { name: '总览（已按异常筛选）', hooks: [{ loading: false, error: null, body: snapshot.body }, 'overview', null, blankForm, '', '', false, [], null, {}, '', false, null, false, 'source', null, null, false, 'error'] },
   { name: '空态（一条都没有）', hooks: [{ loading: false, error: null, body: { sessionGoal: null, sessionTitle: '新会话', credentials: { token: 'none', sshKeyPath: 'none' }, watchers: [] } }, 'overview', null, blankForm, '', '', false, [], null, {}, '', false, null, false, 'source', null, null] },
   { name: '空态（判定页）', hooks: [{ loading: false, error: null, body: { sessionGoal: null, sessionTitle: '新会话', credentials: {}, watchers: [] } }, 'judge', null, blankForm, '', '', false, [], null, {}, '', false, null, false, 'source', null, null] },
   { name: '读取失败', hooks: [{ loading: false, error: 'Failed to fetch', body: null }, 'overview', null, blankForm, '', '', false, [], null, {}, '', false, null, false, 'source', null, null] },

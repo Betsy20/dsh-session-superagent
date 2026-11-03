@@ -1401,4 +1401,9 @@ test('点统计数字能筛选：stateFilter=error 时只剩异常那条，并�
   const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
   assert.ok(text.includes('bad/one'), '异常那条要留下')
   assert.ok(!text.includes('ok/one'), '健康那条应被筛掉：' + text.slice(0, 200))
+  // 筛选要有可见提示，并且能一键清掉
+  assert.ok(text.includes('只看「异常」的守'), '要有筛选提示：' + text.slice(0, 200))
+  const labels = nodes.filter((n) => n.type === 'button')
+    .map((b) => (b.props.children || []).filter((c) => typeof c === 'string').join(''))
+  assert.ok(labels.includes('清除'), '要能一键清除：' + labels.join('|'))
 })
