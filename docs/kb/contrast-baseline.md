@@ -1,6 +1,6 @@
 # 对比度门禁为什么要有基线
 
-**落地状态**：✅ 0.9.191（audit-contrast.mjs + contrast-baseline.json，已接进 preflight）
+**是否已落地**：是。**落地状态**：✅ 0.9.191（audit-contrast.mjs + contrast-baseline.json，已接进 preflight）
 
 面板的对比度体检（`scripts/audit-contrast.mjs`）会把**每一处**文字与控件边界都按 WCAG 2.1 算一遍。
 问题在于：DSH 官方设计语言里大量用**细边框**（0.5px 的分隔线、幽灵按钮的描边），
