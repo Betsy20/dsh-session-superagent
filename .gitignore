@@ -14,3 +14,4 @@ tmp-*.html
 tmp-*.json
 tmp-*.txt
 tmp-*.md
+.gate-lock/

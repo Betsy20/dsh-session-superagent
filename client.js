@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.182'
+    const CLIENT_VERSION = '0.9.183'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1695,16 +1695,24 @@ window.__ModuleLoader__.load({
             h(Btn, { variant: 'primary', icon: h(Icon, { name: 'plus' }), onClick: addWatcher, disabled: !sessionId || !form.repo.trim() },
               sessionId ? '添加到当前会话' : '先打开一个会话'))))
 
+      // 「仓库」行：先给条数，再看名字；超过 3 条截断成「… 等」。
+      // 原先用 ", " 把三个 owner/name 粘成一行（实测 518px / 可用 541px），
+      // 读者数不清有几条守，窄屏还会劈在 owner/name 中间；改用顿号后换行只发生在条目之间。
+      const repoListText = (list) => list.length + ' 条：'
+        + list.slice(0, 3).map((w) => w.repo).join('、')
+        + (list.length > 3 ? ' 等' : '')
+
       const settingsSections = [
         h(Section, { key: 'source', title: '来源' },
           h(KeyValues, { rows: [
-            ['仓库', watchers.length === 0 ? '未绑定' : watchers.map((w) => w.repo).join(', ')],
+            ['仓库', watchers.length === 0 ? '未绑定' : repoListText(watchers)],
             ['gh CLI', !body.gh
               ? '检测中…'
               : body.gh.ok
                 ? '可用 · ' + (body.gh.version || '')
                 : '不可用 —— 先跑 gh auth login（或装 gh CLI）；也可以直接在下面填 token · ' + String(body.gh.error || '').slice(0, 80)],
-            ['凭证', credentials.token === 'none' ? '回退到 gh CLI 登录态' : '使用面板配置的 token'],
+            // 标签要能和左栏「凭证」分区区分开；值要写出「面板 token / gh 登录态」二选一。
+            ['GitHub 凭证', credentials.token === 'none' ? '回退到已登录的 gh CLI' : '用面板 token（不再需要 gh login）'],
             ['权限范围', (() => {
               const info = body.tokenScopes
               if (!info) return '正在探测…'
@@ -1715,10 +1723,13 @@ window.__ModuleLoader__.load({
             (body.tokenScopes && body.tokenScopes.broad && body.tokenScopes.broad.length > 0)
               ? ['提示', '这个 token 带 ' + body.tokenScopes.broad.join(', ') + ' —— 我们的功能只需要「读 issue/PR + 写评论和标签」，建议换细粒度 token 只授 Issues 读写']
               : null,
-            ['隔离占用', !body.isolation || (body.isolation.roots || []).length === 0
-              ? '没有开隔离执行'
-              : (body.isolation.roots || []).map((r) => r.count + ' 个 · ' + bytesText(r.bytes)).join('；')
-                + '（合计 ' + bytesText(body.isolation.totalBytes) + '）'],
+            // 只有一个隔离根时「合计」恒等于前面那个数 —— 同一个数字写两遍；只有多根时才补合计。
+            ['隔离占用', (() => {
+              const roots = (body.isolation && body.isolation.roots) || []
+              if (roots.length === 0) return '没有开隔离执行'
+              const each = roots.map((r) => r.count + ' 个隔离根 · ' + bytesText(r.bytes)).join('；')
+              return roots.length > 1 ? each + '（合计 ' + bytesText(body.isolation.totalBytes) + '）' : each
+            })()],
           ] })),
         h(Section, { key: 'creds', title: '凭证' },
           h(KeyValues, { rows: [['GitHub token', credentials.token === 'none' ? '未配置（回退到已登录的 gh CLI）' : '已配置'], ['SSH 私钥', credentials.sshKeyPath === 'none' ? '未配置（当前版本不使用）' : '已配置'],

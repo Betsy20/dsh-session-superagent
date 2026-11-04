@@ -8,6 +8,7 @@
 import { spawnSync } from 'node:child_process'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { acquireGate } from './gate-lock.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -17,6 +18,19 @@ const res = process.platform === 'win32'
   : spawnSync('npm', ['pack', '--dry-run'], { cwd: ROOT, encoding: 'utf8' })
 const out = String(res.stdout || '') + String(res.stderr || '')
 
+// 拿锁再跑 npm pack：别人正在改 package.json 时，读到的会是半成品
+let releaseGate = () => {}
+try {
+  releaseGate = acquireGate('mutate', { timeoutMs: 180000 })
+} catch (error) {
+  // 只读检查不该因为「别人正在跑门禁」而变红：明确说跳过，并给出是谁占着
+  if (error && error.code === 'GATE_BUSY') {
+    console.log('SKIP npm pack 内容  另一个门禁正在跑（pid ' + (error.owner && error.owner.pid) + '），本次跳过')
+    process.exit(0)
+  }
+  throw error
+}
+process.on('exit', () => { try { releaseGate() } catch { /* 尽力而为 */ } })
 const files = (out.match(/total files:\s+(\d+)/) || [])[1]
 // 之前写成固定字符串 'npm notice test/'，而实际每行是 `npm notice 2.7kB test/x.mjs`
 // —— 尺寸前缀一插进来，这条检查就永远匹配不到（等于没检查）。
