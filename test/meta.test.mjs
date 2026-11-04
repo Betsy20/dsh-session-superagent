@@ -191,3 +191,15 @@ test('插件模块能被加载（硬链接安装下，一个 import 写错会当
   assert.equal(typeof mod.apply, 'function', '要能导出 apply')
   assert.equal(typeof mod.SERVER_VERSION, 'string')
 })
+
+test('宿主缺 tools 服务时 apply 不抛（升级到 0.2.2-rc.1 这类变动时，一条守不该拖垮插件树）', async () => {
+  const { apply } = await import('../lib/index.js')
+  const err = console.error
+  console.error = () => {}
+  try {
+    assert.doesNotThrow(() => apply({ tools: null }))
+    assert.doesNotThrow(() => apply({}))
+  } finally {
+    console.error = err
+  }
+})

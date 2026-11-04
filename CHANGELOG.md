@@ -2,6 +2,42 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.179] - 2026-11-04 —— 兼容 DSH 0.2.2-rc.1（静态核对）+ Gitee 增量轮询
+
+### 一、DSH 0.2.2-rc.1 兼容核对（不装新版也能查）
+`npm dist-tags` 显示 `next = 0.2.2-rc.1`。逐个比对 `.d.ts`（而不是读 release notes）：
+
+| 检查 | 结果 |
+|---|---|
+| CLI 包 `lib/types/*.d.ts` | 与 0.2.1-rc.5 **逐字相同** |
+| `dsh-web-app`（webServer 服务） | 逐字相同 |
+| `dsh-goal`（goals 服务） | 逐字相同 |
+| cordis 4.0.5 → 4.1.0 | `ctx.effect` / `ctx.on` / `ctx.get` 契约不变；**日志级别数值重排**（INFO/WARN 互换）；provision 形状 `{fiber}` → `{ctx,uid}` |
+| Node 引擎 | 新宿主要求 **≥24.9.0**（我们声明 ≥22.19，是下界，没问题） |
+
+**改了一处**：`apply()` 先检查 `ctx.tools`，缺了只打一条日志就返回 ——
+即使某个服务改名，也只是"这个插件不工作"，不会拖垮整棵插件树。
+
+### 二、Gitee 增量轮询（看 Gitee 帮助中心时顺手挖到的）
+Gitee 没有 ETag，之前每轮全量读。实测它**支持 `since`**：
+
+```
+全量 34 条 → since(24h) 5 条
+```
+
+现在按「上次水位 - 30 分钟安全边际」传 `since`；首次轮询仍全量。
+
+### 三、关于 `help.gitee.com/ide-plugin`
+那一页是 **IDE 插件**（IDEA / VS / Eclipse / Atom）的集成说明，与守护进程无关 ——
+没有可用的 CLI 或服务端接口可抄。真正的可用面是 Open API v5，`since` 就是从那儿试出来的。
+
+### 证据
+```
+node --test → 287/287（新增 since 拼 URL、缺 tools 不抛）
+preflight 全量 → 37/37
+真机：listGiteeItems 全量 34 条 / since 5 条
+```
+
 ## [0.9.178] - 2026-11-04 —— 用真实 Gitee 响应校对：编号是字符串，不是数字
 
 ### 怎么发现的

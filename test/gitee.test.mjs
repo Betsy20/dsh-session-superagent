@@ -123,3 +123,12 @@ test('字符串编号也要能拼出评论与打标签的 URL', async () => {
   assert.ok(urls[0].endsWith('/issues/IKSQJH/comments?per_page=1&sort=created&direction=desc'), urls[0])
   assert.ok(urls[1].endsWith('/issues/IKSQJH/labels'), urls[1])
 })
+
+test('since 会拼进两个端点的 URL（Gitee 没有 ETag，这是唯一能省流量的手段）', async () => {
+  const urls = []
+  const f = async (u) => { urls.push(u); return { ok: true, status: 200, text: async () => '[]' } }
+  await listGiteeItems({ repo: 'o/r', perPage: 5, since: '2026-11-04T00:00:00Z', fetchImpl: f })
+  assert.equal(urls.length, 2)
+  assert.ok(urls.every((u) => u.includes('since=2026-11-04T00%3A00%3A00Z')), '两个端点都要带 since：' + urls.join(' '))
+  assert.ok(urls[0].includes('per_page=5'))
+})
