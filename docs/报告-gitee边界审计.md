@@ -63,7 +63,7 @@ export function normalizeGiteeState(raw) {
 
 **触发条件**：任何一条 Gitee **Pull Request**，只要它被合并过（`state === 'merged'`）。
 
-**为什么是 bug**：Gitee 的 PR `state` 是**四值以上**的枚举 —— `open` / `closed` / `merged`（`draft`、`locked` 也存在）。这里只把 `closed` 与 `rejected` 归成关闭，`merged` 掉进 `return 'open'` 兜底。于是**已合并的 PR 在下游被当成「还开着」**：
+**为什么是 bug**：Gitee 的 PR `state` 至少有三值（本次实测到的：`open` / `closed` / `merged`；代码自己还预留了 `draft`，见 `lib/gitee.js:53`）。这里只把 `closed` 与 `rejected` 归成关闭，`merged` 掉进 `return 'open'` 兜底。于是**已合并的 PR 在下游被当成「还开着」**：
 
 | 下游 | 代码 | 实际后果 |
 |---|---|---|
@@ -460,7 +460,7 @@ export function mapGiteeRepoAccess(repo, info = {}) {
 
 **触发条件**：任何 Gitee 守。
 
-**问题**：线上 `GET /repos/{owner}/{repo}` 的对象里**既没有 `permissions` 也没有 `permission`**（47 个键里都没有）。于是 `push` 恒为 `false` → `accessNote()`（`lib/gh-format.js:298`）对**每一条 Gitee 守**都返回「你对 X 只有读权限……」，`repoBadges()` 也恒挂「只读」徽章。用户有写权限时这是**假警告**；而这个假警告会长期常驻，最后被无视 —— 比不显示更糟。
+**问题**：线上 `GET /repos/{owner}/{repo}` 的对象里**既没有 `permissions` 也没有 `permission`**（67 个键里都没有）。于是 `push` 恒为 `false` → `accessNote()`（`lib/gh-format.js:298`）对**每一条 Gitee 守**都返回「你对 X 只有读权限……」，`repoBadges()` 也恒挂「只读」徽章。用户有写权限时这是**假警告**；而这个假警告会长期常驻，最后被无视 —— 比不显示更糟。
 
 **怎么确认的（真跑）**：
 
