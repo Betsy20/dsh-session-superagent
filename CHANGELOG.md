@@ -2,6 +2,45 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.167] - 2026-11-04 —— 合入两位外部贡献者的修复（gh 头体切分 / 首帧 304 锁死）
+
+> 两个 PR 都来自 **@Betsy20**（first-time contributor）。我逐条复现、核对根因后合入，
+> 并按本仓库的版本节奏重新编号（PR 里写的是 0.9.166 / 0.9.167，而 0.9.166 已被占用）。
+
+### PR #2 · `parseGhInclude` 头体分隔只认 LF
+- **现象**：面板持续报「（返回内容不是合法 JSON：可能是代理干扰）」；
+- **根因**：真机 `gh api --include` 是**状态行 LF + 响应头 CRLF**，头体之间是 `
+
+`，
+  而代码只找 `
+
+` → 找不到 → 把「状态行 + 全部响应头 + JSON」整段当 body → 必然解析失败；
+- **我的复现**：
+  ```
+  旧：status=200，body="HTTP/2.0 200 OK
+content-type: application/json
+…"
+      JSON.parse → Unexpected token 'H'
+  新：status=200，body="{\"total_count\":1,…}"  → JSON.parse OK
+  ```
+- **改法**：两种分隔符都认，取最先出现的那个（`lib/gh-format.js`）。
+
+### PR #3 · 首帧 304 把面板锁在「正在读取」
+- **现象**：状态栏写着「1 / 2 主理中」，点开面板却是 0 条 + 空态 + 正在读取，点刷新也没用；
+- **根因**：`stateEtag` 是**模块级**变量 —— 状态栏圆环每 5 秒全量拉 `/state` 会刷新它，
+  面板首次挂载带着这个 etag 去问 → 必回 304 → 旧代码 `return null` 从不 `setSnap` → 永久 loading；
+- **改法**：304 时若本地**没有**可渲染的 body，就清掉 etag 重取一次全量；
+- **我对 PR 的一处修正**：原实现用 `hasBodyRef` 在成功后置位（"以前拿到过"），
+  组件重新挂载后它仍是 true，首帧 304 又会被锁死。改成**每次渲染按当前 `snap.body` 同步** ——
+  判断依据是"我现在有没有数据"，而不是"我曾经有没有"。
+
+### 证据（本地复跑）
+```
+node --test → 266/266（含两位作者各自新增的用例）
+parseGhInclude 复现脚本：CRLF 混合行尾 → body 为纯 JSON，JSON.parse OK
+304 探针：3 次调用（无 etag→200 / etag→304 / 清 etag→200），返回 2 条 watcher
+```
+
 ## [0.9.166] - 2026-11-04 —— 弹层副行「76 秒前前」：一个重复后缀
 
 ### 怎么发现的

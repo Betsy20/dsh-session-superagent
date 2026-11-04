@@ -1446,3 +1446,41 @@ test('弹层副行不出现「秒前前」这种重复后缀（真机看到过�
   assert.ok(!subs[0].includes('前前'), '重复后缀：' + subs[0])
   assert.ok(subs[0].includes('76 秒前') || subs[0].includes('秒前'), '要有相对时间：' + subs[0])
 })
+
+test('首帧 304 不该把面板卡在「正在读取」：本地没有 body 时必须重取一次全量', async () => {
+  // 真机现象：状态栏圆环每 5 秒全量拉一次 /state，会把模块级 etag 刷成最新；
+  // 主理鱼面板首次挂载时正好带着这个 etag 去问 → 首帧 304。
+  // 旧代码在 304 分支直接 return，从不 setSnap，于是面板永远停在
+  // {loading:true, body:null}：统计条全 0、列表是空态、底下还挂着「正在读取…」。
+  const stateBody = { routeBase: '/session-superagent', serverVersion: '0.9.167', watchers: [watcher('a/b'), watcher('c/d')] }
+  const calls = []
+  const fakeFetch = (url, init) => {
+    const headers = (init && init.headers) || {}
+    const etag = headers['if-none-match'] || null
+    calls.push({ url, etag })
+    // 带条件头 → 服务端回 304（没有任何正文）
+    if (etag) return Promise.resolve({ ok: false, status: 304, headers: { get: () => etag }, text: () => Promise.resolve('') })
+    return Promise.resolve({ ok: true, status: 200, headers: { get: () => 'W/"v1"' }, text: () => Promise.resolve(JSON.stringify(stateBody)) })
+  }
+  const stateCalls = () => calls.filter((c) => c.url.endsWith('/state'))
+  const { registrations, render } = loadClient({ fetch: fakeFetch })
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const findRefresh = (tree) => walk(tree).find((n) => n.props && typeof n.props.onClick === 'function'
+    && walk(n).some((x) => x.type === '#text' && x.text === '刷新'))
+
+  // 1) 状态栏圆环那种常规全量拉取：把模块级 etag 写上
+  const first = findRefresh(render(desk, deskQueue({ loading: true, error: null, body: null })))
+  assert.ok(first, '面板上找不到「刷新」按钮')
+  await first.props.onClick()
+  assert.equal(stateCalls().length, 1, '首拉一次 /state')
+  assert.equal(stateCalls()[0].etag, null, '首次拉取不该带条件头')
+
+  // 2) 面板重新挂载：本地还没有 body，却带着别人的 etag 去问 → 首帧 304
+  const second = findRefresh(render(desk, deskQueue({ loading: true, error: null, body: null })))
+  const got = await second.props.onClick()
+
+  assert.equal(stateCalls().length, 3, '304 之后必须重取一次全量，不能停在 loading')
+  assert.equal(stateCalls()[1].etag, 'W/"v1"', '第二次是条件请求')
+  assert.equal(stateCalls()[2].etag, null, '重取时不能沿用那个 etag')
+  assert.ok(got && Array.isArray(got.watchers) && got.watchers.length === 2, 'load 要拿到能渲染的 body')
+})
