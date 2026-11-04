@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.191'
+    const CLIENT_VERSION = '0.9.192'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -332,7 +332,7 @@ window.__ModuleLoader__.load({
       // 出图时看到「① 填一个仓库（owner/name，比如 …）」——列表符号和步骤号重复，说明文字又和标题挤在同一行。
       const steps = [
         ['填一个仓库', 'owner/name，例如 MYCF711/dsh-session-superagent'],
-        ['选间隔', '默认 60 秒；先设 300 秒，别把 API 打满'],
+        ['填间隔', '新手先填 300 秒（5 分钟）—— 默认 60 秒适合盯得紧的仓库，公开仓库容易撞限流'],
         ['点「添加到当前会话」', '之后仓库有动静，这个会话就会被叫醒'],
       ]
       return h('div', { className: 'dt-card sa-onboarding' },
@@ -1155,6 +1155,8 @@ window.__ModuleLoader__.load({
       // 可暂停的守 = 还在 enabled 的那些。actBulk('pause') 正是按这个条件跳过的，
       // 按钮的可用状态必须跟它同口径 —— 不同口径就会出现「可点、但一条都没动」。
       const pausable = watchers.filter((w) => w.enabled).length
+      // 可恢复 = 已暂停的那些（actBulk 的 resume 分支跳过 enabled 的守）
+      const resumable = watchers.length - pausable
 
       const stateTag = (watcher) => {
         const state = orbitStateOf(watcher)
@@ -2028,7 +2030,16 @@ window.__ModuleLoader__.load({
               'aria-label': pausable === 0 ? '全部暂停（不可用：没有在轮询的主理鱼）' : '全部暂停',
               onClick: () => actBulk('pause'),
             }, '全部暂停') : null,
-            watchers.length > 0 ? h(Btn, { size: 'sm', onClick: () => actBulk('resume') }, '全部恢复') : null)),
+            // 与「全部暂停」同口径：没有可恢复的守时置灰并说明（actBulk 对 enabled 的守直接 continue）
+            watchers.length > 0 ? h(Btn, {
+              size: 'sm',
+              disabled: resumable === 0,
+              title: resumable === 0
+                ? '没有可恢复的主理鱼：当前 ' + watchers.length + ' 条守都在轮询 —— 要一起停下请点「全部暂停」'
+                : '恢复这一屏所有已暂停的主理鱼',
+              'aria-label': resumable === 0 ? '全部恢复（不可用：没有已暂停的主理鱼）' : '全部恢复',
+              onClick: () => actBulk('resume'),
+            }, '全部恢复') : null)),
         h(SegTabs, {
           items: [
             { value: 'overview', label: '总览' },
