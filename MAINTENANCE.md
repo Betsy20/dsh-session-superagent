@@ -30,8 +30,8 @@
 | `scripts/ui-audit.mjs` | 11/11，100 分（写死颜色 0 / 自造 token 0） |
 | `docs/kb` | 177 篇 / 9 板块（`check-docs` 五项 PASS，含总数校验） |
 | `scripts/` | 52 个门禁与工装脚本 |
-| GitHub Release | 34 个（v0.9.136–v0.9.169 已补，其余待按批次回填） |
-| CI / 分支保护 | `ci`（Node 22/24）在 PR 与 main 上跑；main 已开 required check，禁强推禁删 |
+| GitHub Release | 35 个（v0.9.136–v0.9.170 已补，其余待按批次回填） |
+| CI / 分支保护 | `ci`（Node 22/24，actions 已到 v7）；main 已开 required check + 禁强推禁删；dependabot PR #8 已走通合并 |
 
 已验证（本轮实测）：
 
