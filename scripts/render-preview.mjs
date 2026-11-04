@@ -147,6 +147,10 @@ function styleToCss(style) {
   }).join(';')
 }
 function attr(name, value) {
+  // aria-* / data-* 是**枚举属性**：React 真机渲染成 aria-selected="true"，
+  // 而 CSS 写的是 [aria-selected='true']。以前 value===true 渲染成裸属性，
+  // 于是所有「选中态」样式在预览里从不生效 —— 之前每一份深色出图都带着这个失真（T11 发现）。
+  if (value === true && /^(aria-|data-)/.test(name)) return ` ${name}="true"`
   if (value === undefined || value === null || value === false || value === true) {
     return value === true ? ' ' + name : ''
   }

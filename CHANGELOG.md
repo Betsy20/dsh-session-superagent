@@ -2,6 +2,38 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.189] - 2026-11-05 —— 此前所有深色出图都带着一个失真：「选中态」样式从没生效
+
+### 来源
+T11 子代理第一次做**浅色主题**核对，顺手发现工具链的 `attr()` 有 bug：
+
+```js
+if (value === true) return ' ' + name     // 渲染成裸属性 aria-selected
+```
+
+而 CSS 写的是 `[aria-selected='true']` —— **属性选择器永远匹配不到**。
+于是预览里「选中的 tab / 选中的导航项 / 选中的胶囊」全都显示成未选中样式。
+**这意味着之前每一份深色出图核对，看到都不是真机的样子。**
+
+真机 React 渲染的是 `aria-selected="true"`。已修：`aria-*` / `data-*` 的 `true` 渲染成 `"true"`。
+修完实测 `aria-selected="true"` 出现 1 次（设置页的选中 tab），UI 体检仍 11/11。
+
+### 浅色主题核对结论（T11）
+采样 4 页 / 157 个文字节点：**没有任何元素落在比值≈1**（最低 1.82 是 WCAG 豁免的禁用按钮），
+**面板硬编码色 0 处**，颜色 100% 走 `--dsw-alias-*`。三条最该修：
+
+1. `--dsw-alias-label-caption`（`#818b98`）在白底上 **3.14–3.45**（深色下同一档 4.34–5.07 全过线）—— 浅色独有；
+2. 琥珀/绿胶囊的**同色底扣 0.7**：`warning` 4.17、`success` 4.43（深色 6.34/6.51）；
+3. 浅色下「表面」几乎全同色：`dt-input` 填充 1.00、`dt-stat-btn[aria-pressed=true]` 选中底 **1.03** —— 点了统计数字零视觉反馈。
+
+### 证据
+```
+node --test → 305/305
+ui-audit → 11/11（100）
+出图：shot-light-{source,signal,error,paused}.png
+报告：docs/报告-浅色主题核对.md（742 行 / 83 行对比度总表）
+```
+
 ## [0.9.188] - 2026-11-05 —— 审核「值得改」里的四条：JSON 丢字段、翻页、所有权、永不清空
 
 ### ① `watch_ack` 的 JSON 分支丢了 `labelNote`
