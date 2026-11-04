@@ -17,3 +17,8 @@ tmp-*.md
 .gate-lock/
 .gate-recover/
 preview-light*
+
+# 门禁的临时注入产物（verify-gates / regression-cases 会建）
+zz-injected*
+docs/kb/zz-injected*
+.gate-recover/

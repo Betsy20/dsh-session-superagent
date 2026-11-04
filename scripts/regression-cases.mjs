@@ -38,9 +38,30 @@ function recoverFromLastRun() {
   if (!existsSync(RECOVER_MANIFEST)) return 0
   let manifest = {}
   try { manifest = JSON.parse(readFileSync(RECOVER_MANIFEST, 'utf8')) } catch { return 0 }
+  // 审核 M5：以前**无条件写回** —— 强杀之后如果有人改了版本号，下一次门禁会把它静默改回旧值，
+  // 退出码 0、git status 干净，**没人会注意到**（真机复现：0.9.999 → 0.9.203）。
+  // 现在：只有「当前内容 = 当时注入的坏内容」才还原；对不上就**大声报**并 fail-closed，
+  // 让人自己看一眼再用 SUPERAGENT_GATE_FORCE_RECOVER=1 强还原。
+  const force = process.env.SUPERAGENT_GATE_FORCE_RECOVER === '1'
+  const conflicted = []
   let restored = 0
   for (const [rel, body] of Object.entries(manifest.files || {})) {
-    try { writeFileSync(join(ROOT, rel), body); restored += 1 } catch { /* 尽力而为 */ }
+    const abs = join(ROOT, rel)
+    let current = null
+    try { current = readFileSync(abs, 'utf8') } catch { current = null }
+    // 内容对不上 = 要么是「当时注入的坏内容」，要么是「之后有人真的改了」——
+    // 分不清就**不覆盖**，让人看一眼（fail-closed）。
+    if (!force && current !== null && current !== body) {
+      conflicted.push(rel)
+      continue
+    }
+    try { writeFileSync(abs, body); restored += 1 } catch { /* 尽力而为 */ }
+  }
+  if (conflicted.length > 0) {
+    console.error('FAIL 上一次门禁被强杀，但这些文件在那之后**又被改过**（不敢覆盖）：')
+    for (const rel of conflicted) console.error('  ' + rel)
+    console.error('  确认要还原请设 SUPERAGENT_GATE_FORCE_RECOVER=1 重跑')
+    process.exit(1)
   }
   try { rmSync(RECOVER_DIR, { recursive: true, force: true }) } catch { /* 下次再清 */ }
   if (restored > 0) console.log('（上一次门禁被强杀，已从 .gate-recover 还原 ' + restored + ' 个文件）')

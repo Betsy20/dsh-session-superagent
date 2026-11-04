@@ -2,6 +2,41 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.204] - 2026-11-05 —— 门禁把「没跑」记成 PASS（假绿）+ 静默改回别人的改动
+
+### M6 · 抢不到锁 = 假绿
+`audit-pack` 抢不到锁时打印 `SKIP …本次跳过` 但 **exit 0** —— 而 preflight 的 `record(..., res.status === 0)`
+把它记成 **PASS**，汇总「全部通过（N 项检查）」里含一项**根本没跑**的检查。
+同一个实验里 `regression-cases` 反而是未捕获 `GATE_BUSY` 抛栈 + exit 1（假红）。语义完全不一致。
+
+改法：跳过用独立退出码 **3**；`record()` 支持第三种状态 `skip`（打印 `SKIP`、不进「全部通过」、
+汇总单独说「通过 N 项，跳过 M 项（跳过的没跑，不算通过）」）。
+
+### M5 · `.gate-recover` 无条件写回，把别人的合法改动静默改回
+真机复现：门禁被强杀后把版本改成 `0.9.x（示例）`，**下一次门禁把它改回 `0.9.203`**，退出码 0、`git status` 干净 ——
+最坏的是没人会注意到。
+现在 **fail-closed**：只要盘上内容与快照不一致，就不覆盖，列出文件并 `exit 1`；
+确认要还原得显式设 `SUPERAGENT_GATE_FORCE_RECOVER=1`。
+
+### M4 · 恢复清单写错路径，重跑也不还原
+`regression-list.mjs` 声明 `docs/模式差异.md`（不存在），实际改的是 `docs/preflight-modes.md` ——
+于是该文件**不在 manifest 里**，强杀后永远不自愈。已改正。
+
+### M1 · 安装副本被门禁注入污染（已修）
+`write fileSync` 是原地写，仓库与安装副本本来是**同一 inode**：门禁注入**直通安装副本**，
+进程被杀就永久留下；随后任何 `git checkout` 会换 inode，把断链固化。已 `sync-profile --repair` 修回（断链 1 → 0）。
+
+### 未修（登记）
+**M2**（门禁锁只覆盖 2/39 项，`verify-gates` 改 14 个路径零持锁）与 **M3**（`verify-gates` 无落盘恢复凭据）
+需要把锁提到 `preflight` 入口 + 给 `verify-gates` 加 manifest，改动面大，单独立项。
+
+### 证据
+```
+node --test → 351/351
+preflight --fast → 全部通过（37 项检查）
+audit-docs-all → 工具/路由/版本/路径 四项全 PASS
+sync-profile --check → 缺失 0 / 断链 0 / 陈旧 0
+```
 ## [0.9.203] - 2026-11-05 —— 行内编辑器保存会把别处刚改的值写回旧快照（lost update）
 
 ### M2 · 全量 PUT + 打开那一刻的快照 = 静默覆盖

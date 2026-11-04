@@ -24,8 +24,11 @@ const record = (name, ok, detail = '', ms = null) => {
   const now = Date.now()
   if (ms === null) ms = now - lastMark
   lastMark = now
+  // 审核 M6：'skip' 是第三种状态 —— 这项**没跑**（比如另一个门禁占着锁）。
+  // 以前调用方传 exit 0 就被记成 PASS，汇总里含一项没跑的检查，是假绿。
   rows.push({ name, ok, detail, ms })
-  console.log((ok ? 'PASS ' : 'FAIL ') + name.padEnd(34) + detail + (ms === null ? '' : '  (' + (ms / 1000).toFixed(1) + 's)'))
+  const tag = ok === 'skip' ? 'SKIP ' : ok ? 'PASS ' : 'FAIL '
+  console.log(tag + name.padEnd(34) + detail + (ms === null ? '' : '  (' + (ms / 1000).toFixed(1) + 's)'))
 }
 
 const CHILD_ENV = { ...process.env }
@@ -132,7 +135,9 @@ if (!FAST) {
 {
   const res = tryRun('node', ['scripts/audit-pack.mjs'], { timeout: 120000 })
   const line = (String(res.stdout || '').trim().split(String.fromCharCode(10))[0] || '无输出')
-  record('npm pack 内容', res.status === 0, line.replace(/^(PASS|FAIL) npm pack 内容\s*/, ''))
+  // 审核 M6：exit 3 = 另一个门禁在跑、本次跳过。跳过**不是通过** —— 记成 SKIP，不进「全部通过」。
+  if (res.status === 3) record('npm pack 内容', 'skip', '另一个门禁正在跑，本次跳过（不算通过）')
+  else record('npm pack 内容', res.status === 0, line.replace(/^(PASS|FAIL) npm pack 内容\s*/, ''))
 }
 
 // ⑥.4 离线挂载冒烟（真机服务端一改就是几十个版本一起跳，挂不上去等于整块功能消失）
@@ -420,5 +425,12 @@ const failures = rows.filter((r) => !r.ok)
   }
 }
 console.log('---')
-console.log(failures.length === 0 ? `全部通过（${rows.length} 项检查）` : `${failures.length} 项失败`)
+const skipped = rows.filter((row) => row.ok === 'skip')
+console.log(
+  failures.length > 0
+    ? `${failures.length} 项失败`
+    : skipped.length > 0
+      ? `通过 ${rows.length - skipped.length} 项，跳过 ${skipped.length} 项（跳过的没跑，不算通过）`
+      : `全部通过（${rows.length} 项检查）`,
+)
 if (failures.length > 0) process.exit(1)

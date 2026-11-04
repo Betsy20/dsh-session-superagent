@@ -61,7 +61,7 @@ export const CASES = [
   },
   {
     name: '模式差异文档漂移',
-    files: ['docs/模式差异.md'],
+    files: ['docs/preflight-modes.md'],
     kb: 'cheap-mode-needs-a-contract.md',
     what: '改了「--fast 跳过什么」的清单但没重新生成文档',
     fault: (root) => {

@@ -20,8 +20,10 @@ try {
 } catch (error) {
   // 只读检查不该因为「别人正在跑门禁」而变红：明确说跳过，并给出是谁占着
   if (error && error.code === 'GATE_BUSY') {
+    // 审核 M6：以前 exit 0 → preflight 的 record(..., res.status === 0) 记成 PASS，
+    // 「全部通过（N 项检查）」里含一项**根本没跑**的检查。独立退出码 3 = 跳过（不是通过）。
     console.log('SKIP npm pack 内容  另一个门禁正在跑（pid ' + (error.owner && error.owner.pid) + '），本次跳过')
-    process.exit(0)
+    process.exit(3)
   }
   throw error
 }
