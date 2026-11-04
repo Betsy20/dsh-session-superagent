@@ -1420,3 +1420,33 @@ test('lib/index.js 里不再引用未声明的 iso（那条 ReferenceError 只�
   })
   assert.deepEqual(bad, [], '发现未声明的 iso 引用：' + bad.join(' | '))
 })
+
+test('「找不到会话」先给宽限期：重启后别让客户看到「请删除或重建」', async () => {
+  const { sessionMissingVerdict, SESSION_MISSING_GRACE_MS } = await import('../lib/watch.js')
+  const now = Date.parse('2026-11-04T12:00:00Z')
+
+  // 第一次发现：进入宽限期，并记下起点
+  const first = sessionMissingVerdict({ now })
+  assert.equal(first.grace, true, '第一次不该直接判死')
+  assert.equal(first.justNow, true)
+  assert.ok(first.startedAt, '要记下起点，下一轮才知道过了多久')
+
+  // 宽限期内：还是宽限
+  const inside = sessionMissingVerdict({ missingSince: new Date(now - 2 * 60000).toISOString(), now })
+  assert.equal(inside.grace, true, '两分钟还在宽限期内')
+  assert.ok(inside.waitMin >= 1)
+
+  // 超过宽限期：判为真的没了
+  const expired = sessionMissingVerdict({ missingSince: new Date(now - SESSION_MISSING_GRACE_MS - 60000).toISOString(), now })
+  assert.equal(expired.grace, false, '超过宽限期要判死')
+  assert.ok(expired.waitedMin >= 11, '要报等了多久：' + expired.waitedMin)
+
+  // 时间戳坏掉也不能卡死：当作刚发现
+  assert.equal(sessionMissingVerdict({ missingSince: 'not-a-date', now }).justNow, true)
+})
+
+test('lib/index.js 里「会话已不在」必须走宽限期判断，而不是直接判死', () => {
+  const src = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+  assert.ok(src.includes('sessionMissingVerdict('), '要调用宽限期判断')
+  assert.ok(!/setEntryError\(entry, '会话已不在：请删除或重建这条主理鱼'\)/.test(src), '不许再出现那句不可逆的建议原文')
+})

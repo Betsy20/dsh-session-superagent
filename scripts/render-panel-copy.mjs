@@ -27,7 +27,10 @@ const snap = {
     watchers: [
       watcher('acme/widgets', {
         id: 'acme/widgets#s1',
-        lastWake: '2026-11-02T09:55:00.000Z',
+        // 2026-11-04 修：原先这里钉死 '2026-11-02T09:55:00.000Z'，而 client.js 把它渲染成「N 小时前」
+        // ⇒ 快照每过一小时就漂一格，`--check` 在 CI 上周期性变红（17:25 那次就是 47→48 导致的）。
+        // 改成「相对生成时刻固定 47 小时前」：输出恒定，快照不再随真实时间腐烂。
+        lastWake: new Date(Date.now() - 47 * 3600 * 1000).toISOString(),
         deferReason: 'cap-session',
         lastDeferred: '这条会话一小时内已被唤醒 12 次',
         silentWakes: 2,

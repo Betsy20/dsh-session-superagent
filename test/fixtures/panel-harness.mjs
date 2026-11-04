@@ -117,7 +117,10 @@ export const watcher = (repo, extra = {}) => ({
   intervalSec: 30,
   enabled: true,
   cursor: null,
-  lastPoll: '2026-11-01T13:00:00.000Z',
+  // 2026-11-04 修：定值 '2026-11-01T13:00:00.000Z' 会被 client.js 渲染成「轮询 N 小时前」，
+  // 快照于是每过一小时漂一格（和 render-panel-copy.mjs 里 lastWake 是同一个坑）。
+  // 固定成「相对生成时刻 68 小时前」，输出恒定。
+  lastPoll: new Date(Date.now() - 68 * 3600 * 1000).toISOString(),
   lastWake: null,
   lastError: null,
   title: '会话 ' + repo,
