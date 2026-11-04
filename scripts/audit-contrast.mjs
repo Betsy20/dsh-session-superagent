@@ -16,12 +16,27 @@
 //
 // 退出码：0 = 全部达标；1 = 有违规；2 = 环境或测量失败（没浏览器 / render-preview 报错 / 一个节点都没量到）
 // 退出码 2 单独分出来的原因：那是「没量」不是「达标」，静默返回 0 会变成假绿灯。
+// 只有「真·不达标」进退出码（`blockingViolation`）：装饰性分隔线与被豁免的组合不算违规（见下面的豁免清单）。
 //
 // ── 判定口径（WCAG 2.1）──────────────────────────────────────────────
 //   正文            ≥ 4.5:1   1.4.3
 //   大字            ≥ 3:1     1.4.3；大字 = ≥24px（18pt）常规，或 ≥18.66px（14pt）且字重 ≥700
 //   非文字（边框/控件状态面）≥ 3:1   1.4.11
-//   豁免：禁用控件（1.4.3 明确豁免）—— 仍然量、仍然列，只把判定标成「豁免」，退化一样看得见。
+//
+// ── 豁免（仍然量、仍然列，只把判定标成「豁免」，退化一样看得见）──────────
+//   ① 禁用控件：WCAG 1.4.3 明确豁免。
+//   ② 装饰性分隔线：`kind === 'border' && control === false`。
+//      1.4.11 管的是「控件的边界与状态面」，列表项之间那根 0.5px 分隔线不承载信息、也没有
+//      「看不看得清」的读法。这类条目**永远不导致退出码 1**（`blockingViolation()` 也再挡一次，
+//      不靠单个判断点），但仍然完整列在总表里，设计要不要加深是另一回事。
+//   ③ 选中态靠「同元素文字换档」区分：填充 vs 页面底只有 1.06（浅）/ 1.09（深），但同一元素上
+//      文字色从 #59636e（6.11）换成 #1f2328（14.84）、字重 400→500 —— 状态完全靠文字就能看出来，
+//      填充差不构成唯一线索，按 1.4.11 罚这条是口径错位。
+//      判据（见 EXEMPT_RULES，两个数都写在代码里）：同一元素的文字 ≥4.5，且
+//      「选中文字对比度 / 未选中文字对比度」≥1.5。文字自己不够读、或两档文字几乎一样 → 不豁免。
+//
+//   这三条都是「放行口径」而不是「放宽阈值」：真问题（控件边框 1.36–1.92、caption 灰字 3.45）
+//   一条都不碰，`test/audit-contrast.test.mjs` 里有反向用例钉住（该豁免的才豁免）。
 //
 // ── 上一轮踩过的两个坑（这个脚本必须绕开，别改回去）──────────────────
 //   坑 ① `color-mix()` 在 getComputedStyle 里不是 rgba()。
@@ -217,6 +232,101 @@ export function judge(sample, thresholds = DEFAULT_THRESHOLDS) {
   return { need, status: ok ? 'pass' : 'fail' }
 }
 
+// ── 豁免规则（判据全部落在代码里，不靠调阈值把报表抹平）──────────────────
+//
+// 为什么会需要「豁免」而不是「修样式」：这两类组合在数值上不达标，但在**读法**上没有问题 ——
+// 量出来的比值为 1.06 的分隔线依旧是一条看得见的分隔线，为 1.06 的选中底依旧靠文字换档
+// 表达选中。把它们计入退出码，CI 会永远红着，人就学会忽略这条命令 —— 那才是真正的安全损失。
+
+/**
+ * 豁免判据里的两个数字，每个都有出处：
+ *
+ * ① `selectionTextRatio = 4.5`
+ *    选中态的文字必须**本身就够读**，否则「靠文字换档」这个理由不成立（文字才是问题）。
+ *    取 max(4.5, 该元素字号对应的正文/大字档位)：4.5 是正文档，也是这条例外最弱的下限；
+ *    大字档只有 3，低于 4.5，所以这里永远按 ≥4.5 卡 —— 比 WCAG 对该元素的要求更严，不会放过真问题。
+ *
+ * ② `selectionColorShift = 1.5`
+ *    选中 vs 未选中的**文字对比度之比**。1.5 的依据：同一元素上换一档文字色，肉眼能分辨的
+ *    最低幅度约是「一档色阶」；实测本面板是 #59636e(6.11) → #1f2328(14.84) = 2.43×，
+ *    留一倍余量后取 1.5。比它低的组合（例如 7.00 vs 6.11 = 1.15×）文字几乎没变，
+ *    读者看不出选中，仍按不达标处理。
+ */
+export const EXEMPT_RULES = Object.freeze({
+  selectionTextRatio: 4.5,
+  selectionColorShift: 1.5,
+})
+
+/** 豁免理由的短标签（表格「判定」列用，完整理由进 JSON 的 exempt 字段）。 */
+export const EXEMPT_KIND_LABELS = Object.freeze({
+  disabled: '禁用',
+  boundary: '边界由描边给出',
+  selection: '文字换档',
+  decorative: '装饰边框',
+})
+
+/**
+ * 豁免 ③：选中态由「同一元素的文字换档」给出时，状态填充与页面底的那点差不算缺陷。
+ *
+ * 入参 `sample` 是浏览器量出来的 surface 样本，需要带 `textShift = { selected, resting }`：
+ *   selected = 该元素选中时，文字 vs 它自己的合成背景（含选中底）的比值；
+ *   resting  = 同款但未选中的那个元素，文字 vs 它自己的背景的比值。
+ * 缺任何一项都返回 ''（没有证据就不豁免 —— 不能拿「没量到」当「达标」）。
+ *
+ * 判据（两条同时满足）：
+ *   · 选中文字本身够读：selected ≥ max(EXEMPT_RULES.selectionTextRatio, 该字号的 WCAG 档位)；
+ *   · 换档幅度够大：selected / resting ≥ EXEMPT_RULES.selectionColorShift。
+ *
+ * @returns {string} 非空 = 豁免理由；'' = 不豁免。
+ */
+export function selectionExemption(sample, thresholds = DEFAULT_THRESHOLDS, rules = EXEMPT_RULES) {
+  if (!sample || sample.kind !== 'surface') return ''
+  const shift = sample.textShift
+  if (!shift || typeof shift !== 'object') return ''
+  const selected = Number(shift.selected)
+  const resting = Number(shift.resting)
+  if (!Number.isFinite(selected) || !Number.isFinite(resting) || resting <= 0) return ''
+  // 文字阈值取「正文档」与 4.5 里更严的那个：大字档（3）低于 4.5，不会因此放松。
+  const needText = Math.max(
+    rules.selectionTextRatio,
+    requiredRatio({ kind: 'text', fontSize: sample.fontSize, fontWeight: sample.fontWeight }, thresholds)
+  )
+  if (!(selected + 1e-9 >= needText)) return ''
+  const colorShift = selected / resting
+  if (!(colorShift + 1e-9 >= rules.selectionColorShift)) return ''
+  return '选中态由同元素文字换档给出（选中文字 ' + selected.toFixed(2) + ':1 vs 未选中 ' + resting.toFixed(2)
+    + ':1 = ' + colorShift.toFixed(2) + '×，文字本身已过 ≥' + needText + '；填充差不构成唯一状态线索）'
+}
+
+/**
+ * 豁免 ②：装饰性分隔线（`kind === 'border'` 且 `control === false`）。
+ *
+ * 判据不是数字，是**类别**：1.4.11 只对「控件的边界/状态面」要求 3:1。列表项之间的
+ * 0.5px 边框、卡片的浅描边、胶囊的描边都不承载信息 —— 看不清它，读者也不会少知道任何事。
+ * 注意「包着表单控件的壳」被浏览器侧标成 `control: true`（`span.dt-input` 那种），
+ * 那些**不走这条豁免**，仍然是硬要求。
+ *
+ * @returns {string} 非空 = 豁免理由；'' = 不豁免。
+ */
+export function decorativeBorderExemption(sample) {
+  if (!sample || sample.kind !== 'border') return ''
+  if (sample.control) return ''
+  return '装饰性分隔线（不构成控件边界，WCAG 1.4.11 不适用；列出仅供设计参考，不计入退出码）'
+}
+
+/**
+ * 这一组该不该算「真·不达标」。
+ *
+ * 判定与退出码共用它：装饰性分隔线**永远不阻断**，即使将来有人把 exemptions 改坏、
+ * 让它重新拿到 `status === 'fail'`，退出码这一层仍然挡得住。这就是「类别 === 边框 的条目
+ * 永不导致 exit 1」的落地位置 —— 单一判断点被绕过时还有第二道。
+ */
+export function blockingViolation(row) {
+  if (!row || row.status !== 'fail') return false
+  if (row.kind === 'border' && !row.control) return false
+  return true
+}
+
 /** {r,g,b} → `#rrggbb`（表格里显示用）。 */
 export function toHex(color) {
   const part = (v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')
@@ -331,6 +441,76 @@ function measurePage(cfg) {
     return false
   }
 
+  // ── 豁免 ③ 的证据：选中态是不是「靠同一元素的文字换档」看出来的 ──────────
+  // 三个小函数分开写，是为了让「找同款未选中控件」与「量文字」复用同一套算法：
+  // 两处口径只要差一点，就会给出一个看着很像、其实是假的豁免。
+
+  // 「状态态」：选中 / 按下 / 当前项。这条判据在两处用到（本元素的填充、以及找同款未选中项），
+  // 所以抽成一个函数，别各写一份。
+  function isStateful(el) {
+    return el.getAttribute('aria-pressed') === 'true'
+      || el.getAttribute('aria-selected') === 'true'
+      || el.getAttribute('aria-checked') === 'true'
+      || /^(page|true|step|location|date|time)$/.test(el.getAttribute('aria-current') || '')
+  }
+
+  // 一个元素的「文字 vs 它自己的合成背景」的比值。
+  // backdrop 从元素自身开始收集，所以这个比值**含它自己的填充**（选中底就在里面）——
+  // 与总表里那一行 text 样本是同一个数（14.84 就是这里算出来的），不是另算一套口径。
+  function textRatioOf(el) {
+    const style = getComputedStyle(el)
+    const text = ownText(el)
+    if (!text) return null
+    const foreground = cssColor(style.color)
+    if (!foreground) return null
+    const back = backdrop(el, themed)
+    if (back.hasImage) return null
+    const background = drawStack(back.layers)
+    const opacity = opacityOf(el, themed)
+    const painted = alphaOver(background, {
+      r: foreground.r,
+      g: foreground.g,
+      b: foreground.b,
+      a: Math.min(1, foreground.a * opacity),
+    })
+    return { ratio: contrastRatio(background, painted), fg: toHex(painted), bg: toHex(background) }
+  }
+
+  // 同款的「未选中」控件：同标签 + 同 class 组合，且自身不在任何状态态、可见、有自己的文字。
+  // 找不到就返回 null —— 「没找到对照」不等于「对照是 0」，宁可让 Node 侧不豁免。
+  function restingTextOf(el, root) {
+    const classes = (el.getAttribute('class') || '').split(/\s+/).filter((name) => /^[A-Za-z0-9_-]+$/.test(name))
+    if (!classes.length) return null
+    const query = el.tagName.toLowerCase() + classes.map((name) => '.' + name).join('')
+    let candidates = []
+    try {
+      candidates = Array.prototype.slice.call(root.querySelectorAll(query))
+    } catch (error) {
+      return null
+    }
+    for (const candidate of candidates) {
+      if (candidate === el) continue
+      if (isStateful(candidate)) continue
+      if (candidate.closest && candidate.closest(SKIP)) continue
+      const visible = typeof candidate.checkVisibility === 'function'
+        ? candidate.checkVisibility({ checkOpacity: false, checkVisibilityCSS: true })
+        : candidate.getClientRects().length > 0
+      if (!visible) continue
+      const measured = textRatioOf(candidate)
+      if (measured) return measured
+    }
+    return null
+  }
+
+  // 交还给 Node 侧的证据包：选中时的文字比值 + 同款未选中时的文字比值。
+  function textShiftOf(el, root) {
+    const selected = textRatioOf(el)
+    if (!selected) return null
+    const resting = restingTextOf(el, root)
+    if (!resting) return null
+    return { selected: selected.ratio, resting: resting.ratio }
+  }
+
   function selectorOf(el) {
     const classes = (el.getAttribute('class') || '').split(/\s+/).filter((name) => /^(dt-|sa-|dsw-)/.test(name)).slice(0, 4)
     let out = el.tagName.toLowerCase() + classes.map((name) => '.' + name).join('')
@@ -414,6 +594,8 @@ function measurePage(cfg) {
         const style = getComputedStyle(el)
         const disabled = isDisabled(el, themed)
         const exempt = disabled ? '禁用控件（WCAG 1.4.3 豁免）' : ''
+        // 豁免的**种类**跟理由分开：理由是人读的（带数字），种类是给汇总与表格用的稳定标签。
+        const exemptKind = disabled ? 'disabled' : ''
         const opacity = opacityOf(el, themed)
         // 是「控件」还是「装饰」：1.4.11 只对控件的边界/状态硬要求 3:1，
         // 纯分隔线（列表项之间的 0.5px 边框）属装饰，记下来供参考，别让人以为每根线都得改。
@@ -434,6 +616,7 @@ function measurePage(cfg) {
           fontWeight: parseInt(style.fontWeight, 10) || 400,
           control,
           exempt,
+          exemptKind,
         }
 
         // ① 文字：只认「自己的直接文字节点」，父节点的文字已经在父节点上量过了。
@@ -512,13 +695,7 @@ function measurePage(cfg) {
 
         // ③ 控件状态面：只有「选中/按下」这种承载状态的填充才算 1.4.11 的对象。
         //    默认态的底色是装饰，不该被当缺陷（否则每个带底的按钮都会报一条）。
-        const stateful = (
-          el.getAttribute('aria-pressed') === 'true' ||
-          el.getAttribute('aria-selected') === 'true' ||
-          el.getAttribute('aria-checked') === 'true' ||
-          /^(page|true|step|location|date|time)$/.test(el.getAttribute('aria-current') || '')
-        )
-        if (stateful) {
+        if (isStateful(el)) {
           const fill = cssColor(style.backgroundColor)
           if (fill && fill.a > 0) {
             const parent = el.parentElement || el
@@ -537,12 +714,17 @@ function measurePage(cfg) {
               const boundaryExempt = boundary >= 3
                 ? '边界由边框/描边给出（' + boundary.toFixed(2) + ':1）'
                 : ''
+              // 豁免 ③ 的证据：同一元素选中时的文字比值、同款未选中时的文字比值。
+              // 判不判豁免在 Node 侧（parse 不到就宁可不豁免），这里只负责把两个数带回去。
+              const textShift = textShiftOf(el, scope.root)
               result.samples.push(Object.assign({}, shared, {
                 kind: 'surface',
                 fg: toHex(painted),
                 bg: toHex(background),
                 ratio,
                 exempt: exempt || boundaryExempt,
+                exemptKind: exemptKind || (boundaryExempt ? 'boundary' : ''),
+                textShift,
               }))
             }
           }
@@ -705,13 +887,30 @@ function measureTheme(themeKey, options, browser) {
   }
 }
 
+/**
+ * 一个样本该不该豁免、凭什么豁免。
+ *
+ * 优先级是有意这样排的：浏览器已经判好的（禁用控件 / 边界由边框·描边给出）**先返回**，
+ * 不让后面的规则去改写它的理由 —— 否则「禁用控件」会被写成「装饰边框」，
+ * 排查的人就找不到真正的原因了。
+ */
+function exemptionFor(sample, thresholds) {
+  if (sample.exempt) return { kind: sample.exemptKind || 'declared', reason: sample.exempt }
+  const selection = selectionExemption(sample, thresholds)
+  if (selection) return { kind: 'selection', reason: selection }
+  const decorative = decorativeBorderExemption(sample)
+  if (decorative) return { kind: 'decorative', reason: decorative }
+  return null
+}
+
 /** 同选择器 + 同颜色 + 同字号的样本合并成一行，节点数累加，页面去重。 */
-function aggregate(themeKey, samples, thresholds) {
+export function aggregate(themeKey, samples, thresholds = DEFAULT_THRESHOLDS) {
   const groups = new Map()
   for (const sample of samples) {
+    const exemption = exemptionFor(sample, thresholds)
     const key = [
       sample.kind, sample.selector, sample.fg, sample.bg,
-      sample.fontSize + '/' + sample.fontWeight, sample.exempt ? '1' : '0', sample.control ? '1' : '0',
+      sample.fontSize + '/' + sample.fontWeight, exemption ? exemption.kind : '0', sample.control ? '1' : '0',
     ].join('\u0001')
     let group = groups.get(key)
     if (!group) {
@@ -724,7 +923,8 @@ function aggregate(themeKey, samples, thresholds) {
         fontSize: sample.fontSize,
         fontWeight: sample.fontWeight,
         control: Boolean(sample.control),
-        exempt: sample.exempt,
+        exempt: exemption ? exemption.reason : '',
+        exemptKind: exemption ? exemption.kind : '',
         ratio: sample.ratio,
         nodes: 0,
         pages: new Set(),
@@ -749,10 +949,17 @@ function summarize(themeKey, rows) {
   let failNodes = 0
   let worst = null
   let worstEnforced = null
-  const failGroups = rows.filter((row) => row.status === 'fail')
-  // 非文字里只有「控件」那部分才是 1.4.11 的硬要求；装饰性分隔线单独计数，别混在一起吓人。
+  // 「不达标」= 真·不达标（blockingViolation）。装饰性分隔线已经被判成豁免；这里再按同一判据
+  // 过一遍，保证「类别 === 边框」的条目无论判定从哪来都进不了这个数（也不进退出码）。
+  const failGroups = rows.filter(blockingViolation)
   const failControlGroups = failGroups.filter((row) => row.kind === 'surface' || (row.kind === 'border' && row.control))
-  const failDecorativeGroups = failGroups.filter((row) => row.kind === 'border' && !row.control)
+  const failTextGroups = failGroups.filter((row) => row.kind === 'text')
+  const exemptCounts = { disabled: 0, boundary: 0, selection: 0, decorative: 0, declared: 0 }
+  for (const row of rows) {
+    if (row.status !== 'exempt') continue
+    const kind = Object.prototype.hasOwnProperty.call(exemptCounts, row.exemptKind) ? row.exemptKind : 'declared'
+    exemptCounts[kind] += 1
+  }
   for (const row of rows) {
     nodes += row.nodes
     if (row.status === 'fail') failNodes += row.nodes
@@ -766,7 +973,8 @@ function summarize(themeKey, rows) {
     failGroups: failGroups.length,
     failNodes,
     failControlGroups: failControlGroups.length,
-    failDecorativeGroups: failDecorativeGroups.length,
+    failTextGroups: failTextGroups.length,
+    exemptCounts,
     exemptGroups: rows.filter((row) => row.status === 'exempt').length,
     worst: worst ? { ratio: worst.ratio, selector: worst.selector, status: worst.status } : null,
     worstEnforced: worstEnforced ? { ratio: worstEnforced.ratio, selector: worstEnforced.selector } : null,
@@ -778,7 +986,11 @@ function formatRatio(value) {
 }
 
 function statusLabel(row) {
-  if (row.status === 'exempt') return '豁免'
+  if (row.status === 'exempt') {
+    // 表格是窄列，豁免只打短标签；完整理由（带数字）在 --json 的 exempt 字段里。
+    const tag = EXEMPT_KIND_LABELS[row.exemptKind]
+    return tag ? '豁免 · ' + tag : '豁免'
+  }
   if (row.status === 'pass') return '通过 ≥' + row.need
   return '**不达标 <' + row.need + '**'
 }
@@ -822,13 +1034,22 @@ function printReport(rows, summaries, options) {
   console.log('渲染源：真实 client.js → scripts/render-preview.mjs → 无头浏览器 getComputedStyle（静态渲染，不含量 :hover/:focus）')
   console.log('阈值：正文 ≥' + options.thresholds.text + ' · 大字（≥24px 或 ≥18.66px 且字重≥700）≥' + options.thresholds.largeText
     + ' · 非文字（边框/控件状态面）≥' + options.thresholds.nonText)
-  console.log('类别：「控件边框」「控件面」是 1.4.11 的硬要求；「边框」是装饰性分隔线，同列出来供参考，改不改看设计。')
+  console.log('类别：「控件边框」「控件面」是 1.4.11 的硬要求；「边框」是装饰性分隔线 —— 只列出、不计入退出码。')
+  console.log('豁免（列在总表里、仍标比值，只是不判不达标）：禁用控件 / 装饰性分隔线 / 选中态靠同元素文字换档（文字 ≥4.5 且换档 ≥1.5×）。')
   console.log('')
   for (const summary of summaries) {
     const worst = summary.worst ? formatRatio(summary.worst.ratio) + ' ' + summary.worst.selector + (summary.worst.status === 'exempt' ? '（豁免）' : '') : '-'
+    const exemptDetail = [
+      ['禁用', summary.exemptCounts.disabled],
+      ['选中态换档', summary.exemptCounts.selection],
+      ['装饰边框', summary.exemptCounts.decorative],
+      ['边界由描边', summary.exemptCounts.boundary],
+      ['其它', summary.exemptCounts.declared],
+    ].filter((entry) => entry[1] > 0).map((entry) => entry[0] + ' ' + entry[1]).join(' / ')
     console.log('· ' + summary.theme + '：' + summary.nodes + ' 个节点 / ' + summary.groups + ' 组 ｜ 不达标 '
-      + summary.failGroups + ' 组 ' + summary.failNodes + ' 节点（控件 ' + summary.failControlGroups
-      + ' / 装饰边框 ' + summary.failDecorativeGroups + '）｜ 豁免 ' + summary.exemptGroups + ' 组 ｜ 最低 ' + worst)
+      + summary.failGroups + ' 组 ' + summary.failNodes + ' 节点（控件边框/状态面 ' + summary.failControlGroups
+      + ' / 文字 ' + summary.failTextGroups + '）｜ 豁免 ' + summary.exemptGroups + ' 组'
+      + (exemptDetail ? '（' + exemptDetail + '）' : '') + ' ｜ 最低 ' + worst)
   }
   console.log('')
   if (!rows.length) {
@@ -841,7 +1062,8 @@ function printReport(rows, summaries, options) {
 }
 
 function printJson(rows, summaries, options) {
-  const violations = rows.filter((row) => row.status === 'fail')
+  // 与退出码同一判据：装饰性分隔线即使拿到 fail 也不算违规（blockingViolation 里也是这条规则）。
+  const violations = rows.filter(blockingViolation)
   const payload = {
     ok: violations.length === 0,
     tool: 'scripts/audit-contrast.mjs',
@@ -872,6 +1094,7 @@ function printJson(rows, summaries, options) {
       need: row.need,
       status: row.status,
       exempt: row.exempt || null,
+      exemptKind: row.exemptKind || null,
       fg: row.fg,
       bg: row.bg,
       fontSize: row.fontSize,
@@ -937,7 +1160,9 @@ function main() {
   if (options.json) printJson(rows, summaries, options)
   else printReport(rows, summaries, options)
 
-  const violations = rows.filter((row) => row.status === 'fail')
+  // 退出码只由「够得着真问题」的组决定：装饰性分隔线永远不阻断（`blockingViolation` 单点定义），
+  // 但仍然完整打印在总表里。
+  const violations = rows.filter(blockingViolation)
   process.exitCode = violations.length ? 1 : 0
 }
 
