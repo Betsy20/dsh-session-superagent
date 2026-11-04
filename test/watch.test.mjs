@@ -1487,3 +1487,45 @@ test('lastReopened / lastStates 必须能跨轮存活（漏了白名单，面板
   assert.equal(merged.lastReopened, 'IK1')
   assert.deepEqual(merged.lastStates, { IK1: 'open' })
 })
+
+test('白名单必须覆盖所有「轮询结果」字段（M1：漏一个就是「算出来了但没存」）', async () => {
+  const { POLL_RESULT_FIELDS, mergePollResult } = await import('../lib/watch.js')
+  // 这些字段都是轮询算出来的：漏一个，对应的功能就静默失效
+  const must = [
+    'etag', 'needsReauth', 'lastErrorAt', 'deferReason', 'silentWakes', 'prevWakeAt',
+    'dailyWakes', 'absorbedLog', 'filterCounts', 'repoAccess', 'sessionMissingSince',
+    'minIntervalSec', 'lastCleanupAt', 'lastReopened', 'lastStates',
+  ]
+  const missing = must.filter((f) => !POLL_RESULT_FIELDS.includes(f))
+  assert.deepEqual(missing, [], '白名单漏了：' + missing.join(','))
+
+  // 逐字段验证「真的能过去」
+  const polled = {}; for (const f of must) polled[f] = 'x'
+  const merged = mergePollResult({ id: 'r#s' }, polled)
+  const dropped = must.filter((f) => merged[f] === undefined)
+  assert.deepEqual(dropped, [], '这些字段在合并时被丢弃：' + dropped.join(','))
+})
+
+test('wakeTimes 被写成非数组也不许崩（坏数据的代价不该是整个面板 500）', async () => {
+  const { pruneWakeTimes } = await import('../lib/watch.js')
+  for (const bad of ['abc', {}, 0, true, { a: 1 }]) {
+    assert.doesNotThrow(() => pruneWakeTimes(bad), '输入 ' + JSON.stringify(bad) + ' 不该抛')
+    assert.deepEqual(pruneWakeTimes(bad), [], '输入 ' + JSON.stringify(bad) + ' 应得空数组')
+  }
+  // 正常输入照旧
+  const now = Date.now()
+  assert.equal(pruneWakeTimes([now - 1000, now - 7200_000], now).length, 1)
+})
+
+test('水位只许前进：并发 tick 手里的旧快照不许把 watch_ack 推进的 seen 写回去', async () => {
+  const { mergePollResult } = await import('../lib/watch.js')
+  // 模拟 writeState 的合并：盘上已是 05:00（ack 写的），内存里 tick 手里是 04:59
+  const disk = { id: 'r#s', lastPoll: '2026-11-05T05:00:00.000Z', seen: { 42: '2026-11-05T05:00:00.000Z', 41: '2026-11-05T04:00:00.000Z' } }
+  const mem = { id: 'r#s', lastPoll: '2026-11-05T04:59:00.000Z', seen: { 42: '2026-11-05T04:59:00.000Z' } }
+  // mergePollResult 是「轮询结果并入盘上」，方向是 disk ← mem；这里验证它不会让 42 后退
+  const merged = mergePollResult(disk, mem)
+  assert.ok(
+    Date.parse(merged.seen[42]) >= Date.parse(disk.seen[42]),
+    'seen[42] 后退了：' + merged.seen[42] + ' < ' + disk.seen[42],
+  )
+})
