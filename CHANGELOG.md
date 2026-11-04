@@ -2,6 +2,29 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.201] - 2026-11-05 —— 64KB 截断把整段中文变成乱码（脱敏审计的「值得改」）
+
+### ① 按字节截断，切在汉字中间
+`Buffer.concat(chunks).subarray(0, 64 * 1024)` 会切在**字节中间**：一个 3 字节的汉字被切掉 1–2 字节，
+剩下的半截解出来是 `U+FFFD`；而 `decodeBody()` 看到替换字符就**把整段当 GBK 重解** ——
+整篇中文变乱码（实测 21851 → 32773 个字符）。
+
+新增 `truncateUtf8()`：从上限往回退到 UTF-8 **起始字节**（最多退 3 字节）。
+实测 45000 字节的中文按 20000 截断 → 6666 字、**零替换字符**、开头完好。
+
+### ② 未闭合 PEM 的性能
+补了一条性能守卫：1MB 的 PEM 块必须在 500ms 内跑完（实测 30ms）。
+
+### ③ G4 · Gitee 分支抢走 GitHub 的措辞
+`401 Unauthorized` / `429 Too Many Requests` 是两家共用的，放在 Gitee 分支里会让 GitHub 的报错
+显示「去 Gitee 生成私人令牌」。现在只认 Gitee **专属**措辞（`Access token does not exist` / `登录失效` / `无权限访问该资源`），
+通用的 429 单独走一条**中性**提示。
+
+### 证据
+```
+node --test → 350/350（新增：截断边界 4 条、PEM 性能 1 条）
+真机：GitHub 401 → 「跑 gh auth login」；Gitee 401 → 「去 Gitee 生成私人令牌」；两家 429 都 → ratelimit
+```
 ## [0.9.200] - 2026-11-05 —— 安全审计：最该脱敏的那个出口，一个字符都没脱
 
 ### M1 · 唤醒消息完全没走 `redact()`（本轮最重）

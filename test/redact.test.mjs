@@ -75,3 +75,12 @@ test('不许误伤：讨论前缀 / sha / md5 都要原样保留', () => {
     assert.equal(redact(text), text, '误伤了：' + text)
   }
 })
+
+test('大输入不许炸：1MB 的 PEM 块要在 500ms 内跑完（T16 实测过 2 秒的版本）', () => {
+  const big = ('-----BEGIN RSA PRIVATE KEY-----' + 'A'.repeat(1000) + String.fromCharCode(10)).repeat(1000)
+  const t0 = Date.now()
+  const out = redact(big)
+  const ms = Date.now() - t0
+  assert.ok(ms < 500, '1MB 输入用了 ' + ms + 'ms，太慢')
+  assert.ok(out.includes('***'), '还是要脱掉')
+})
