@@ -247,3 +247,33 @@ test('comments 字段要透传（否则「有人评论 +10」在 Gitee 上恒为
   assert.equal(normalizeGiteeItem({ number: 'IK1', comments: '3' }).comments, 3)
   assert.equal(normalizeGiteeItem({ number: 'IK1' }).comments, undefined, '没有该字段时不要硬塞 0')
 })
+
+test('列标签失败时不许盲发 POST（唯一会往别人仓库写的路径）', async () => {
+  const { ensureGiteeLabel } = giteeModule
+  let posts = 0
+  const f = async (url, init) => {
+    if (init && init.method === 'POST') posts += 1
+    return { ok: false, status: 403, text: async () => 'rate limit' }
+  }
+  const res = await ensureGiteeLabel({ repo: 'o/r', label: '主理鱼-已处理', fetchImpl: f })
+  assert.equal(res.ok, false)
+  assert.equal(res.reason, 'list-failed')
+  assert.equal(posts, 0, '读不到现有标签时绝不能 POST')
+})
+
+test('permissions 缺失时 push 是 null（不知道），不是 false（只读）', () => {
+  const { mapGiteeRepoAccess } = giteeModule
+  const unknown = mapGiteeRepoAccess('o/r', { private: false })
+  assert.equal(unknown.push, null, 'Gitee 仓库对象没有 permissions 字段，不能谎报只读')
+  const known = mapGiteeRepoAccess('o/r', { permissions: { push: true } })
+  assert.equal(known.push, true)
+  const denied = mapGiteeRepoAccess('o/r', { permissions: { push: false } })
+  assert.equal(denied.push, false)
+})
+
+test('列表满一页要标记 truncated（否则被截掉的条目永远不再出现）', async () => {
+  const { listGiteeItems } = giteeModule
+  const mk = (n) => async () => ({ ok: true, status: 200, text: async () => JSON.stringify(Array.from({ length: n }, (_, i) => ({ number: 'I' + i, title: 't', state: 'open' }))) })
+  assert.equal((await listGiteeItems({ repo: 'o/r', perPage: 20, fetchImpl: mk(20) })).truncated, true)
+  assert.equal((await listGiteeItems({ repo: 'o/r', perPage: 20, fetchImpl: mk(5) })).truncated, false)
+})

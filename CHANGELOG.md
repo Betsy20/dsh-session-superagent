@@ -2,6 +2,30 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.199] - 2026-11-05 —— Gitee 边界审计剩余三条（其中最危险的会往**别人仓库**写）
+
+### G6 · 列标签失败仍盲发 POST —— 唯一会碰别人仓库的路径
+`ensureGiteeLabel()` 先 `GET /labels` 查重，再 `POST` 建。但**查失败时它也照发**：
+读不到现有标签就建 —— 等于在**别人仓库**里造重复标签。现在读失败就老实回报 `list-failed`。
+实测：403 时 POST 次数 = **0**。
+
+### G7 · 每条 Gitee 守都恒挂「只读」徽章
+`mapGiteeRepoAccess()` 读 `permissions.push`，而 Gitee 的仓库对象里**根本没有** `permissions` 字段（67 个键都没有它）。
+`undefined === true` 恒 false → 每条 Gitee 守都显示「只读」+「你只有读权限」假警告。
+改成「字段不存在 → `push: null`（不知道）」，面板按 `=== false` 才提示只读。
+
+### G3 · 只取一页，截断的部分静默消失
+`listGiteeItems()` 只读一页且不告诉调用方「满了」。停机恢复/首次轮询时最危险：
+**攒了 30 条只看到 20 条，另外 10 条永远不再出现**（`cursor` 还会推进过去）。
+现在回 `truncated: true`，轮询路径**这一轮不推进水位**并留一条事件。
+
+### 证据
+```
+node --test → 343/343（新增：盲发 POST 守卫、permissions 缺失、truncated 三条）
+```
+
+### 仍未修（登记）
+G2（`request()` 不读响应头）、G4（Gitee 分支沿用 GitHub 措辞）。
 ## [0.9.198] - 2026-11-05 —— Gitee 边界审计「值得改」三条：403 限流、404 被抢、非数组抛错
 
 ### G1 · 线上 Gitee 限流回的是 **403**，不是 429
