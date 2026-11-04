@@ -2,6 +2,28 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.198] - 2026-11-05 —— Gitee 边界审计「值得改」三条：403 限流、404 被抢、非数组抛错
+
+### G1 · 线上 Gitee 限流回的是 **403**，不是 429
+真机：`curl ".../issues?per_page=9999"` → `HTTP 403` + `403 Forbidden (Rate Limit Exceeded)`，无 `Retry-After`。
+而轮询路径的 status→kind 映射把 403 一律判成 `auth` → 面板让客户**去重生成 token**，实际只要等几分钟。
+现在先看正文：含 `rate limit` / `too many` 才判限流。
+
+### G5 · `not found.*gh` 宽到抢走 404
+`HTTP 404: Not Found for owner/ghost-repo` 会被判成 `nogh`（「请安装 gh 命令」）。判据收窄成 `gh: command not found` 这类真形状。
+
+### G8 · 200 但正文不是数组时抛异常
+违反 `lib/gitee.js` 自己写的「从不抛」。`normalizeGiteeList()` 两处 `for-of` 补 `Array.isArray` 守卫。
+
+### 未修（登记）
+G2（`request()` 不读响应头）、G3（只取一页、无 `truncated`）、G4（Gitee 分支的提示措辞沿用 GitHub）、
+G6（列标签失败仍盲发 POST —— 唯一会碰到**别人仓库**的路径）、G7（`permissions` 在 Gitee 仓库对象里不存在 → 恒挂「只读」徽章）。
+G6 优先级最高（会往别人仓库写），下一轮先做它。
+
+### 证据
+```
+node --test → 340/340（新增：403 限流 vs 403 权限、404 不被 nogh 抢）
+```
 ## [0.9.197] - 2026-11-05 —— Gitee 边界审计：3 条必须修（全是「照抄 GitHub」的坑）
 
 ### M1 · `merged` 不在 state 白名单里

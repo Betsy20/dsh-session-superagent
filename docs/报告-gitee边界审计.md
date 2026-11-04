@@ -1,8 +1,11 @@
 # Gitee 边界与错误处理审计（`lib/gitee.js` + `lib/gh-format.js`）
 
-> 版本：`dsh-session-superagent@0.9.195` · 审计时间：2026-11-05 · 方式：**只读**（未改一行代码）
-> 审计范围：`lib/gitee.js`（250 行）、`lib/gh-format.js`（573 行）
-> 结论速览：**必须修 3 条 / 值得改 8 条 / 确认没问题 7 项**
+> 审计基线：`dsh-session-superagent@0.9.195` · 审计时间：2026-11-05 · 方式：**只读**（审计期间未改一行代码）
+> 审计范围：`lib/gitee.js`（审计时 250 行）、`lib/gh-format.js`（573 行）
+> 结论速览：**必须修 3 条（均已在 0.9.197 修复并复验）/ 值得改 8 条（未动）/ 确认没问题 7 项**
+>
+> **⚠ 状态**：3 条必须修已在 **`0.9.197`（commit `ccec527`）** 修掉。下面每条末尾的「复验」是**在当前代码上重跑**的结果。
+> 代码块引用的是**审计时的 0.9.195 原样**（那才是问题现场）；行号锚点指向当前文件的对应区域。
 
 ---
 
@@ -14,9 +17,9 @@
 
 > ⚠️ **复现提示**：审完这一轮之后，本机 IP 就被 Gitee 限流了（`HTTP 403 | 403 Forbidden (Rate Limit Exceeded)`，见 G1）。**这本身就是 G1 的活证据** —— 也意味着下面所有 `curl` 命令都需要**等限流窗口过去**再跑；跑之前先 `curl -sS -m 10 -o /dev/null -w '%{http_code}\n' https://gitee.com/api/v5/repos/oschina/git-osc` 探一下，回 `200` 才是通的。
 
-**临时文件**：`/tmp/audit-gitee.mjs`、`/tmp/{pulls,issues,repo,h,rl}.json` —— 跑完已删，`git status` 里不留痕。
+**临时文件**：`/tmp/audit-gitee.mjs`（审计）、`/tmp/verify-fixed.mjs`（复验）及配套 JSON —— 跑完已全部删除，详见文末「附」。
 
-**测试基线**（审前审后一致）：
+**测试基线** —— **审计时（0.9.195）**：
 
 ```console
 $ DSH_SUPERAGENT_OFFLINE=1 node --test 2>&1 | tail -5
@@ -25,6 +28,17 @@ $ DSH_SUPERAGENT_OFFLINE=1 node --test 2>&1 | tail -5
 ℹ skipped 0
 ℹ todo 0
 ℹ duration_ms 4336.8201
+```
+
+**修复后（0.9.197）复跑**：
+
+```console
+$ DSH_SUPERAGENT_OFFLINE=1 node --test 2>&1 | tail -5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4958.2859
 ```
 
 ```console
@@ -43,7 +57,7 @@ $ DSH_SUPERAGENT_OFFLINE=1 node --test 2>&1 | tail -12
 ℹ duration_ms 6548.8637
 ```
 
-> 336 条全绿说明：下面 3 条必须修**都不在现有测试覆盖里**。这正是「漏一个就静默失效」的含义 —— 测试全绿，功能是错的。
+> 336 条全绿说明：3 条必须修**在 0.9.195 时都不在测试覆盖里**。这正是「漏一个就静默失效」的含义 —— 测试全绿，功能是错的。（0.9.197 已给 `merged` / `comments` / 翻页补了用例，见 `test/gitee.test.mjs`。）
 
 ---
 
@@ -104,6 +118,21 @@ $ node /tmp/audit-gitee.mjs          # 摘录 A 段
 
 **修复方向**（只记，不改）：`if (s === 'closed' || s === 'rejected' || s === 'merged') return 'closed'`，并给 `normalizeGiteeState` 补一条 `merged` 的用例。
 
+**复验（0.9.197 当前代码，真跑）**：
+
+```console
+$ node /tmp/verify-fixed.mjs
+=== M1 复验：merged PR 的 state 归一 ===
+  normalizeGiteeState("open")                  "open"
+  normalizeGiteeState("progressing")           "open"
+  normalizeGiteeState("closed")                "closed"
+  normalizeGiteeState("rejected")              "closed"
+  normalizeGiteeState("merged")                "closed"      ← 已修
+  merged PR #11 归一后 state                      "closed"      ← 已修
+  默认过滤器 filterReason(merged PR)                "已关闭"        ← 已修
+  对照 closed PR 的 filterReason                  "已关闭"
+```
+
 ---
 
 ### M2 · `fetchGiteeLastComment()` 照抄了 GitHub 的分页参数 —— 取到的是「**最早**一条评论」
@@ -156,6 +185,20 @@ $ node -e "const d=JSON.parse(require('fs').readFileSync('one.json','utf8'));con
 ```
 
 **修复方向**（只记，不改）：去掉 `sort` / `direction`，改 `per_page=100` 后取 `res.data[res.data.length - 1]`；或先取一页再在客户端按 `created_at` 排序。
+
+**复验（0.9.197 当前代码，真跑）**：
+
+```console
+=== M2 复验：最后一条评论取哪一条 ===
+  请求 URL                                       "/repos/oschina/git-osc/issues/IKSFS5/comments?per_page=100&page=1"
+  返回的「最后一条」                                    {"login":"last-user","at":"2026-11-03T12:46:25+08:00","self":false}   ← 与真实最后一条一致
+  Gitee 上真实的最后一条                               {"login":"last-user","at":"2026-11-03T12:46:25+08:00"}
+  250 条评论 → 翻了几页                               3                                          ← 分页也接上了
+  250 条评论 → 取到                                 {"login":"u249","at":"2026-01-01T04:09:00.000Z","self":false}
+  最早是我发的、别人后来回了 → self                         false                                      ← 不再误判
+```
+
+（`250 条评论 → 翻了几页 3` 是 `per_page=100` 的必然：100 + 100 + 50。上限 5 页 = 500 条。）
 
 ---
 
@@ -228,6 +271,17 @@ id,url,repository_url,labels_url,comments_url,html_url,parent_url,number,parent_
 ```
 
 **修复方向**（只记，不改）：`out.comments = Number(item.comments) || 0`，并补一条「`priorityScore(normalizeGiteeItem(realIssue))` 应为 10」的用例。
+
+**复验（0.9.197 当前代码，真跑）**：
+
+```console
+=== M3 复验：comments 是否透传 ===
+  归一后 out 的键                                   ["assignees","comments","created_at","html_url","labels","number","state","state_reason","title","updated_at","user"]
+  归一后 comments                                 2            ← 透传了
+  priorityScore(归一后, {comments:true})          10           ← 10 分回来了
+  对照 comments=0 的条目                            0
+  对照 comments 缺失的条目                            0            ← 缺失也不会算成 NaN
+```
 
 ---
 
@@ -606,7 +660,13 @@ export function normalizeGiteeList(issues, pulls) {
 
 ## 附：本次审计的边界
 
-- **只读**：`lib/gitee.js`、`lib/gh-format.js` 一个字节未改；`git status` 里的 `M lib/index.js` / `M lib/watch.js` 是本次审计**之前**就存在的改动（`git diff` 里没有本次审计的任何痕迹）。
+- **只读**：`lib/gitee.js`、`lib/gh-format.js` 一个字节未改。审计期间工作区里 `lib/index.js` / `lib/watch.js` 的未提交改动**都早于本轮审计**；随后它们连同本报告的 3 条必须修一起被 `ccec527`（0.9.197）提交 —— 那次提交**不是本次审计做的**（本次会话只写这一个报告文件）。
 - **只读网络**：只对 `gitee.com/api/v5` 打了 GET；`POST` 只在 `fetchImpl` 假实现里发生，没有真的往任何仓库写东西。
-- **临时文件**：`/tmp/audit-gitee.mjs`、`/tmp/{pulls,issues,repo,h,rl}.json` 已删。
+- **临时文件**：`/tmp/audit-gitee.mjs`（审计）、`/tmp/verify-fixed.mjs`（复验）、`/tmp/{pulls,issues,repo,h,rl,c,one,probe,i2,sw}.json` —— **已全部删除**，`git status --short` 只剩本报告这一行：
+
+  ```console
+  $ git status --short
+   M "docs/\346\212\245\345\221\212-gitee\350\276\271\347\225\214\345\256\241\350\256\241.md"
+  ```
+
 - **没覆盖到的**：Gitee 的 `issue_state` / `issue_state_detail`（中文自定义状态：待确认/进行中）没有进 `normalizeGiteeItem`，`docs/Gitee-真机联调清单.md:609` 已自行记为已知缺口 —— 本次没有新增证据，不重复计入。

@@ -123,3 +123,19 @@ test('Gitee 的中文 401 也要归 auth（真机回的是中文）', async () =
   assert.equal(classifyGhError('{"message":"登录失效，无权限访问该资源","code":40001}').kind, 'auth')
   assert.equal(classifyGhError('登录失效').kind, 'auth')
 })
+
+test('Gitee 的 403 限流不能判成「凭证失效」（会让人去重生成 token）', async () => {
+  const { classifyGhError } = await import('../lib/gh-format.js')
+  // 线上真机形状：HTTP/1.1 403 + 正文 "403 Forbidden (Rate Limit Exceeded)"
+  assert.equal(classifyGhError('403 Forbidden (Rate Limit Exceeded)').kind, 'ratelimit')
+  // 纯 403（无正文）仍按「没权限」处理（不是限流）
+  assert.equal(classifyGhError('HTTP 403 Forbidden').kind, 'permission')
+})
+
+test('`gh` 找不到的判据不能宽到抢走 404', async () => {
+  const { classifyGhError } = await import('../lib/gh-format.js')
+  // 以前 /not found.*gh/ 会把这条判成 nogh（安装 gh 命令）
+  assert.notEqual(classifyGhError('HTTP 404: Not Found for owner/ghost-repo').kind, 'nogh')
+  // 真正的「命令不存在」仍然要认
+  assert.equal(classifyGhError('gh: command not found').kind, 'nogh')
+})
