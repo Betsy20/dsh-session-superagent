@@ -174,3 +174,47 @@ test('Gitee 没有 state_reason：靠上一轮状态自己判「重新打开」'
   const trimmed = markGiteeReopened([{ number: 'IK1', state: 'open' }], { IK1: 'open', OLD1: 'closed', OLD2: 'open' })
   assert.deepEqual(Object.keys(trimmed), ['IK1'], '没出现在这一页的键要删掉：' + JSON.stringify(trimmed))
 })
+
+test('打标签前先确保标签存在：已存在只发 GET，不存在才 POST 建', async () => {
+  const { ensureGiteeLabel } = giteeModule
+  const calls = []
+  const exists = async (url, init) => {
+    calls.push(((init && init.method) || 'GET') + ' ' + url.split('/labels')[0].split('/').pop())
+    return { ok: true, status: 200, text: async () => JSON.stringify([{ name: '主理鱼-已处理' }, { name: 'bug' }]) }
+  }
+  const a = await ensureGiteeLabel({ repo: 'o/r', token: 't', label: '主理鱼-已处理', fetchImpl: exists })
+  assert.deepEqual(a, { ok: true, created: false, reason: 'already-exists' })
+  assert.deepEqual(calls, ['GET r'], '已存在就不该发 POST')
+
+  calls.length = 0
+  const missing = async (url, init) => {
+    calls.push((init && init.method) || 'GET')
+    return { ok: true, status: 201, text: async () => '{}' }
+  }
+  const b = await ensureGiteeLabel({ repo: 'o/r', token: 't', label: '主理鱼-已处理', fetchImpl: missing })
+  assert.deepEqual(b, { ok: true, created: true, reason: 'created' })
+  assert.deepEqual(calls, ['GET', 'POST'], '不存在时要先查后建')
+
+  // 建不出来也不能抛：调用方要能继续并把原因带回去
+  const denied = async () => ({ ok: false, status: 403, text: async () => 'no permission' })
+  const c = await ensureGiteeLabel({ repo: 'o/r', token: 't', label: '主理鱼-已处理', fetchImpl: denied })
+  assert.equal(c.ok, false)
+  assert.equal(c.status, 403)
+})
+
+test('空标签名直接拒（别去建一个名字是空串的标签）', async () => {
+  const { ensureGiteeLabel } = giteeModule
+  const res = await ensureGiteeLabel({ repo: 'o/r', label: '   ', fetchImpl: async () => { throw new Error('不该发请求') } })
+  assert.equal(res.ok, false)
+})
+
+test('Gitee 标签名规则：半角冒号非法（默认 ack 标签要换连字符）', () => {
+  const { isValidGiteeLabel, suggestGiteeLabel, DEFAULT_ACK_LABEL_GITEE } = giteeModule
+  // 真机实测：Gitee 回「Name只允许汉字、字母、数字或者…，长度必须在 2 到 20 个字符之间」
+  assert.equal(isValidGiteeLabel('主理鱼:已处理'), false, '半角冒号不在允许集合里')
+  assert.equal(isValidGiteeLabel('主理鱼-已处理'), true)
+  assert.equal(isValidGiteeLabel('a'), false, '太短')
+  assert.equal(isValidGiteeLabel('a'.repeat(21)), false, '太长')
+  assert.equal(suggestGiteeLabel('主理鱼:已处理'), '主理鱼-已处理', '冒号换成连字符')
+  assert.equal(DEFAULT_ACK_LABEL_GITEE, '主理鱼-已处理', 'Gitee 的默认 ack 标签必须是合法的')
+})

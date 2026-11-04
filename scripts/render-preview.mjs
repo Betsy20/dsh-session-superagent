@@ -191,12 +191,91 @@ const dockHead = clientSrc.indexOf(dockMarker) + dockMarker.length
 const dockTail = clientSrc.indexOf('`', dockHead)
 const DOCK_CSS = clientSrc.slice(dockHead, dockTail)
 
+// ── 非正常态快照：空态 / 错误态 / 暂停态 ─────────────────────────────────────
+// 上面的 snapshot 是「正常态」（有守、有数据、无错误）。空态和错误态以前从来没有出过图 ——
+// 「一条守都没有时面板长什么样」「守失败时红字长什么样」谁也没见过。这里单独造三份：
+// 字段与真机 /state 返回同形，只改各自状态关心的那几个键，其余共用一个基座，避免三份快照漂移。
+const baseBody = (over = {}) => ({
+  sessionTitle: '新会话',
+  sessionGoal: null,
+  serverVersion: '0.9.183',
+  runningVersion: '0.9.183',
+  installedVersion: '0.9.183',
+  routeBase: '/session-superagent',
+  defaults: { sessionMaxWakes: 12, maxWakesPerHour: 6, isolateKeepDays: 3 },
+  retryPolicy: { budgetAttempts: 6, slowCapMinutes: 120 },
+  sessionUsage: { used: 0, cap: 12, capped: 0 },
+  tokenScopes: { ok: true, scopes: ['repo', 'read:org'] },
+  isolation: { roots: [], totalBytes: 0 },
+  gh: { ok: true, version: 'gh version 2.101.0' },
+  credentials: { token: 'none', sshKeyPath: 'none' },
+  watchers: [],
+  ...over,
+})
+const baseWatcher = (over = {}) => ({
+  id: 'MYCF711/dsh-session-superagent#s1',
+  repo: 'MYCF711/dsh-session-superagent',
+  sessionId: 'session-1e82afca-8be2-42f9-8186-2bd274e30342',
+  intervalSec: 60,
+  enabled: true,
+  observe: false,
+  title: 'README 收尾与发布',
+  lastPoll: iso(5000),
+  lastWake: iso(1800000),
+  filters: { labels: [], ignoreLabels: [], skipBots: true, skipDrafts: true, skipClosed: true, onlyAssigned: false, assignee: null },
+  history: [],
+  filteredLog: [],
+  ...over,
+})
+
+/** 空态：一条守都没有。面板该给出「下一步做什么」，而不是一片空白。 */
+const emptySnapshot = { loading: false, error: null, body: baseBody() }
+
+/** 错误态：凭证失效（401）+ 连续失败 7 次 + 需要重新登录。看红字与「需要你做什么」。 */
+const errorSnapshot = {
+  loading: false, error: null,
+  body: baseBody({
+    sessionTitle: '发布 0.9.184',
+    watchers: [baseWatcher({
+      title: '发布 0.9.184',
+      lastPoll: iso(28 * 60000),
+      lastWake: iso(3 * 3600000),
+      lastError: 'GitHub API 请求: 401 Unauthorized（gh 登录失效：跑 gh auth login，或在面板填 token）',
+      lastErrorKind: 'auth',
+      lastErrorAt: iso(28 * 60000),
+      consecutiveFailures: 7,
+      nextAt: new Date(now + 2 * 3600000).toISOString(),
+      needsReauth: true,
+      history: [{ at: iso(3 * 3600000), numbers: [42], ok: true, reason: null }],
+    })],
+  }),
+}
+
+/** 暂停态：enabled=false + 时段外暂停（lastDeferred 有值）。看暂停原因是否一眼可读。 */
+const pausedSnapshot = {
+  loading: false, error: null,
+  body: baseBody({
+    sessionTitle: '联调会话',
+    credentials: { token: 'configured', sshKeyPath: 'none' },
+    watchers: [baseWatcher({
+      repo: 'MYCF711/dsh-GOkifu-compact',
+      title: '联调会话',
+      enabled: false,
+      lastPoll: iso(10 * 60000),
+      lastWake: iso(2 * 3600000),
+      activeHours: '09:00-23:00',
+      lastDeferred: '不在活跃时段（09:00-23:00 之外）：只攒条目，不唤醒',
+      deferReason: 'active-hours',
+    })],
+  }),
+}
+
 // hook 槽顺序必须与 client.js 里 ZhuliPanel 的 useState 顺序完全一致：
 // snap, tab, notice, form, token, goalDraft, goalTouched, [], editing, draft, search,
 // glossary, update, checking, settingsSection
 const blankForm = { repo: '', intervalSec: '60', goal: '', labels: '', onlyAssigned: false, activeHours: '', isolated: false, workdir: '' }
-const deskHooks = ({ tab = 'overview', notice = null, glossary = false, update = null, settingsSection = 'source' } = {}) => [
-  snapshot, tab, notice, blankForm, '', '', false, [], null, {}, '', glossary, update, false, settingsSection, null, null, false, null, '', '',   // 0.9.175 追加的 ghDir（gh 账号配置目录）
+const deskHooks = ({ snap = snapshot, tab = 'overview', notice = null, glossary = false, update = null, settingsSection = 'source' } = {}) => [
+  snap, tab, notice, blankForm, '', '', false, [], null, {}, '', glossary, update, false, settingsSection, null, null, false, null, '', '',   // 0.9.175 追加的 ghDir（gh 账号配置目录）
 ]
 
 const ONLY_NAME = (process.argv.find((a) => a.startsWith('--only=')) || '').slice('--only='.length)
@@ -216,6 +295,10 @@ const scenarios = [
   { name: '总览（已按异常筛选）', hooks: [{ loading: false, error: null, body: snapshot.body }, 'overview', null, blankForm, '', '', false, [], null, {}, '', false, null, false, 'source', null, null, false, 'error'] },
   { name: '空态（一条都没有）', hooks: [{ loading: false, error: null, body: { sessionGoal: null, sessionTitle: '新会话', credentials: { token: 'none', sshKeyPath: 'none' }, watchers: [] } }, 'overview', null, blankForm, '', '', false, [], null, {}, '', false, null, false, 'source', null, null] },
   { name: '空态（判定页）', hooks: [{ loading: false, error: null, body: { sessionGoal: null, sessionTitle: '新会话', credentials: {}, watchers: [] } }, 'judge', null, blankForm, '', '', false, [], null, {}, '', false, null, false, 'source', null, null] },
+  // 空态 / 错误态 / 暂停态：这三态以前没有出过图，各自出 shot-empty / shot-error / shot-paused
+  { name: '空态（无守）', hooks: deskHooks({ snap: emptySnapshot }) },
+  { name: '错误态（守失败）', hooks: deskHooks({ snap: errorSnapshot }) },
+  { name: '暂停态（已停用）', hooks: deskHooks({ snap: pausedSnapshot }) },
   { name: '读取失败', hooks: [{ loading: false, error: 'Failed to fetch', body: null }, 'overview', null, blankForm, '', '', false, [], null, {}, '', false, null, false, 'source', null, null] },
 ]
 

@@ -116,3 +116,10 @@ test('GitHub 的报错不能被 Gitee 规则抢走（措辞边界）', () => {
   assert.equal(classifyGhError('Repository has been moved').kind, 'moved')
   assert.equal(classifyGhError('Get "https://api.github.com/repos/a/b/issues?per_page=20": EOF').kind, 'network')
 })
+
+test('Gitee 的中文 401 也要归 auth（真机回的是中文）', async () => {
+  const { classifyGhError } = await import('../lib/gh-format.js')
+  // 真机实测：{"message":"登录失效，无权限访问该资源","code":40001}
+  assert.equal(classifyGhError('{"message":"登录失效，无权限访问该资源","code":40001}').kind, 'auth')
+  assert.equal(classifyGhError('登录失效').kind, 'auth')
+})

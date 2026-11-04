@@ -2,6 +2,41 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.184] - 2026-11-05 —— Gitee 的 ack 标签根本建不出来：半角冒号非法
+
+### 真机发现（不是猜的）
+给 Gitee 仓库自动建 ack 标签时，Gitee 直接回：
+
+```
+{"message":"Name只允许汉字、字母、数字或者小数点(.)、下划线(_)、中划线(-)、
+正斜杠(/)、反斜杠(\)以及全角符号，长度必须在 2 到 20 个字符之间"}
+```
+
+我们默认的标签是 `主理鱼:已处理` —— **半角冒号不在允许集合里**，所以这个标签在 Gitee 上永远建不出来，
+`watch_ack` 每次都 404，面板上看到的就是「需要你处理」+ 一句「没归类的错误」。
+
+### 改法
+- `DEFAULT_ACK_LABEL_GITEE = '主理鱼-已处理'`（连字符），`defaultAckLabel(provider)` 按 provider 选默认值
+  （轮询 / 建守 / `watch_ack` / `watch_doctor` / `watch_start` 五处）；
+- `ensureGiteeLabel()` 打标签前先确保标签存在：先 `GET /labels` 查，不存在才 `POST` 建；
+  **名字非法时先拦下并给建议**（`suggestGiteeLabel` 把冒号换成连字符），不发无谓请求；
+- `classifyGhError()` 补 **中文 401**：`{"message":"登录失效，无权限访问该资源","code":40001}` → `auth`
+  （以前只认英文，这条会落进 `other`）。
+
+### 真机验证
+```
+ensureGiteeLabel({ repo:'MYCF711/workbuddy-pro', label:'主理鱼-已处理' })
+→ {"ok":true,"created":true,"reason":"created"}     # 标签真的建出来了
+ensureGiteeLabel({ ..., label:'主理鱼:已处理' })
+→ {"ok":false,"reason":"invalid-name","suggestion":"主理鱼-已处理"}   # 请求都没发
+```
+
+### 证据
+```
+node --test → 301/301（新增：标签名规则 6 条断言、中文 401）
+preflight 全量 → 37/37
+```
+
 ## [0.9.183] - 2026-11-05 —— 门禁互斥锁 + 来源页三条文案
 
 ### ① 门禁互斥锁（本轮最重要）
