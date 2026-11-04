@@ -450,6 +450,41 @@ test('parseGhInclude：解析 --include 的状态行 / ETag / 正文', () => {
   assert.equal(plain.body, '[1,2,3]')
 })
 
+test('ETag 只在真正消费这一轮之后前移（推迟时不前移，否则 304 会把待办吞掉）', async () => {
+  const source = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+  const lines = source.split(/\r?\n/)
+
+  // 1) 不能再有「解析出 etag 就立刻写进 entry」的写法
+  const eager = lines.filter((line) => /entry\.etag\s*=/.test(line) && !/\bcommitEtag\b/.test(line))
+  assert.equal(eager.length, 0, 'ETag 必须经 commitEtag 提交，不能就地赋值：' + eager.join(' | '))
+
+  // 2) commitEtag 必须存在，且只在 pendingEtag 有值时才写
+  assert.ok(/const pendingEtag = parsed\.etag/.test(source), '要从这一轮解析结果里取 pendingEtag')
+  assert.ok(/const commitEtag = \(\) => \{ if \(pendingEtag\) entry\.etag = pendingEtag \}/.test(source),
+    'commitEtag 只在有值的时候写')
+
+  // 3) 每个「推迟」分支的 return 之前不能提交 ETag —— 这几个分支故意不动 seen/cursor，
+  //    ETag 若前移，下一轮条件请求拿到 304 就直接 return，fresh 不再重算，等于丢事件。
+  const deferMarkers = [
+    '会话正忙，下一轮重试',
+    '这条会话一小时内已被唤醒',
+    '每小时最多唤醒',
+    '本轮期间被暂停或删除',
+    '会话已不在',
+  ]
+  for (const marker of deferMarkers) {
+    const at = lines.findIndex((line) => line.includes(marker) && /lastDeferred\s*=/.test(line))
+    if (at < 0) continue // 文案随版本变化时不阻断，只校验存在的那几处
+    const window = lines.slice(at, Math.min(at + 7, lines.length)).join('\n')
+    assert.ok(!/commitEtag\(\)/.test(window), '推迟分支「' + marker + '」不得提交 ETag')
+  }
+
+  // 4) 模块仍能正常加载，__test 接口未变
+  const mod = await import('../lib/index.js?etag=' + Date.now())
+  assert.equal(typeof mod.apply, 'function')
+  assert.equal(typeof mod.__test.readState, 'function')
+})
+
 test('jitterMs：同一条守永远同一个偏移，且在窗口内', () => {
   const a = jitterMs('owner/repo#session-1', 5000)
   const b = jitterMs('owner/repo#session-1', 5000)

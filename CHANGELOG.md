@@ -2,6 +2,39 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.168] - 2026-11-04 —— 合入 @ysl289 的修复：推迟的事件不该被 ETag 吞掉
+
+> 来自 **@ysl289**（PR #6）。这是本轮最隐蔽的一个 bug —— 和 #2/#3 是同一个家族：
+> **"缓存水位前移了，但这一轮其实没被消费"**。
+
+### 现象
+会话正忙时开一条新 issue：
+1. 面板先显示 `lastDeferred: 会话正忙，下一轮重试`；
+2. 下一轮变成「未变化（304）」；
+3. `watch_status` 的 `cursor` 仍是 `null`、`lastWake` 仍是 `null` —— **那条 issue 再也没被处理**，
+   直到重启宿主（内存里的 ETag 清空）或再开一条新 issue。
+
+### 根因
+`entry.etag` 在解析出 ETag 后**立刻**前移，但下面有五个推迟分支会 `return`
+（会话正忙 / 会话上限 / 每小时上限 / 本轮被暂停 / 会话已不存在）。这些分支刻意不动
+`seen` / `cursor`（源码注释：「否则『攒着』等于『丢掉』」），可 **ETag 已经前移**：
+下一轮带新 ETag → GitHub 回 304 → 上面直接 `return` → `fresh` 永远不再重算。
+**效果同样是「攒着＝丢掉」，只是绕了一圈。**
+
+### 改法
+ETag 先进 `pendingEtag`，只在三处 `commitEtag()`：
+① 本轮无新增；② 仅观察记账之后；③ **唤醒真正发送成功之后**。
+
+### 我对这个 PR 的核对
+逐条看了五个推迟分支的位置，确认它们都在 `entry.etag` 赋值之后、且都不会走到 `commitEtag()`；
+`node --check` + 267 例（含作者新增的「推迟分支不得提交 ETag」用例）全绿。
+
+### 证据
+```
+node --test → 267/267
+grep：lib/index.js 里已无「解析后立刻 entry.etag = …」的写法，只剩 commitEtag() 这一处
+```
+
 ## [0.9.167] - 2026-11-04 —— 合入两位外部贡献者的修复（gh 头体切分 / 首帧 304 锁死）
 
 > 两个 PR 都来自 **@Betsy20**（first-time contributor）。我逐条复现、核对根因后合入，
@@ -9,8 +42,10 @@
 
 ### PR #2 · `parseGhInclude` 头体分隔只认 LF
 - **现象**：面板持续报「（返回内容不是合法 JSON：可能是代理干扰）」；
-- **根因**：真机 `gh api --include` 是**状态行 LF + 响应头 CRLF**，头体之间是 `
-
+- **根因**：真机 `gh api --include` 是**状态行 LF + 响应头 CRLF**，头体之间是 `
+
+
+
 `，
   而代码只找 `
 
@@ -18,7 +53,8 @@
 - **我的复现**：
   ```
   旧：status=200，body="HTTP/2.0 200 OK
-content-type: application/json
+content-type: application/json
+
 …"
       JSON.parse → Unexpected token 'H'
   新：status=200，body="{\"total_count\":1,…}"  → JSON.parse OK
