@@ -2,6 +2,29 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.205] - 2026-11-05 —— 门禁锁只覆盖 2/39 项；`verify-gates` 被强杀会留下坏文件
+
+### M2 · 整轮门禁只持一把锁
+以前只有 `audit-pack` / `regression-cases` 两个脚本自己抢锁，而 `verify-gates` 在 **14 个路径**上注入写入 ——
+一次锁都没拿。两个会话同时跑门禁就是**双向假红**（「改坏后 code=1 / 还原后 code=1」）。
+现在 `preflight.mjs` 在入口拿锁、整轮持有，子进程通过继承的 token 重入（不会死锁）。
+
+### 重入判据从「固定名字的环境变量」改成一次性 token
+以前只要有人 `export DSH_GATE_LOCK_HELD=mutate`，锁就**静默失效**（连目录都不建）。
+现在必须与盘上 `owner.json` 里的 token 一致才算重入。
+
+### M3 · `verify-gates` 没有任何落盘恢复凭据
+每个用例都是「内存里存 original → 注入 → finally 还原」，`kill -9` 时 finally **不跑**：
+实测留下过 `client.js` / `scripts/render-preview.mjs` / `docs/kb/zz-injected-claim.md`。
+现在开工先把 15 个可能被改写的文件**原始内容落盘**（`.gate-recover-verify/`），进程被强杀则下次启动还原；
+判据 fail-closed：内容对不上快照就不覆盖、报错让人看一眼（`SUPERAGENT_GATE_FORCE_RECOVER=1` 可强还原）。
+
+### 证据
+```
+node --test → 352/352（新增：伪造 token 不能绕过锁）
+preflight --fast → 37 项全过
+verify-gates → PASS 21/21 项注入都被检测到（门禁是活的），跑完无残留
+```
 ## [0.9.204] - 2026-11-05 —— 门禁把「没跑」记成 PASS（假绿）+ 静默改回别人的改动
 
 ### M6 · 抢不到锁 = 假绿

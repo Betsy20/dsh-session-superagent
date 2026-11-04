@@ -7,12 +7,29 @@
 //   node scripts/preflight.mjs --fast     跳过冒烟（不请求 GitHub、不建 worktree）
 import { execFileSync, spawnSync } from 'node:child_process'
 import { FAST_SKIPS } from './preflight-modes.mjs'
+import { acquireGate } from './gate-lock.mjs'
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
+
+// 审核 T18 M2：整轮门禁**只持一把锁**。
+// 以前只有 2/39 项（audit-pack / regression-cases）自己抢锁，而 verify-gates 在 14 个路径上注入写入 ——
+// 两个会话同时跑门禁就是双向假红（「改坏后 code=1 / 还原后 code=1」）。
+// 这里在入口拿锁：子进程通过继承的 token 重入，不会死锁。
+let releaseGate = null
+try {
+  releaseGate = acquireGate('preflight', { timeoutMs: 600000 })
+} catch (error) {
+  if (error && error.code === 'GATE_BUSY') {
+    console.error('SKIP 另一个门禁正在跑（pid ' + (error.owner && error.owner.pid) + '），本次不跑 —— 退出码 3（不算通过）')
+    process.exit(3)
+  }
+  throw error
+}
+process.on('exit', () => { try { releaseGate && releaseGate() } catch { /* 尽力而为 */ } })
 const FAST = process.argv.includes('--fast')
 // PR 分支上跳过维护一致性：版本号已 bump 但 tag 只在合并后才打，这条必然红。
 // CI 里用 --no-maintenance 跳过它，改成 push 到 main 时单独跑一步。

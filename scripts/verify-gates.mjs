@@ -27,6 +27,94 @@ const run = (args) => {
   }
 }
 
+// 审核 T18 M3：以前每个用例都是「内存里存 original → writeFileSync 注入 → finally 还原」。
+// 进程被 kill -9 时 finally **不跑**，文件永久留在注入状态（实测留下过 client.js / render-preview.mjs / zz-injected-claim.md）。
+// 现在：开工先把这些文件的**原始内容**落盘；每次用例结束后由 finally 还原，进程被强杀则下次启动还原。
+// 判据是 fail-closed：只有「当前内容 = 当时注入的」才还原，对不上就报错让人看一眼。
+const RECOVER_DIR = join(root, '.gate-recover-verify')
+const RECOVER_MANIFEST = join(RECOVER_DIR, 'manifest.json')
+const WATCHED = [
+  "README.md",
+  "client.js",
+  "package.json",
+  "lib/gh-format.js",
+  "lib/index.js",
+  "lib/redact.js",
+  "lib/watch.js",
+  "scripts/preflight.mjs",
+  "scripts/render-preview.mjs",
+  "test/fixtures/contract-stability.json",
+  "test/fixtures/gate-coverage.json",
+  "docs/kb/zz-injected-claim.md",
+  "docs/zz-injected-link.md",
+  "docs/zz-injected-tool.md",
+  "test/zz-injected-tmp.test.mjs"
+]
+
+/** 启动时拍快照（原始内容 + 注入后的内容由各用例负责更新）。 */
+function snapshot() {
+  const files = {}
+  for (const rel of WATCHED) {
+    const abs = join(root, rel)
+    try {
+      files[rel] = { original: readFileSync(abs, "utf8"), injected: null, existed: true }
+    } catch {
+      files[rel] = { original: null, injected: null, existed: false }
+    }
+  }
+  return files
+}
+
+function persist(files) {
+  try {
+    mkdirSync(RECOVER_DIR, { recursive: true })
+    writeFileSync(RECOVER_MANIFEST, JSON.stringify({ at: new Date().toISOString(), files }, null, 2))
+  } catch { /* 落盘失败不该阻断门禁 */ }
+}
+
+/** 还原所有「被改过」的文件：内容对得上快照才写回，对不上就报错。 */
+function restoreAll(files, { force = false } = {}) {
+  const conflicted = []
+  let restored = 0
+  for (const [rel, entry] of Object.entries(files || {})) {
+    const abs = join(root, rel)
+    if (!entry.existed) {
+      // 本来是临时文件：删掉
+      try { if (existsSync(abs)) { rmSync(abs); restored += 1 } } catch { /* 尽力而为 */ }
+      continue
+    }
+    let current = null
+    try { current = readFileSync(abs, "utf8") } catch { current = null }
+    if (current === entry.original) continue
+    // 内容变了：是「我们注入的」还是「别人改的」？分不清就不覆盖（除非 force）
+    if (!force && entry.injected !== null && current !== entry.injected) { conflicted.push(rel); continue }
+    try { writeFileSync(abs, entry.original); restored += 1 } catch { /* 尽力而为 */ }
+  }
+  try { rmSync(RECOVER_DIR, { recursive: true, force: true }) } catch { /* 下次再清 */ }
+  if (conflicted.length > 0) {
+    console.error("FAIL 上一次门禁被强杀，但这些文件在那之后**又被改过**（不敢覆盖）：")
+    for (const rel of conflicted) console.error("  " + rel)
+    console.error("  确认要还原请设 SUPERAGENT_GATE_FORCE_RECOVER=1 重跑")
+    process.exit(1)
+  }
+  return restored
+}
+
+// 上次被强杀的残留先还原
+if (existsSync(RECOVER_MANIFEST)) {
+  try {
+    const prev = JSON.parse(readFileSync(RECOVER_MANIFEST, "utf8"))
+    const n = restoreAll(prev.files, { force: process.env.SUPERAGENT_GATE_FORCE_RECOVER === "1" })
+    if (n > 0) console.log("（上一次门禁被强杀，已还原 " + n + " 个文件）")
+  } catch (error) {
+    if (error && error.code === "ENOENT") { /* 没有残留 */ } else if (String(error && error.message).includes("不敢覆盖")) { throw error }
+  }
+}
+
+const GATE_SNAPSHOT = snapshot()
+persist(GATE_SNAPSHOT)
+process.on("exit", () => { try { restoreAll(GATE_SNAPSHOT, { force: true }) } catch { /* 尽力而为 */ } })
+
 const results = []
 const record = (name, detected, detail) => {
   results.push({ name, detected, detail })

@@ -49,7 +49,14 @@ const readOwner = (lockPath = LOCK) => {
 export function acquireGate(name = 'mutate', { timeoutMs = 240000, maxAgeMs = 5 * 60 * 1000, quiet = false, lockPath = LOCK } = {}) {
   // 可重入：门禁跑器自己会调用别的门禁脚本（如 audit-pack），子进程再抢同一把锁就是死锁。
   // 真机事故（2026-11-05）：父子互相等，两个进程挂了两分钟才被 timeout 杀掉。
-  if (process.env.DSH_GATE_LOCK_HELD === name) return () => {}
+  //
+  // 审核 T18：重入判据以前是「固定名字的环境变量」—— 只要有人 export DSH_GATE_LOCK_HELD=mutate，
+  // 锁就**静默失效**（连目录都不建）。改成一次性 token：必须与盘上 owner.json 里的 token 一致才算重入。
+  const inheritedToken = String(process.env.DSH_GATE_LOCK_TOKEN || '')
+  if (inheritedToken) {
+    const owner = readOwner(lockPath)
+    if (owner && owner.token === inheritedToken) return () => {}
+  }
   // maxAgeMs 只有 5 分钟：正经跑一遍门禁 <60 秒。pid 会被复用，光靠「进程还活着」判断不够 ——
   // 2026-11-05 真机：一次被 timeout 杀掉的门禁留下锁，下一个门禁对着一个复用了 pid 的进程白等 180 秒。
   const started = Date.now()
@@ -57,13 +64,14 @@ export function acquireGate(name = 'mutate', { timeoutMs = 240000, maxAgeMs = 5 
   for (;;) {
     try {
       mkdirSync(lockPath)
-      process.env.DSH_GATE_LOCK_HELD = name
+      const token = String(process.pid) + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8)
+      process.env.DSH_GATE_LOCK_TOKEN = token
       writeFileSync(join(lockPath, 'owner.json'), JSON.stringify({
-        name, pid: process.pid, at: new Date().toISOString(), cwd: process.cwd(),
+        name, pid: process.pid, at: new Date().toISOString(), cwd: process.cwd(), token,
       }, null, 2))
       if (waited && !quiet) console.log('（等到锁了：另一个门禁先跑完了）')
       return () => {
-        if (process.env.DSH_GATE_LOCK_HELD === name) delete process.env.DSH_GATE_LOCK_HELD
+        if (process.env.DSH_GATE_LOCK_TOKEN === token) delete process.env.DSH_GATE_LOCK_TOKEN
         // 只删自己的锁：一个被挂起的旧进程醒来时，锁可能已经归别人了 ——
         // 无条件 rmSync 会把新持有者的锁拆掉（审核 W5）。
         const owner = readOwner(lockPath)

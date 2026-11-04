@@ -57,3 +57,19 @@ test('释放时只删自己的锁（旧进程醒来不许拆新持有者的锁�
   assert.ok(existsSync(lockPath), '不是自己的锁，不能删')
   rmSync(lockPath, { recursive: true, force: true })
 })
+
+test('重入判据是 token，不是「固定名字的环境变量」（T18：export 一下就静默失效）', async () => {
+  const { acquireGate } = await import('../scripts/gate-lock.mjs')
+  // 假 token：不该被当成重入
+  process.env.DSH_GATE_LOCK_TOKEN = 'forged-token-not-ours'
+  try {
+    // 真拿锁（会建目录），说明假 token 没有绕过
+    const tmpLock = tempDir('gate-lock-token-')
+    const lockPath = join(tmpLock, 'lock')
+    const release = acquireGate('test-forged', { timeoutMs: 2000, quiet: true, lockPath })
+    assert.ok(process.env.DSH_GATE_LOCK_TOKEN !== 'forged-token-not-ours', '不该沿用伪造的 token')
+    release()
+  } finally {
+    delete process.env.DSH_GATE_LOCK_TOKEN
+  }
+})
