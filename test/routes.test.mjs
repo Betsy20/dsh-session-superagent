@@ -1340,3 +1340,33 @@ test('跨站写操作必须 403（T19：任意网页 text/plain 简单请求就�
   const none = await post('/session-superagent/watch', { action: 'delete', id: 'x#y' })
   assert.notEqual(none.statusCode, 403, '非浏览器客户端不该被挡')
 })
+
+test('守数量有上限（T19：100 次 POST 就是 100 条守，每条一个定时器）', async () => {
+  // 直接把状态文件写成「已经 20 条」，再建第 21 条
+  const stateFile = join(STATE_DIR, 'watchers.json')
+  const original = readFileSync(stateFile, 'utf8')
+  try {
+    const watchers = {}
+    for (let i = 0; i < 20; i += 1) {
+      watchers['o/r' + i + '#s1'] = { id: 'o/r' + i + '#s1', repo: 'o/r' + i, sessionId: 's1', intervalSec: 60, enabled: true, seen: {}, lastReported: {} }
+    }
+    writeFileSync(stateFile, JSON.stringify({ watchers }, null, 2))
+    const res = await call('POST', '/session-superagent/watch', { repo: 'o/new', sessionId: 's1' })
+    assert.equal(res.statusCode, 429, '第 21 条必须被拒')
+    assert.match(String(res.json().error || ''), /最多挂/)
+  } finally {
+    writeFileSync(stateFile, original)
+  }
+})
+
+test('sessionId 超长要拒绝（T19：它进 id、进状态文件、进唤醒消息）', async () => {
+  const res = await call('POST', '/session-superagent/watch', { repo: 'o/r', sessionId: 'x'.repeat(201) })
+  assert.equal(res.statusCode, 400)
+  assert.match(String(res.json().error || ''), /too long/)
+})
+
+test('Gitee 令牌形状不对要拒绝（别把垃圾存成凭证）', async () => {
+  const res = await call('POST', '/session-superagent/credentials', { giteeToken: 'not-a-token' })
+  assert.equal(res.statusCode, 400)
+  assert.match(String(res.json().error || ''), /32 位十六进制/)
+})
