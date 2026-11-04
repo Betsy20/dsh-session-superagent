@@ -26,17 +26,18 @@
 | 资产 | 数量 |
 |---|---:|
 | `node --test` | 267 例全过 |
-| `scripts/preflight.mjs` | 36 项全 PASS（`--fast` 35 项） |
+| `scripts/preflight.mjs` | 37 项全 PASS（`--fast` 36 项） |
 | `scripts/ui-audit.mjs` | 11/11，100 分（写死颜色 0 / 自造 token 0） |
-| `docs/kb` | 176 篇 / 9 板块（`check-docs` 四项 PASS） |
+| `docs/kb` | 177 篇 / 9 板块（`check-docs` 五项 PASS，含总数校验） |
 | `scripts/` | 52 个门禁与工装脚本 |
-| GitHub Release | 33 个（v0.9.136–v0.9.168 已补，其余待按批次回填） |
+| GitHub Release | 34 个（v0.9.136–v0.9.169 已补，其余待按批次回填） |
+| CI / 分支保护 | `ci`（Node 22/24）在 PR 与 main 上跑；main 已开 required check，禁强推禁删 |
 
 已验证（本轮实测）：
 
-- `node --test` → 267/267；preflight 全量 36/36；ui-audit 11/11 = 100；`check-docs` 四项 PASS；
-- `sync-profile --check` → 缺失 0 / 断链 0 / 陈旧 0；安装副本 `package.json` = 0.9.168；
-- `npm publish` → `+ dsh-session-superagent@0.9.168`；`git push` → `4a0e370`；
+- `node --test` → 267/267；preflight 全量 37/37；ui-audit 11/11 = 100；`check-docs` 五项 PASS；
+- `sync-profile --check` → 缺失 0 / 断链 0 / 陈旧 0；安装副本 `package.json` = 0.9.169；
+- `npm publish` → `+ dsh-session-superagent@0.9.169`；`git push` → 见 `git log --oneline -1`；
 - 外部 PR：#2 / #3 / #5 / #6 已处理（#2 #3 → 0.9.167，#6 → 0.9.168，#5 按重复关闭）；
   #7（`ghConfigDir`）留在 open 等作者按三条意见改完。
 
@@ -65,6 +66,8 @@
 5. **发布三处必须一致**：`package.json` / `lib/index.js` / `client.js` / README 徽章 / CHANGELOG
    （`test/meta.test.mjs` 会拦），外加 **tag 与 Release 标题只写版本号**。
 6. **不代改他人 PR**：给意见让对方改，改完我复核合入。
+7. **标准写在文档里不算数**：新加的检查必须接进 `preflight` 或 CI，否则就是「标准悬空」
+   （写好了没人调用 = 没写）。见 [docs/维护标准.md](./docs/维护标准.md)。
 
 ## 五、给接手者的最短路径
 

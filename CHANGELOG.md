@@ -2,6 +2,37 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.170] - 2026-11-04 —— 建立本仓库的维护标准（对照成熟开源项目的 55 条基准）
+
+### 为什么
+另一个会话把「成熟开源仓库的维护标准」调研做完了（55 条 / 十道分水岭 / 三处「标准悬空」）。
+本仓库对照下来，**不是缺文件，是几处标准悬在半空**：
+
+| 悬空形态 | 本仓库原状 | 现在 |
+|---|---|---|
+| 脚本写好了没人跑 | `ci.yml` 只跑 `preflight --fast`，ui-audit / check-docs / check-maintenance 从不执行 | CI 三步补齐 |
+| 权限过度 | `ci.yml` 没有 `permissions:`（默认可能 write） | `contents: read` |
+| 依赖更新无制度 | 无 dependabot（`actions/checkout@v4` 已落后） | `.github/dependabot.yml`（actions 周更） |
+| 漏洞没有私密入口 | 无 `SECURITY.md` | 新增（含本插件的安全模型与已知边界） |
+| 协作面为零 | 无 issue / PR 模板 | 三个 issue 表单 + PR 模板（bug 表单强制填版本/宿主/**是否重启**） |
+| 分支保护 | **无**（`Branch not protected`） | 开 required check（`test (22)` / `test (24)`）+ 禁强推禁删；`enforce_admins=false` 是写明的取舍 |
+| 标准没有文档 | — | [docs/维护标准.md](docs/维护标准.md)：七条底线 + 20 项必备对照 + 十道分水岭 + **故意不做**的清单 |
+
+### 落地物
+- `.github/workflows/ci.yml`（权限最小化 + concurrency 取消旧跑 + fetch-depth 0 + 三步检查）
+- `.github/ISSUE_TEMPLATE/{bug_report,feature_request,config}.yml`、`.github/PULL_REQUEST_TEMPLATE.md`
+- `.github/dependabot.yml`、`SECURITY.md`、`docs/维护标准.md`
+- 知识库第 178 条：[标准悬空：写好了没人调用 = 没写](docs/kb/standards-suspended-in-air.md)
+
+### 证据
+```
+node --test → 267/267
+preflight 全量 → 37/37
+check-docs → 五项 PASS（178 篇）
+check-maintenance → 6 项通过
+gh api …/branches/main/protection → required_status_checks: ["test (22)","test (24)"], allow_force_pushes: false
+```
+
 ## [0.9.169] - 2026-11-04 —— 发布通道补齐 + 维护标准本地化（取自 magpie 脚手架）
 
 ### 你指出的两件事

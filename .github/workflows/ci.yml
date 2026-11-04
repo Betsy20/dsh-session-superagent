@@ -5,6 +5,15 @@ on:
     branches: [main]
   pull_request:
 
+# 顶层只读：job 需要写权限时再单独提权（默认权限可能是 write，这是最常见的过度授权）
+permissions:
+  contents: read
+
+# 同一分支的旧运行直接取消：省 runner，也避免"旧结果盖新结果"
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -12,9 +21,24 @@ jobs:
       matrix:
         node: [22, 24]
     steps:
+      # fetch-depth: 0 —— check-maintenance 要读 tag，浅克隆会看不到
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-      - name: preflight (tests / syntax / routes / package contents)
+
+      - name: 门禁（单测 / 语法 / 路由 / 打包内容 / 文案 / 术语 / UI / 维护一致性）
         run: node scripts/preflight.mjs --fast
+
+      - name: UI 体检（写死颜色 / 可访问性 / 官方结构）
+        run: node scripts/ui-audit.mjs
+
+      - name: 文档契约（链接 / 索引总数 / 阅读路径）
+        run: node scripts/check-docs.mjs
+
+      # 只在 main 上查：PR 分支的版本号还没打 tag，这条必然红
+      - name: 维护一致性（版本 / tag / CHANGELOG / 徽章）
+        if: github.event_name == 'push'
+        run: node scripts/check-maintenance.mjs

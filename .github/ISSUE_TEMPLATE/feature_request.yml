@@ -1,0 +1,20 @@
+name: 功能建议
+description: 希望这个插件还能做什么
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 你现在卡在哪
+      description: 说场景，不要先说方案 —— 同一个场景往往有更简单的做法
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: 你想到的做法（可选）
+  - type: textarea
+    id: workaround
+    attributes:
+      label: 现在怎么绕过去的（可选）
+      description: 有临时方案的话，说明这个问题有多疼

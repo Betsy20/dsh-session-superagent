@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 安装 / 升级 / 发布流程
+    url: https://github.com/MYCF711/dsh-session-superagent/blob/main/UPDATING.md
+    about: 装不上、升级后没变化、发版流程
+  - name: 维护台账（当前状态与已知问题）
+    url: https://github.com/MYCF711/dsh-session-superagent/blob/main/MAINTENANCE.md
+    about: 先看这里，避免重复提问

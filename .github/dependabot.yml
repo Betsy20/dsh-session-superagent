@@ -1,0 +1,13 @@
+# 只管 GitHub Actions：本项目零运行时依赖（dependencies / devDependencies 都是空的），
+# 但 action 的版本会悄悄落后（actions/checkout@v4 已经到 v7 了，没人会主动告诉你）。
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+    groups:
+      actions:
+        patterns: ['*']

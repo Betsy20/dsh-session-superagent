@@ -1,0 +1,51 @@
+name: Bug 报告
+description: 面板显示不对、轮询失败、唤醒不生效
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        先跑这两条，把输出贴上来 —— 八成的「不生效」是**没重启宿主**或**凭证过期**：
+
+        ```bash
+        node scripts/check-maintenance.mjs
+        watch_doctor      # 在会话里调用这个工具
+        ```
+  - type: textarea
+    id: what
+    attributes:
+      label: 你看到的现象
+      description: 界面上具体显示什么（有截图最好），以及你期望它显示什么
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 插件版本
+      description: 面板顶部或 package.json 里的版本号（例如 0.9.169）
+    validations:
+      required: true
+  - type: input
+    id: host
+    attributes:
+      label: 宿主版本与系统
+      description: 例如 DSH 0.2.1-rc.5 / Windows 11 / Node 24
+    validations:
+      required: true
+  - type: dropdown
+    id: restarted
+    attributes:
+      label: 改动后重启过宿主吗
+      description: 服务端（lib/）的改动必须重启才生效
+      options:
+        - 已重启
+        - 没重启
+        - 不知道要重启
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 相关输出
+      description: `watch_status` / `watch_doctor` 的输出，或面板上的错误原文
+      render: text
