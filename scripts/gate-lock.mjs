@@ -34,9 +34,9 @@ const alive = (pid) => {
   }
 }
 
-const readOwner = () => {
+const readOwner = (lockPath = LOCK) => {
   try {
-    return JSON.parse(readFileSync(join(LOCK, 'owner.json'), 'utf8'))
+    return JSON.parse(readFileSync(join(lockPath, 'owner.json'), 'utf8'))
   } catch {
     return null
   }
@@ -46,7 +46,7 @@ const readOwner = () => {
  * 拿锁。拿不到就等（默认最多等 120 秒），超时抛错（调用方会红，这是对的：
  * 说明另一个门禁跑了超过两分钟，需要人看一眼）。
  */
-export function acquireGate(name = 'mutate', { timeoutMs = 240000, maxAgeMs = 5 * 60 * 1000, quiet = false } = {}) {
+export function acquireGate(name = 'mutate', { timeoutMs = 240000, maxAgeMs = 5 * 60 * 1000, quiet = false, lockPath = LOCK } = {}) {
   // 可重入：门禁跑器自己会调用别的门禁脚本（如 audit-pack），子进程再抢同一把锁就是死锁。
   // 真机事故（2026-11-05）：父子互相等，两个进程挂了两分钟才被 timeout 杀掉。
   if (process.env.DSH_GATE_LOCK_HELD === name) return () => {}
@@ -56,24 +56,24 @@ export function acquireGate(name = 'mutate', { timeoutMs = 240000, maxAgeMs = 5 
   let waited = false
   for (;;) {
     try {
-      mkdirSync(LOCK)
+      mkdirSync(lockPath)
       process.env.DSH_GATE_LOCK_HELD = name
-      writeFileSync(join(LOCK, 'owner.json'), JSON.stringify({
+      writeFileSync(join(lockPath, 'owner.json'), JSON.stringify({
         name, pid: process.pid, at: new Date().toISOString(), cwd: process.cwd(),
       }, null, 2))
       if (waited && !quiet) console.log('（等到锁了：另一个门禁先跑完了）')
       return () => {
         if (process.env.DSH_GATE_LOCK_HELD === name) delete process.env.DSH_GATE_LOCK_HELD
-        try { rmSync(LOCK, { recursive: true, force: true }) } catch { /* 尽力而为 */ }
+        try { rmSync(lockPath, { recursive: true, force: true }) } catch { /* 尽力而为 */ }
       }
     } catch (error) {
       if (!error || error.code !== 'EEXIST') throw error
-      const owner = readOwner()
+      const owner = readOwner(lockPath)
       const age = owner && owner.at ? Date.now() - Date.parse(owner.at) : 0
       // 陈旧锁：持有者已死，或占得太久（pid 复用 / 挂起）
       if ((owner && !alive(Number(owner.pid))) || (Number.isFinite(age) && age > maxAgeMs)) {
         if (!quiet) console.log('清理陈旧锁：' + JSON.stringify(owner))
-        try { rmSync(LOCK, { recursive: true, force: true }) } catch { /* 下一轮再试 */ }
+        try { rmSync(lockPath, { recursive: true, force: true }) } catch { /* 下一轮再试 */ }
         continue
       }
       if (Date.now() - started > timeoutMs) {

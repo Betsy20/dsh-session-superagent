@@ -12,13 +12,8 @@ import { acquireGate } from './gate-lock.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
-// npm 把 notice 写到 stderr，所以两路都要收（之前只读 stdout 拿到 undefined）
-const res = process.platform === 'win32'
-  ? spawnSync('cmd.exe', ['/c', 'npm', 'pack', '--dry-run'], { cwd: ROOT, encoding: 'utf8' })
-  : spawnSync('npm', ['pack', '--dry-run'], { cwd: ROOT, encoding: 'utf8' })
-const out = String(res.stdout || '') + String(res.stderr || '')
-
-// 拿锁再跑 npm pack：别人正在改 package.json 时，读到的会是半成品
+// **先拿锁再跑 npm pack**：反过来的话，别人正在改 package.json 时读到的是半成品，
+// 锁等再久也不会重跑 —— 于是假红（文件早还原了，检查还报缺文件）。审核 M1 实测过。
 let releaseGate = () => {}
 try {
   releaseGate = acquireGate('mutate', { timeoutMs: 180000 })
@@ -31,6 +26,11 @@ try {
   throw error
 }
 process.on('exit', () => { try { releaseGate() } catch { /* 尽力而为 */ } })
+
+const res = process.platform === 'win32'
+  ? spawnSync('cmd.exe', ['/c', 'npm', 'pack', '--dry-run'], { cwd: ROOT, encoding: 'utf8' })
+  : spawnSync('npm', ['pack', '--dry-run'], { cwd: ROOT, encoding: 'utf8' })
+const out = String(res.stdout || '') + String(res.stderr || '')
 const files = (out.match(/total files:\s+(\d+)/) || [])[1]
 // 之前写成固定字符串 'npm notice test/'，而实际每行是 `npm notice 2.7kB test/x.mjs`
 // —— 尺寸前缀一插进来，这条检查就永远匹配不到（等于没检查）。

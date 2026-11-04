@@ -2,6 +2,44 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.187] - 2026-11-05 —— 审核专员挖出 5 条必须修（含我自己写的两处假保护）
+
+### 来源
+T10 严格审核专员把最近 6 个提交逐行审了一遍：**5 条必须修 + 7 条值得改 + 4 条查过没问题**。
+其中两条是**我上一轮自己写的「保护」其实一点没保护**。
+
+### M1 · `audit-pack` 的锁在 `npm pack` 跑完之后才拿
+注释写着「拿锁再跑 npm pack」，但 `spawnSync` 在第 16 行就执行完了。它守不住那次读取 ——
+别人正在改 `package.json` 时读到半成品，锁等再久也不会重跑 ⇒ **假红**。已把拿锁提到 `spawnSync` 之前。
+复现（临时目录 + 持锁改坏 6 秒）：改前 `FAIL 11 个文件（缺 lib/gitee.js）`，改后 `PASS 12 个文件`。
+
+### M2 · Windows 上 SIGTERM 安全网根本不触发
+`spawnSync` 的超时是 `TerminateProcess`：SIGTERM 处理器和 `exit` 钩子**都不跑**（审核实测：三个标记文件一个都没写）。
+已加**落盘恢复**：开工把快照写进 `.gate-recover/manifest.json`，下次启动先还原再跑。
+
+### M3 · 0.9.184 之前建的 Gitee 守，ack 标签**永远**建不出来
+`entry.ackLabel || defaultAckLabel(provider)` 短路掉了新默认值；而老守存的是「主理鱼:已处理」，
+半角冒号非法 ⇒ `ensureGiteeLabel` 在校验阶段就 return，**一个请求都不发**。已加读取时归一（`normalizeAckLabel`）。
+
+### M4 · 单测删的是**生产锁**
+`test/gate-lock.test.mjs` 无条件 `rmSync` 仓库根的 `.gate-lock` —— 而 `preflight` 第一项就是 `node --test`，
+并行跑两次就等于「第二次拆掉第一次的锁」。已改成每条用例传临时目录，并加一条回归用例守住这条。
+
+### M5 · doctor 的文案和实现自相矛盾
+`watch_doctor` 还写着「Gitee 不会自动建标签」，而同一提交里 `watch_ack` 已经在自动建了。已统一。
+
+### 顺带
+- `watch_trace` 的 `number` 仍是 `type: 'number'`（`"IKSQJH"` 会被宿主拒）→ 改成 `['number','string']`；
+- 暂停态三条 UI（T9 子代理）：暂停原因加粗警告色、同一句不再出现两次、停用态「全部暂停」置灰并说明原因。
+
+### 证据
+```
+node --test → 304/304
+ui-audit → 11/11（100）
+preflight 全量 → 37/37
+审核报告：docs/报告-最近提交审核.md（5 必须修 / 7 值得改 / 4 确认没问题）
+```
+
 ## [0.9.186] - 2026-11-05 —— 空态/错误态/暂停态首次出图，四条真缺陷
 
 ### 来源

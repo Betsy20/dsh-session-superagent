@@ -218,3 +218,15 @@ test('Gitee 标签名规则：半角冒号非法（默认 ack 标签要换连字
   assert.equal(suggestGiteeLabel('主理鱼:已处理'), '主理鱼-已处理', '冒号换成连字符')
   assert.equal(DEFAULT_ACK_LABEL_GITEE, '主理鱼-已处理', 'Gitee 的默认 ack 标签必须是合法的')
 })
+
+test('doctor 用的标签列表与判定：存在/不存在/大小写', async () => {
+  const { giteeLabels, giteeHasLabel } = giteeModule
+  const f = async (url) => ({ ok: true, status: 200, text: async () => JSON.stringify([{ name: '主理鱼-已处理' }, { name: 'bug' }]) })
+  const res = await giteeLabels({ repo: 'o/r', token: 't', fetchImpl: f })
+  assert.equal(res.ok, true)
+  assert.equal(giteeHasLabel(res.data, '主理鱼-已处理'), true)
+  assert.equal(giteeHasLabel(res.data, 'bug'), true)
+  assert.equal(giteeHasLabel(res.data, '主理鱼:已处理'), false, 'Gitee 区分大小写/标点，逐字比')
+  assert.equal(giteeHasLabel(null, 'bug'), false, '拿不到列表时不能崩')
+  assert.equal(giteeHasLabel(res.data, ''), false)
+})
