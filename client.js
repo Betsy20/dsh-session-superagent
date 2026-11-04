@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.202'
+    const CLIENT_VERSION = '0.9.203'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -985,6 +985,15 @@ window.__ModuleLoader__.load({
       const [toastView, notify] = useToast()
       const [editing, setEditing] = useState(null)
       const [draft, setDraft] = useState({})
+      // 审核 M2：记下「这次编辑真的改过哪些字段」—— 保存时只发改过的，
+      // 否则全量 PUT 会把别处刚改的值按打开那一刻的旧快照写回（lost update）。
+      const touchedRef = useRef(new Set())
+      const setField = (next) => {
+        for (const key of Object.keys(next)) {
+          if (next[key] !== draft[key]) touchedRef.current.add(key)
+        }
+        setDraft(next)
+      }
       const [search, setSearch] = useState('')
       const [glossary, setGlossary] = useState(false)
       // 版本检查结果（只读）：面板里直接告诉客户「有没有新版本、该跑什么命令」
@@ -1075,32 +1084,41 @@ window.__ModuleLoader__.load({
       const saveEdit = (watcher) => run(async () => {
         await call('/watch', {
           method: 'POST',
-          body: JSON.stringify({
-            repo: watcher.repo,
-            sessionId: watcher.sessionId,
-            intervalSec: Number(draft.intervalSec) || watcher.intervalSec,
-            filters: {
-              labels: String(draft.labels || '').split(',').map((v) => v.trim()).filter(Boolean),
-              onlyAssigned: !!draft.onlyAssigned,
-            },
-            activeHours: draft.activeHours || '',
-            goal: draft.goal || '',
-            isolated: !!draft.isolated,
-            workdir: draft.workdir || '',
-            observe: !!draft.observe,
-            isolateKeepDays: Number(draft.isolateKeepDays) || undefined,
-            maxIsolated: Number(draft.maxIsolated) || undefined,
-            priority: {
-              reopened: draft.priorityReopened !== false,
-              comments: draft.priorityComments !== false,
-              labels: draft.priorityLabels !== false,
-              unassigned: draft.priorityUnassigned === true,
-              stale: draft.priorityStale === true,
-            },
-            batchLimit: Number(draft.batchLimit) || undefined,
-            maxWakesPerHour: Number(draft.maxWakesPerHour) || undefined,
-            sessionMaxWakes: Number(draft.sessionMaxWakes) || undefined,
-          }),
+          // 审核 M2：只发**真的改过**的字段（打开编辑器后没动过的键一律不发，服务端保持原值）。
+          // 以前是全量 PUT：别处刚改的 intervalSec / goal 会被打开那一刻的旧快照静默覆盖。
+          body: JSON.stringify((() => {
+            const full = {          
+              repo: watcher.repo,
+              sessionId: watcher.sessionId,
+              intervalSec: Number(draft.intervalSec) || watcher.intervalSec,
+              filters: {
+                labels: String(draft.labels || '').split(',').map((v) => v.trim()).filter(Boolean),
+                onlyAssigned: !!draft.onlyAssigned,
+              },
+              activeHours: draft.activeHours || '',
+              goal: draft.goal || '',
+              isolated: !!draft.isolated,
+              workdir: draft.workdir || '',
+              observe: !!draft.observe,
+              isolateKeepDays: Number(draft.isolateKeepDays) || undefined,
+              maxIsolated: Number(draft.maxIsolated) || undefined,
+              priority: {
+                reopened: draft.priorityReopened !== false,
+                comments: draft.priorityComments !== false,
+                labels: draft.priorityLabels !== false,
+                unassigned: draft.priorityUnassigned === true,
+                stale: draft.priorityStale === true,
+              },
+              batchLimit: Number(draft.batchLimit) || undefined,
+              maxWakesPerHour: Number(draft.maxWakesPerHour) || undefined,
+              sessionMaxWakes: Number(draft.sessionMaxWakes) || undefined,
+            }
+            const out = { repo: full.repo, sessionId: full.sessionId }
+            for (const key of touchedRef.current) {
+              if (Object.prototype.hasOwnProperty.call(full, key)) out[key] = full[key]
+            }
+            return out
+          })()),
         })
         setEditing(null)
       }, '已保存：' + watcher.repo)
@@ -1210,6 +1228,7 @@ window.__ModuleLoader__.load({
               type: 'button', className: 'dt-open', title: '展开或收起这条主理鱼的设置',
               'aria-expanded': editing === key, onClick: () => {
                 setEditing(editing === key ? null : key)
+                touchedRef.current = new Set()
                 setDraft({
                   intervalSec: String(watcher.intervalSec ?? 60),
                   labels: (watcher.filters && watcher.filters.labels ? watcher.filters.labels : []).join(','),
@@ -1317,25 +1336,25 @@ window.__ModuleLoader__.load({
             })))
         const editor = editing === key
           ? h('div', { className: 'dt-fieldset' },
-            field('间隔（秒）', h(Input, { value: draft.intervalSec, onChange: (e) => setDraft({ ...draft, intervalSec: e.target.value }) }), '多长时间检查一次这个仓库，最小 30 秒'),
-            field('只处理这些标签', h(Input, { value: draft.labels, placeholder: '逗号分隔，留空 = 全部', onChange: (e) => setDraft({ ...draft, labels: e.target.value }) })),
-            field('活跃时段', h(HoursField, { value: draft.activeHours, onChange: (next) => setDraft({ ...draft, activeHours: next }) }), '只在这个时间段内唤醒；窗口外只攒条目，不打扰'),
-            field('目标/规则', h(Input, { value: draft.goal || '', placeholder: '可选，会附在唤醒消息里', onChange: (e) => setDraft({ ...draft, goal: e.target.value }) })),
-            h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.onlyAssigned, onChange: (v) => setDraft({ ...draft, onlyAssigned: v }), label: '只看已指派' }), '只处理已指派给人的条目'),
-            field('单次最多唤醒条数', h(Input, { value: draft.batchLimit || '', placeholder: '5（1-20）', onChange: (e) => setDraft({ ...draft, batchLimit: e.target.value }) })),
-            field('每小时最多唤醒次数', h(Input, { value: draft.maxWakesPerHour || '', placeholder: '6（1-60）', onChange: (e) => setDraft({ ...draft, maxWakesPerHour: e.target.value }) })),
-            field('这条会话每小时最多被唤醒', h(Input, { value: draft.sessionMaxWakes || '', placeholder: String(DEFAULTS.sessionMaxWakes || 12) + '（1-60）', onChange: (e) => setDraft({ ...draft, sessionMaxWakes: e.target.value }) }), '跨所有守累计：守 5 个仓库时，光有单守上限挡不住叠加'),
+            field('间隔（秒）', h(Input, { value: draft.intervalSec, onChange: (e) => setField({ ...draft, intervalSec: e.target.value }) }), '多长时间检查一次这个仓库，最小 30 秒'),
+            field('只处理这些标签', h(Input, { value: draft.labels, placeholder: '逗号分隔，留空 = 全部', onChange: (e) => setField({ ...draft, labels: e.target.value }) })),
+            field('活跃时段', h(HoursField, { value: draft.activeHours, onChange: (next) => setField({ ...draft, activeHours: next }) }), '只在这个时间段内唤醒；窗口外只攒条目，不打扰'),
+            field('目标/规则', h(Input, { value: draft.goal || '', placeholder: '可选，会附在唤醒消息里', onChange: (e) => setField({ ...draft, goal: e.target.value }) })),
+            h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.onlyAssigned, onChange: (v) => setField({ ...draft, onlyAssigned: v }), label: '只看已指派' }), '只处理已指派给人的条目'),
+            field('单次最多唤醒条数', h(Input, { value: draft.batchLimit || '', placeholder: '5（1-20）', onChange: (e) => setField({ ...draft, batchLimit: e.target.value }) })),
+            field('每小时最多唤醒次数', h(Input, { value: draft.maxWakesPerHour || '', placeholder: '6（1-60）', onChange: (e) => setField({ ...draft, maxWakesPerHour: e.target.value }) })),
+            field('这条会话每小时最多被唤醒', h(Input, { value: draft.sessionMaxWakes || '', placeholder: String(DEFAULTS.sessionMaxWakes || 12) + '（1-60）', onChange: (e) => setField({ ...draft, sessionMaxWakes: e.target.value }) }), '跨所有守累计：守 5 个仓库时，光有单守上限挡不住叠加'),
             field('优先级（在「单次最多唤醒条数」内先挑谁）', h('div', { className: 'dt-actions' },
-              h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: draft.priorityReopened !== false, onChange: (v) => setDraft({ ...draft, priorityReopened: v }), label: '重开优先' }), '被重开的排最前'),
-              h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: draft.priorityComments !== false, onChange: (v) => setDraft({ ...draft, priorityComments: v }), label: '评论优先' }), '有人在等回应的靠前'),
-              h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: draft.priorityLabels !== false, onChange: (v) => setDraft({ ...draft, priorityLabels: v }), label: '标签优先' }), '带标签的靠前'),
-              h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: draft.priorityUnassigned === true, onChange: (v) => setDraft({ ...draft, priorityUnassigned: v }), label: '未认领优先' }), '没人认领的靠前（默认关：这是我们的判断，不是规则）'),
-              h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: draft.priorityStale === true, onChange: (v) => setDraft({ ...draft, priorityStale: v }), label: '积压优先' }), '躺了 30 天以上的靠前（默认关，只展示）')), '全部关掉时按 GitHub 的「最近更新」顺序处理'),
-            h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.observe, onChange: (v) => setDraft({ ...draft, observe: v }), label: '仅观察' }), '仅观察（只记录不唤醒）'),
-            h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.isolated, onChange: (v) => setDraft({ ...draft, isolated: v }), label: '隔离执行' }), ISOLATED_HINT),
-            draft.isolated ? field('隔离工作目录', h(Input, { value: draft.workdir || '', placeholder: '绝对路径，留空 = 当前工作目录', onChange: (e) => setDraft({ ...draft, workdir: e.target.value }) })) : null,
-            draft.isolated ? field('隔离区保留天数', h(Input, { value: draft.isolateKeepDays || '', placeholder: String(DEFAULTS.isolateKeepDays || 3) + '（1-30）', onChange: (e) => setDraft({ ...draft, isolateKeepDays: e.target.value }) }), '每次唤醒前回收这个天数之前的一次性工作区；留空用默认 ' + (DEFAULTS.isolateKeepDays || 3) + ' 天') : null,
-            draft.isolated ? field('最多保留几个隔离区', h(Input, { value: draft.maxIsolated || '', placeholder: '5（1-50）', onChange: (e) => setDraft({ ...draft, maxIsolated: e.target.value }) }), '天数之外的第二道线：超出就回收最旧的（不影响正在用的那个）') : null,
+              h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: draft.priorityReopened !== false, onChange: (v) => setField({ ...draft, priorityReopened: v }), label: '重开优先' }), '被重开的排最前'),
+              h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: draft.priorityComments !== false, onChange: (v) => setField({ ...draft, priorityComments: v }), label: '评论优先' }), '有人在等回应的靠前'),
+              h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: draft.priorityLabels !== false, onChange: (v) => setField({ ...draft, priorityLabels: v }), label: '标签优先' }), '带标签的靠前'),
+              h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: draft.priorityUnassigned === true, onChange: (v) => setField({ ...draft, priorityUnassigned: v }), label: '未认领优先' }), '没人认领的靠前（默认关：这是我们的判断，不是规则）'),
+              h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: draft.priorityStale === true, onChange: (v) => setField({ ...draft, priorityStale: v }), label: '积压优先' }), '躺了 30 天以上的靠前（默认关，只展示）')), '全部关掉时按 GitHub 的「最近更新」顺序处理'),
+            h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.observe, onChange: (v) => setField({ ...draft, observe: v }), label: '仅观察' }), '仅观察（只记录不唤醒）'),
+            h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.isolated, onChange: (v) => setField({ ...draft, isolated: v }), label: '隔离执行' }), ISOLATED_HINT),
+            draft.isolated ? field('隔离工作目录', h(Input, { value: draft.workdir || '', placeholder: '绝对路径，留空 = 当前工作目录', onChange: (e) => setField({ ...draft, workdir: e.target.value }) })) : null,
+            draft.isolated ? field('隔离区保留天数', h(Input, { value: draft.isolateKeepDays || '', placeholder: String(DEFAULTS.isolateKeepDays || 3) + '（1-30）', onChange: (e) => setField({ ...draft, isolateKeepDays: e.target.value }) }), '每次唤醒前回收这个天数之前的一次性工作区；留空用默认 ' + (DEFAULTS.isolateKeepDays || 3) + ' 天') : null,
+            draft.isolated ? field('最多保留几个隔离区', h(Input, { value: draft.maxIsolated || '', placeholder: '5（1-50）', onChange: (e) => setField({ ...draft, maxIsolated: e.target.value }) }), '天数之外的第二道线：超出就回收最旧的（不影响正在用的那个）') : null,
             h('div', { className: 'dt-actions' },
               h(Btn, { size: 'sm', variant: 'primary', onClick: () => saveEdit(watcher) }, '保存'),
               h(Btn, { size: 'sm', onClick: () => setEditing(null) }, '放弃')))

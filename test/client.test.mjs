@@ -1484,3 +1484,14 @@ test('首帧 304 不该把面板卡在「正在读取」：本地没有 body 时
   assert.equal(stateCalls()[2].etag, null, '重取时不能沿用那个 etag')
   assert.ok(got && Array.isArray(got.watchers) && got.watchers.length === 2, 'load 要拿到能渲染的 body')
 })
+
+test('保存编辑只发改过的字段（M2：全量 PUT 会把别处刚改的值写回旧快照）', async () => {
+  const { readFileSync } = await import('node:fs')
+  const src = readFileSync(new URL('../client.js', import.meta.url), 'utf8')
+  // 逐字段编辑必须走 setField（它会记「改过哪些键」）
+  assert.ok(src.includes('const setField = (next) => {'), '缺少 setField 包装')
+  assert.ok(src.includes('touchedRef.current.add(key)'), 'setField 没有记录改过的键')
+  // 保存时必须按 touchedRef 过滤，而不是整份发出去
+  assert.ok(src.includes('for (const key of touchedRef.current)'), '保存没有按 touchedRef 过滤')
+  assert.ok(!/body: JSON\.stringify\(\{\s*\r?\n\s*repo: watcher\.repo/.test(src), '保存体又变回全量 PUT 了')
+})
