@@ -12,6 +12,8 @@
 
 **真机取证**：对 `https://gitee.com/api/v5` 打了 20 余次**只读 GET**（`curl -sS -m 20`），把真实响应落盘到 `/tmp/*.json`，再用 `/tmp/audit-gitee.mjs` 把线上真实数据喂给仓库里的函数跑。
 
+> ⚠️ **复现提示**：审完这一轮之后，本机 IP 就被 Gitee 限流了（`HTTP 403 | 403 Forbidden (Rate Limit Exceeded)`，见 G1）。**这本身就是 G1 的活证据** —— 也意味着下面所有 `curl` 命令都需要**等限流窗口过去**再跑；跑之前先 `curl -sS -m 10 -o /dev/null -w '%{http_code}\n' https://gitee.com/api/v5/repos/oschina/git-osc` 探一下，回 `200` 才是通的。
+
 **临时文件**：`/tmp/audit-gitee.mjs`、`/tmp/{pulls,issues,repo,h,rl}.json` —— 跑完已删，`git status` 里不留痕。
 
 **测试基线**（审前审后一致）：
@@ -75,10 +77,11 @@ Gitee 的 `merged` 与 `closed` 是**互斥的两组**（`merged_at` 只对 `mer
 **怎么确认的（真跑）**：
 
 ```console
-$ curl -sS -m 20 "https://gitee.com/api/v5/repos/oschina/git-osc/pulls?state=all&sort=updated&direction=desc&per_page=30" -o /tmp/pulls.json -w "HTTP %{http_code} | %{size_download} bytes\n"
+$ cd /tmp
+$ curl -sS -m 20 "https://gitee.com/api/v5/repos/oschina/git-osc/pulls?state=all&sort=updated&direction=desc&per_page=30" -o pulls.json -w "HTTP %{http_code} | %{size_download} bytes\n"
 HTTP 200 | 134759 bytes
 
-$ node -e "const d=require('fs').readFileSync('C:/Users/Administrator/AppData/Local/Temp/pulls.json','utf8')|0,d2=JSON.parse(d);const s={};for(const p of d2)s[p.state]=(s[p.state]||0)+1;console.log(JSON.stringify(s))"
+$ node -e "const d=JSON.parse(require('fs').readFileSync('pulls.json','utf8'));const s={};for(const p of d)s[p.state]=(s[p.state]||0)+1;console.log(JSON.stringify(s))"
 {"closed":8,"merged":6}
 ```
 
@@ -124,20 +127,25 @@ $ node /tmp/audit-gitee.mjs          # 摘录 A 段
 **怎么确认的（真跑）** —— 用线上真机的 `oschina/git-osc#IKSFS5`（9 条评论）：
 
 ```console
-$ curl -sS -m 20 "https://gitee.com/api/v5/repos/oschina/git-osc/issues/IKSFS5/comments?per_page=100" \
-  | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s).map(c=>c.created_at).join(' | ')))"
+$ cd /tmp
+$ curl -sS -m 20 "https://gitee.com/api/v5/repos/oschina/git-osc/issues/IKSFS5/comments?per_page=100" -o c.json -w "HTTP %{http_code} | %{size_download} bytes\n"
+HTTP 200 | 13168 bytes
+
+$ node -e "const d=JSON.parse(require('fs').readFileSync('c.json','utf8'));console.log(d.map(c=>c.created_at).join(' | '))"
 2026-11-02T23:02:07+08:00 | 2026-11-03T09:20:14+08:00 | 2026-11-03T12:18:16+08:00 | 2026-11-03T12:26:05+08:00 | 2026-11-03T12:30:17+08:00 | 2026-11-03T12:40:40+08:00 | 2026-11-03T12:43:43+08:00 | 2026-11-03T12:45:22+08:00 | 2026-11-03T12:46:25+08:00
 ```
 
 升序 —— 说明 `sort` / `direction` 被忽略了。再直接用**函数自己发的那个 URL** 打一次：
 
 ```console
-$ curl -sS -m 20 "https://gitee.com/api/v5/repos/oschina/git-osc/issues/IKSFS5/comments?per_page=1&sort=created&direction=desc" \
-  | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s).map(c=>c.created_at).join(' | ')))"
-2026-11-02T23:02:07+08:00        ← 最早那条，不是 2026-11-03T12:46:25
+$ curl -sS -m 20 "https://gitee.com/api/v5/repos/oschina/git-osc/issues/IKSFS5/comments?per_page=1&sort=created&direction=desc" -o one.json -w "HTTP %{http_code} | %{size_download} bytes\n"
+HTTP 200 | 1258 bytes
+
+$ node -e "const d=JSON.parse(require('fs').readFileSync('one.json','utf8'));console.log(d.map(c=>c.created_at).join(' | '))"
+2026-11-02T23:02:07+08:00
 ```
 
-把这条真实响应喂进仓库里的函数（`/tmp/audit-gitee.mjs` C 段）：
+**最早那条**（`2026-11-02T23:02:07`），不是真实的最后一条 `2026-11-03T12:46:25`。把这条真实响应喂进仓库里的函数（`/tmp/audit-gitee.mjs` C 段）：
 
 ```console
 === C. fetchGiteeLastComment 的「最后一条」到底取到哪一条 ===
@@ -195,10 +203,12 @@ if (on.comments !== false && Number(item.comments) > 0) score += 10
 **怎么确认的（真跑）**：
 
 ```console
-$ curl -sS -m 20 "https://gitee.com/api/v5/repos/oschina/git-osc/issues?state=all&sort=updated&direction=desc&per_page=30" -o /tmp/issues.json -w "HTTP %{http_code} | %{size_download} bytes\n"
+$ cd /tmp
+$ curl -sS -m 20 "https://gitee.com/api/v5/repos/oschina/git-osc/issues?state=all&sort=updated&direction=desc&per_page=30" -o issues.json -w "HTTP %{http_code} | %{size_download} bytes\n"
 HTTP 200 | 322218 bytes
 
-$ node -e "console.log(Object.keys(require('fs').readFileSync('C:/Users/Administrator/AppData/Local/Temp/issues.json','utf8')|0).slice(0,0))"
+$ node -e "const d=JSON.parse(require('fs').readFileSync('issues.json','utf8'));const i=d.find(x=>x.comments>0);console.log('有 comments 字段:', 'comments' in i, '| 值:', i.comments)"
+有 comments 字段: true | 值: 2
 ```
 
 ```console

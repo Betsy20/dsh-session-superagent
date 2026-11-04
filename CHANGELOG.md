@@ -2,6 +2,26 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.197] - 2026-11-05 —— Gitee 边界审计：3 条必须修（全是「照抄 GitHub」的坑）
+
+### M1 · `merged` 不在 state 白名单里
+Gitee 用 `merged` 表示「已合并的 PR」，而 `normalizeGiteeState()` 只认 `closed` / `rejected`。
+后果：**合并掉的 PR 每轮都被当成新动态**。已补。
+
+### M2 · 取「最后一条评论」拿到的是第一条
+`fetchGiteeLastComment()` 照抄了 GitHub 的 `?per_page=1&sort=created&direction=desc` ——
+Gitee 不认这两个参数，只按创建时间正序返回，于是 `per_page=1` 拿到的是**最早**那条。
+改成翻页取末条（每页 100，最多 5 页）。
+
+### M3 · `comments` 字段没透传
+`normalizeGiteeItem()` 的字段白名单漏了 `comments` → 「有人评论 +10」这条信号在 Gitee 上**恒为 0**。
+已补（保留原始类型，没有该字段时不硬塞 0）。
+
+### 证据
+```
+node --test → 338/338（新增：merged/rejected 归一、comments 透传）
+审核报告：docs/报告-gitee边界审计.md（3 必须修 / 8 值得改）
+```
 ## [0.9.196] - 2026-11-05 —— watch 审计「值得改」三条：定时器诈尸、字符串暂停、坏数组
 
 ### W1 · 首轮的错峰定时器不能取消

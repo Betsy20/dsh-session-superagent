@@ -122,7 +122,8 @@ test('字符串编号也要能拼出评论与打标签的 URL', async () => {
   const f = async (u) => { urls.push(u); return { ok: true, status: 200, text: async () => '[]' } }
   await fetchGiteeLastComment({ repo: 'o/r', item: { number: 'IKSQJH' }, fetchImpl: f })
   await addGiteeLabel({ repo: 'o/r', number: 'IKSQJH', label: 'L', fetchImpl: f })
-  assert.ok(urls[0].endsWith('/issues/IKSQJH/comments?per_page=1&sort=created&direction=desc'), urls[0])
+  // Gitee 不认 GitHub 的 sort/direction：翻了页取末条才是「最后评论」（审核 M2）
+  assert.ok(urls[0].endsWith('/issues/IKSQJH/comments?per_page=100&page=1'), urls[0])
   assert.ok(urls[1].endsWith('/issues/IKSQJH/labels'), urls[1])
 })
 
@@ -229,4 +230,20 @@ test('doctor 用的标签列表与判定：存在/不存在/大小写', async ()
   assert.equal(giteeHasLabel(res.data, '主理鱼:已处理'), false, 'Gitee 区分大小写/标点，逐字比')
   assert.equal(giteeHasLabel(null, 'bug'), false, '拿不到列表时不能崩')
   assert.equal(giteeHasLabel(res.data, ''), false)
+})
+
+test('merged / rejected 都要算关闭（否则合并掉的 PR 每轮都被当成新动态）', () => {
+  const { normalizeGiteeState } = giteeModule
+  assert.equal(normalizeGiteeState('merged'), 'closed', 'Gitee 用 merged 表示已合并的 PR')
+  assert.equal(normalizeGiteeState('rejected'), 'closed')
+  assert.equal(normalizeGiteeState('closed'), 'closed')
+  assert.equal(normalizeGiteeState('open'), 'open')
+  assert.equal(normalizeGiteeState(''), 'open')
+})
+
+test('comments 字段要透传（否则「有人评论 +10」在 Gitee 上恒为 0）', () => {
+  const { normalizeGiteeItem } = giteeModule
+  assert.equal(normalizeGiteeItem({ number: 'IK1', comments: 7 }).comments, 7)
+  assert.equal(normalizeGiteeItem({ number: 'IK1', comments: '3' }).comments, 3)
+  assert.equal(normalizeGiteeItem({ number: 'IK1' }).comments, undefined, '没有该字段时不要硬塞 0')
 })
