@@ -1542,3 +1542,22 @@ test('partitionItems 收到非数组不许抛（坏状态会让该守永久退�
   const { fresh } = partitionItems([{ number: 1, updated_at: '2026-11-05T00:00:00Z' }], {})
   assert.equal(fresh.length, 1)
 })
+
+test('repo 不许是 . 或 ..（能过字符类，但会拼进 URL 与磁盘路径）', async () => {
+  const { parseRepoSpec } = await import('../lib/watch.js')
+  for (const bad of ['../..', 'o/..', '../name', './name']) {
+    const res = parseRepoSpec(bad)
+    assert.equal(res.ok, false, bad + ' 应该被拒绝')
+  }
+  assert.equal(parseRepoSpec('o/r').ok, true)
+  assert.equal(parseRepoSpec('gitee:o/r').provider, 'gitee')
+})
+
+test('id=__proto__ 不能污染原型（T19：一次请求改掉 Object.prototype.enabled）', async () => {
+  const { applyWatcherAction } = await import('../lib/watch.js')
+  const state = { watchers: { 'a#b': { enabled: true } } }
+  const res = applyWatcherAction(state, { action: 'pause', id: '__proto__' })
+  assert.equal(res.ok, false, '__proto__ 必须被拒')
+  assert.equal(({}).enabled, undefined, 'Object.prototype 被污染了')
+  assert.equal(state.watchers['a#b'].enabled, true, '正常条目不该被动')
+})

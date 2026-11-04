@@ -1326,3 +1326,17 @@ test('手改成 enabled:"false" / 0 的守要真的算暂停（不能只看 === 
     writeFileSync(join(STATE_DIR, 'watchers.json'), original)
   }
 })
+
+test('跨站写操作必须 403（T19：任意网页 text/plain 简单请求就能删守/清凭证）', async () => {
+  const post = (path, body, headers = {}) => call('POST', path, body, headers)
+  // 带恶意 Origin：拒绝
+  const evil = await post('/session-superagent/watch', { action: 'delete', id: 'x#y' }, { origin: 'https://evil.example' })
+  assert.equal(evil.statusCode, 403, '跨站写操作必须 403')
+  assert.match(String(evil.json().error || ''), /cross-origin/)
+  // 带本机 Origin：放行（未知 id 会走到正常错误路径）
+  const local = await post('/session-superagent/watch', { action: 'delete', id: 'x#y' }, { origin: 'http://127.0.0.1:65466' })
+  assert.notEqual(local.statusCode, 403, '本机来源不该被挡')
+  // 不带 Origin（curl / 测试）：放行
+  const none = await post('/session-superagent/watch', { action: 'delete', id: 'x#y' })
+  assert.notEqual(none.statusCode, 403, '非浏览器客户端不该被挡')
+})
