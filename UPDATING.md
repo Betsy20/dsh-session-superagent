@@ -21,17 +21,22 @@ node scripts/check-maintenance.mjs      # 会告诉你哪处没对齐
 # 3) 全量门禁（不是 --fast）
 node scripts/preflight.mjs
 
-# 4) 提交 + 推送
-git add -A && git commit -m "fix: ..." && git push origin main
+# 4) 提交，**commit 与 tag 一起推**
+#    先推 commit 再补 tag，CI 会在「维护一致性」那一步红（tag 还不存在）—— 实测过一次。
+git add -A && git commit -m "fix: ..."
+git tag v<版本> && git push origin main v<版本>
 
-# 5) 发 npm
-npm publish
-
-# 6) 打 tag + 建 Release（标题自动是纯版本号）
+# 5) 建 Release（标题自动是纯版本号；tag 已在，只补 Release）
 node scripts/release-gh.mjs --latest
+
+# 6) 发 npm
+npm publish
 
 # 7) 同步到本机安装副本（用户重启后生效）
 node scripts/sync-profile.mjs
+
+# 8) 看 CI 有没有绿（PR 会跳过维护一致性，main 上必须绿）
+gh run list --workflow ci --limit 3
 ```
 
 历史遗留版本要补 Release 时用 `node scripts/release-gh.mjs`（不带 `--latest`），

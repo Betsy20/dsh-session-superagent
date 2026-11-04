@@ -14,6 +14,9 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const FAST = process.argv.includes('--fast')
+// PR 分支上跳过维护一致性：版本号已 bump 但 tag 只在合并后才打，这条必然红。
+// CI 里用 --no-maintenance 跳过它，改成 push 到 main 时单独跑一步。
+const SKIP_MAINTENANCE = process.argv.includes('--no-maintenance')
 const rows = []
 // 记一项检查；耗时用「距上一项记录」的差值算出来 —— 不用改任何调用点
 let lastMark = Date.now()
@@ -379,7 +382,9 @@ if (FAST) {
 // ⑨ 维护一致性（版本 / tag / CHANGELOG / 徽章 是否真的对齐）
 //    本地化自 magpie-plugin-scaffold 的 check-maintenance：六条都不报错也都不崩，
 //    但任何一条不满足，用户拿到的就是旧版。
-{
+if (SKIP_MAINTENANCE) {
+  console.log('SKIP 维护一致性                        --no-maintenance 跳过（PR 分支还没打 tag）')
+} else {
   const res = tryRun('node', ['scripts/check-maintenance.mjs'])
   const out = String(res.stdout || '')
   const bad = out.split(String.fromCharCode(10)).filter((line) => line.startsWith('FAIL ')).map((l) => l.slice(5).split('  ')[0])

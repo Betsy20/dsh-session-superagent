@@ -29,8 +29,10 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
 
-      - name: 门禁（单测 / 语法 / 路由 / 打包内容 / 文案 / 术语 / UI / 维护一致性）
-        run: node scripts/preflight.mjs --fast
+      # PR 分支跳过「维护一致性」：版本号已 bump，但 tag 要合并后才打，这条必然红。
+      # 它改由下面那步只在 push 到 main 时跑。
+      - name: 门禁（单测 / 语法 / 路由 / 打包内容 / 文案 / 术语 / UI）
+        run: node scripts/preflight.mjs --fast ${{ github.event_name == 'pull_request' && '--no-maintenance' || '' }}
 
       - name: UI 体检（写死颜色 / 可访问性 / 官方结构）
         run: node scripts/ui-audit.mjs
