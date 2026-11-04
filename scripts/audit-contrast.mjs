@@ -155,17 +155,18 @@ export function parseColorString(input) {
     }
   }
 
-  // rgb() / rgba()：兼容 `rgb(1, 2, 3)`、`rgb(1 2 3 / 50%)`
+  // rgb() / rgba()：兼容 `rgb(1, 2, 3)`、`rgb(1 2 3 / 50%)`、旧式 `rgba(1, 2, 3, 0.5)`
   const rgbFn = lower.match(/^rgba?\(([^)]+)\)$/)
   if (rgbFn) {
     const [channelPart, alphaPart] = rgbFn[1].split('/')
     const channels = channelPart.trim().split(/[\s,]+/).filter(Boolean)
     if (channels.length < 3) return null
     const channel = (token) => (token.endsWith('%') ? (parseFloat(token) * 255) / 100 : parseFloat(token))
-    const values = channels.slice(0, 3).map(channel)
-    const alpha = alphaPart === undefined
+    const alphaToken = alphaPart !== undefined ? alphaPart.trim() : channels[3]
+    const alpha = alphaToken === undefined
       ? 1
-      : (alphaPart.trim().endsWith('%') ? parseFloat(alphaPart) / 100 : parseFloat(alphaPart.trim()))
+      : (String(alphaToken).endsWith('%') ? parseFloat(alphaToken) / 100 : parseFloat(alphaToken))
+    const values = channels.slice(0, 3).map(channel)
     if (values.some((v) => !Number.isFinite(v)) || !Number.isFinite(alpha)) return null
     return {
       r: Math.round(clamp(values[0], 255)),
@@ -284,6 +285,8 @@ function measurePage(cfg) {
   }
 
   // 从元素向上收集背景层，遇到第一层不透明就停（再往上的都被挡住了），最远到主题区块。
+  // 整条链都不透明不到（面板自己没底、外面是工装）→ 拿页面 body 的底色兜底，
+  // 否则空栈会被读成 #000000，凭空造出一条「15:1 通过」的假行。
   function backdrop(el, root) {
     const layers = []
     let hasImage = false
@@ -296,6 +299,11 @@ function measurePage(cfg) {
       if (color && color.a >= 0.999) break
       if (node === root) break
       node = node.parentElement
+    }
+    const covered = 1 - layers.reduce((open, layer) => open * (1 - layer.a), 1)
+    if (covered < 0.999) {
+      const pageBackground = cssColor(getComputedStyle(document.body).backgroundColor)
+      if (pageBackground && pageBackground.a > 0) layers.push(pageBackground)
     }
     return { layers: layers.reverse(), hasImage }
   }
@@ -407,6 +415,10 @@ function measurePage(cfg) {
         const disabled = isDisabled(el, themed)
         const exempt = disabled ? '禁用控件（WCAG 1.4.3 豁免）' : ''
         const opacity = opacityOf(el, themed)
+        // 是「控件」还是「装饰」：1.4.11 只对控件的边界/状态硬要求 3:1，
+        // 纯分隔线（列表项之间的 0.5px 边框）属装饰，记下来供参考，别让人以为每根线都得改。
+        const control = /^(button|input|select|textarea|a)$/i.test(el.tagName)
+          || ['button', 'tab', 'switch', 'checkbox', 'link', 'menuitem', 'option'].indexOf(el.getAttribute('role') || '') >= 0
         // 整条链路透明度 ≈ 0 = 根本看不见（`.sa-dock-actions` 就是 hover 才显形的那组按钮）。
         // 这种元素没有「读不读得清」的问题，硬算会把比值算成 1.00 的假缺陷。
         if (opacity < 0.05) {
@@ -418,6 +430,7 @@ function measurePage(cfg) {
           selector: selectorOf(el),
           fontSize: parseFloat(style.fontSize) || 0,
           fontWeight: parseInt(style.fontWeight, 10) || 400,
+          control,
           exempt,
         }
 
@@ -458,9 +471,10 @@ function measurePage(cfg) {
         }
 
         // ② 边框：控件边界的一半线索在这里（另一半是填充）。对的是「边框外面那层背景」。
+        //    场景根节点（.preview-frame / .preview-popover）的边框是**工装自己的**外框，不属于面板，跳过。
         let worstBorder = null
         let strongestBorder = 0
-        for (const side of ['Top', 'Right', 'Bottom', 'Left']) {
+        for (const side of el === scope.root ? [] : ['Top', 'Right', 'Bottom', 'Left']) {
           const width = parseFloat(style['border' + side + 'Width'])
           const borderStyle = style['border' + side + 'Style']
           if (!(width > 0) || borderStyle === 'none' || borderStyle === 'hidden') continue
@@ -695,7 +709,7 @@ function aggregate(themeKey, samples, thresholds) {
   for (const sample of samples) {
     const key = [
       sample.kind, sample.selector, sample.fg, sample.bg,
-      sample.fontSize + '/' + sample.fontWeight, sample.exempt ? '1' : '0',
+      sample.fontSize + '/' + sample.fontWeight, sample.exempt ? '1' : '0', sample.control ? '1' : '0',
     ].join('\u0001')
     let group = groups.get(key)
     if (!group) {
@@ -707,6 +721,7 @@ function aggregate(themeKey, samples, thresholds) {
         bg: sample.bg,
         fontSize: sample.fontSize,
         fontWeight: sample.fontWeight,
+        control: Boolean(sample.control),
         exempt: sample.exempt,
         ratio: sample.ratio,
         nodes: 0,
@@ -733,6 +748,9 @@ function summarize(themeKey, rows) {
   let worst = null
   let worstEnforced = null
   const failGroups = rows.filter((row) => row.status === 'fail')
+  // 非文字里只有「控件」那部分才是 1.4.11 的硬要求；装饰性分隔线单独计数，别混在一起吓人。
+  const failControlGroups = failGroups.filter((row) => row.kind === 'surface' || (row.kind === 'border' && row.control))
+  const failDecorativeGroups = failGroups.filter((row) => row.kind === 'border' && !row.control)
   for (const row of rows) {
     nodes += row.nodes
     if (row.status === 'fail') failNodes += row.nodes
@@ -745,6 +763,8 @@ function summarize(themeKey, rows) {
     nodes,
     failGroups: failGroups.length,
     failNodes,
+    failControlGroups: failControlGroups.length,
+    failDecorativeGroups: failDecorativeGroups.length,
     exemptGroups: rows.filter((row) => row.status === 'exempt').length,
     worst: worst ? { ratio: worst.ratio, selector: worst.selector, status: worst.status } : null,
     worstEnforced: worstEnforced ? { ratio: worstEnforced.ratio, selector: worstEnforced.selector } : null,
@@ -761,8 +781,10 @@ function statusLabel(row) {
   return '**不达标 <' + row.need + '**'
 }
 
-function kindLabel(kind) {
-  return kind === 'text' ? '文字' : kind === 'border' ? '边框' : '控件面'
+function kindLabel(row) {
+  if (row.kind === 'text') return '文字'
+  if (row.kind === 'border') return row.control ? '控件边框' : '边框'
+  return '控件面'
 }
 
 function pageLabel(pages) {
@@ -777,7 +799,7 @@ function printTable(rows) {
     String(index + 1),
     row.theme,
     formatRatio(row.ratio),
-    kindLabel(row.kind),
+    kindLabel(row),
     row.selector,
     row.fg,
     row.bg,
@@ -798,11 +820,13 @@ function printReport(rows, summaries, options) {
   console.log('渲染源：真实 client.js → scripts/render-preview.mjs → 无头浏览器 getComputedStyle（静态渲染，不含量 :hover/:focus）')
   console.log('阈值：正文 ≥' + options.thresholds.text + ' · 大字（≥24px 或 ≥18.66px 且字重≥700）≥' + options.thresholds.largeText
     + ' · 非文字（边框/控件状态面）≥' + options.thresholds.nonText)
+  console.log('类别：「控件边框」「控件面」是 1.4.11 的硬要求；「边框」是装饰性分隔线，同列出来供参考，改不改看设计。')
   console.log('')
   for (const summary of summaries) {
     const worst = summary.worst ? formatRatio(summary.worst.ratio) + ' ' + summary.worst.selector + (summary.worst.status === 'exempt' ? '（豁免）' : '') : '-'
     console.log('· ' + summary.theme + '：' + summary.nodes + ' 个节点 / ' + summary.groups + ' 组 ｜ 不达标 '
-      + summary.failGroups + ' 组 ' + summary.failNodes + ' 节点 ｜ 豁免 ' + summary.exemptGroups + ' 组 ｜ 最低 ' + worst)
+      + summary.failGroups + ' 组 ' + summary.failNodes + ' 节点（控件 ' + summary.failControlGroups
+      + ' / 装饰边框 ' + summary.failDecorativeGroups + '）｜ 豁免 ' + summary.exemptGroups + ' 组 ｜ 最低 ' + worst)
   }
   console.log('')
   if (!rows.length) {
@@ -918,14 +942,4 @@ const invokedDirectly = (() => {
   try {
     return Boolean(process.argv[1]) && pathToFileURL(process.argv[1]).href === import.meta.url
   } catch (error) {
-    return false
-  }
-})()
-
-if (invokedDirectly) {
-  // `| head -30` 会提前关掉管道；别让 EPIPE 变成一段红色堆栈把 JSON 淹了。
-  process.stdout.on('error', (error) => {
-    if (error && error.code === 'EPIPE') process.exit(process.exitCode || 0)
-  })
-  main()
-}
+    return fa
