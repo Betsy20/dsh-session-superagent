@@ -1462,3 +1462,16 @@ test('首次同步不能说「新动态」：接上之前就在的条目要如�
   const normal = formatWatchText('o/r', [item], {}).split(String.fromCharCode(10))[0]
   assert.ok(normal.includes('新动态'), '平时仍是新动态：' + normal)
 })
+
+test('绑了智能体账号：唤醒消息要提身份，但**不许带路径**（PR #7 原设计会漏本机目录）', async () => {
+  const { formatWatchText } = await import('../lib/watch.js')
+  const item = { number: 7, title: 'x', user: { login: 'a' }, html_url: 'u', state: 'open' }
+
+  const bound = formatWatchText('o/r', [item], { identityBound: true })
+  assert.ok(bound.includes('【提交身份】'), '要提醒会话身份可能不一致')
+  assert.ok(bound.includes('请向用户索取'), '要说清路径从哪来')
+  assert.ok(!bound.includes('GH_CONFIG_DIR='), '不许把环境变量赋值整段塞进消息：' + bound.slice(0, 120))
+  assert.ok(!/AppData|Users\\|\/home\//.test(bound), '不许出现本机路径')
+
+  assert.ok(!formatWatchText('o/r', [item], {}).includes('【提交身份】'), '没绑就不该提')
+})

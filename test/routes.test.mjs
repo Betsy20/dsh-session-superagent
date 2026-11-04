@@ -1294,3 +1294,14 @@ test('代理返回网页而不是 JSON：要明说是"被拦截"，不是"代理
   const auth = diagnoseBadBody({ bodyText: '', authStatusText: 'token in keyring is invalid' })
   assert.equal(auth.kind, 'auth')
 })
+test('ghConfigDir：路由只收绝对路径，摘要只回「配没配」（吸收自 PR #7）', () => {
+  const src = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+  // ① 相对路径必须被拒：它会随 cwd 漂移，把设置指向一个不存在的地方
+  assert.ok(src.includes('ghConfigDir must be absolute'), '要拒绝相对路径')
+  assert.ok(/if \(!isAbsolute\(dir\)\) return json\(res, 400/.test(src), '拒绝要发生在写盘之前')
+  // ② 摘要里只能有 configured / none，不能把路径回显出去
+  assert.ok(/ghConfigDir: s\.ghConfigDir \? 'configured' : 'none'/.test(src), '只回配置状态')
+  assert.ok(!/ghConfigDir: s\.ghConfigDir \? s\.ghConfigDir/.test(src), '不许回显路径')
+  // ③ 空串等于清除（回到宿主账号）
+  assert.ok(/if \(dir === ''\) delete next\.ghConfigDir/.test(src), '空串要能清除')
+})
