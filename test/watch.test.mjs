@@ -1450,3 +1450,15 @@ test('lib/index.js 里「会话已不在」必须走宽限期判断，而不是�
   assert.ok(src.includes('sessionMissingVerdict('), '要调用宽限期判断')
   assert.ok(!/setEntryError\(entry, '会话已不在：请删除或重建这条主理鱼'\)/.test(src), '不许再出现那句不可逆的建议原文')
 })
+
+test('首次同步不能说「新动态」：接上之前就在的条目要如实说', async () => {
+  const { formatWatchText } = await import('../lib/watch.js')
+  const item = { number: 7, title: 'x', user: { login: 'a' }, html_url: 'u', state: 'open' }
+
+  const first = formatWatchText('o/r', [item], { firstSync: true }).split(String.fromCharCode(10))[0]
+  assert.ok(first.includes('首次同步'), '第一次要说明这是首次同步：' + first)
+  assert.ok(!first.includes('新动态'), '首次同步不该说「新动态」：' + first)
+
+  const normal = formatWatchText('o/r', [item], {}).split(String.fromCharCode(10))[0]
+  assert.ok(normal.includes('新动态'), '平时仍是新动态：' + normal)
+})
