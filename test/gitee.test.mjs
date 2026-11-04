@@ -7,6 +7,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { parseRepoSpec } from '../lib/watch.js'
+import * as watchModule from '../lib/watch.js'
 import * as giteeModule from '../lib/gitee.js'
 import {
   normalizeGiteeItem, normalizeGiteeList, normalizeGiteeState,
@@ -151,4 +152,25 @@ test('repoAccess 映射：Gitee 的 permissions 形状 → 内部形状（别把
 
   const admin = mapGiteeRepoAccess('o/r', { permissions: { admin: true } })
   assert.equal(admin.push, true, 'admin 也应当能写')
+})
+
+test('Gitee 没有 state_reason：靠上一轮状态自己判「重新打开」', () => {
+  // 判定逻辑在 lib/watch.js（纯函数，可单测），不在 gitee.js
+  const { markGiteeReopened } = watchModule
+
+  // 上一轮 closed，这一轮 open → 就是 reopen
+  const items = [{ number: 'IK1', state: 'open' }, { number: 'IK2', state: 'closed' }]
+  const states = markGiteeReopened(items, { IK1: 'closed', IK2: 'open' })
+  assert.equal(items[0].state_reason, 'reopened', '关掉又打开要能判出来')
+  assert.equal(items[1].state_reason, undefined, '一直关着的不是 reopen')
+  assert.deepEqual(states, { IK1: 'open', IK2: 'closed' }, '状态表要更新成这一轮的值')
+
+  // 已经有 state_reason 的条目（例如 GitHub 分支误用）不许被覆盖
+  const keep = [{ number: 'IK3', state: 'open', state_reason: '' }]
+  markGiteeReopened(keep, { IK3: 'closed' })
+  assert.equal(keep[0].state_reason, 'reopened')
+
+  // 翻页之外的旧状态要清掉（否则字典无限长）
+  const trimmed = markGiteeReopened([{ number: 'IK1', state: 'open' }], { IK1: 'open', OLD1: 'closed', OLD2: 'open' })
+  assert.deepEqual(Object.keys(trimmed), ['IK1'], '没出现在这一页的键要删掉：' + JSON.stringify(trimmed))
 })

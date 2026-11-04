@@ -29,6 +29,7 @@
 | 字段 | 稳定性 |
 |---|---|
 | `repo` | 稳定 |
+| `provider` | 稳定 |
 | `sessionId` | 稳定 |
 | `enabled` | 稳定 |
 | `intervalSec` | 稳定 |

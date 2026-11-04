@@ -4,6 +4,7 @@
 //
 // 用法：node scripts/regression-cases.mjs
 import { execFileSync } from 'node:child_process'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { CASES } from './regression-list.mjs'
@@ -16,6 +17,22 @@ const runCheck = (args) => {
     return { code: 0, out }
   } catch (error) {
     return { code: error.status ?? 1, out: String(error.stdout || '') + String(error.stderr || '') }
+  }
+}
+
+// 开工前把「会被改坏的文件」各留一份快照：任何一次还原失败，都能从这里补回去。
+// 真机事故（2026-11-05）：两次并发跑这个脚本，后一次把前一次的注入当成了 original，
+// 于是 client.js 里永久留下了 ZZ_DUP 两行 —— 门禁红了，但没人知道是工装留下的。
+const SNAPSHOT = new Map()
+for (const item of CASES) {
+  for (const rel of item.files || []) {
+    if (SNAPSHOT.has(rel)) continue
+    try { SNAPSHOT.set(rel, readFileSync(join(ROOT, rel), 'utf8')) } catch { /* 文件不存在就不管 */ }
+  }
+}
+const restoreAll = () => {
+  for (const [rel, text] of SNAPSHOT) {
+    try { writeFileSync(join(ROOT, rel), text) } catch { /* 尽力而为 */ }
   }
 }
 
@@ -39,6 +56,7 @@ for (const item of CASES) {
   }
 }
 
+restoreAll()
 console.log('---')
 if (passed === CASES.length) {
   console.log('PASS 反向用例 ' + passed + '/' + CASES.length + ' 项都能抓住退化')

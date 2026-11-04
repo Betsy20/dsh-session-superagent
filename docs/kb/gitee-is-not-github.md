@@ -34,7 +34,30 @@
 ✅ 0.9.177：`lib/gitee.js`（8 条用例）+ `parseRepoSpec`（认 `gitee:` 前缀与 gitee.com URL）
 + 轮询/评论/ack/doctor 四处分支 + 面板「Gitee 令牌」。
 
+## 补记（0.9.182）：Gitee 缺的字段要用「上一轮」补
+
+Gitee 的 issue 条目**没有 `state_reason`** —— 于是「重新打开（reopened）」这个信号在它上面永远不出现，
+连带 ⚠ 标记和 +100 加权一起失效。
+
+判据：**第三方缺的字段，先问「上一轮的值算不算它的定义」。**
+reopen 的定义就是「上一轮 closed、这一轮 open」—— 本来就不需要服务端字段。
+`markGiteeReopened(items, lastStates)` 用一张编号→状态的表自己判，判出来写回 `state_reason`，
+下游一行不用改。**只在 Gitee 上调用**：GitHub 有原生字段，覆盖它等于篡改事实。
+
 ## 还没做的
 - Gitee 没有 ETag，**额度消耗比 GitHub 高**，目前只靠轮询间隔控制；
 - Gitee 的「标签必须先存在」还没做自动创建（GitHub 那边会幂等建）；
 - 多仓库跨平台（GitHub 一条、Gitee 一条）没有联调过真机。
+
+## 补记（0.9.182）：门禁不能并发跑 —— 它们会互相改文件
+
+真机事故：一个早先启动的 `preflight --fast` 进程没退干净，和后来的 `regression-cases.mjs` 同时跑。
+反向用例会**临时改坏** `package.json` / `client.js` / `README.md` 再还原；
+两个进程交错之后，后一个把前一个的注入当成了 `original`，于是：
+- `client.js` 里永久留下 `ZZ_DUP` 两行；
+- `package.json` 的 `files` 永久少了两项（`lib/body.js`、`lib/gitee.js`）；
+- `README.md` 的单测数永久变成 `9999`。
+
+判据：**任何「先改坏再还原」的检查，都是全局独占资源。**
+落地：`regression-cases.mjs` 开工前给所有会被改的文件各留一份快照，跑完 `restoreAll()` 兜底；
+以及（本条最重要）**看到「改坏后 code=0 / 还原后 code=1」这种反号结果，先查是不是有另一个进程在同时改文件**。

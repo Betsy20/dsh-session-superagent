@@ -2,6 +2,49 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.182] - 2026-11-05 —— Gitee 三种响应形状 + 分诊信号表两列化 + 用上一轮状态补 Gitee 缺的字段
+
+### 派单（LEAD.md 纪律：Lead 只拆包/派单/集成/验收）
+| ID | 交付 | 关键结论 |
+|---|---|---|
+| T4 | `lib/gh-format.js` + `test/gh-format.test.mjs`（5 条） | Gitee 的 HTML 404 / JSON 401 / 429 以前**全部落到 other**，客户看到「没归类的错误」 |
+| T5 | `client.js`（+9/−6）+ 出图 | 分诊表的 `+N 分` 左边缘抖 28px → 0；`默认关` 49×19 裸字 → 51×21 胶囊 |
+| L5 | `lib/watch.js`、`lib/index.js` | Gitee 没有 `state_reason`：用上一轮状态自己判「重新打开」 |
+
+### ① 错误分类：Gitee 的报错没有 `HTTP <code>` 前缀
+真机复刻（curl 过，不是自造）：
+```
+标签不存在（HTML 404 页，7187 bytes）→ <title>你所访问的页面不存在 (404)</title>
+标签不存在（JSON）    → {"message":"Not Found Project"} / {"message":"404 Not Found"}
+token 失效（JSON）    → {"message":"401 Unauthorized: Access token does not exist"}
+限流                 → HTTP 429（常常只有状态行）
+```
+判据用 **Gitee 专属措辞**（`Not Found Project`、`"message":"404`、`Access token does not exist`、整页 HTML），
+**不许放宽成裸 `404` / 裸 `Not Found`** —— 那会抢走 GitHub 的 404 分支（有一条专门守这个的用例）。
+
+### ② 分诊信号表：竖着看是两列，不是瀑布
+`+N 分` 原来跟在长度不一的标签后面流式排，五行的左边缘 `436/422/408/420/434`。改成 grid
+（`minmax(0,1fr) 4.5em`）+ 右对齐 + 等宽数字后，五个 left 全等 `782.97`（窄屏 600px 下也全等 `482.97`，无横向溢出）。
+顺带把「默认关」（无边框裸字）与「默认开」（描边胶囊）拉成等权：两档都是 `51×21 + 0.5px 描边`。
+导航项「诊断」改名「分诊信号」，与卡片标题「分诊信号与取舍」同名。
+
+### ③ Gitee 缺的字段，用「上一轮」补
+Gitee 的 issue 条目**没有 `state_reason`**，于是「重新打开」这个信号在它上面永远不出现（连 ⚠ 标记和 +100 加权一起失效）。
+`markGiteeReopened()` 用一张「编号→状态」表自己判（reopen 的定义本来就是「上一轮 closed、这一轮 open」），
+判出来写回 `state_reason`，下游一行不用改；**只在 Gitee 上调用**，GitHub 有原生字段不覆盖。
+
+### ④ 顺带
+- `watch_status` / `/state` 都回 `provider`（两家仓库同名时只有它能区分），契约清单同步登记；
+- Gitee 的 ack 404 现在直接说「先去 Gitee 仓库的标签页建好这个标签」（Gitee 不会自动建）。
+
+### 证据
+```
+node --test → 294/294（新增 gh-format 5 条 + reopened 1 条）
+ui-audit → 11/11（100）
+preflight 全量 → 37/37
+出图：shot-set-diag-after.png（五个 +N 分成一竖列）
+```
+
 ## [0.9.181] - 2026-11-05 —— 按钮像裸文字（.dt-btn-ghost 没有基础样式）+ 预览工具把 svg 画坏
 
 ### 本轮派单（LEAD.md 纪律：Lead 只拆包/派单/集成/验收）

@@ -9,6 +9,7 @@ import { join } from 'node:path'
 export const CASES = [
   {
     name: 'README 数字漂移',
+    files: ['README.md'],
     kb: 'readme-numbers-come-from-code.md',
     what: 'README 写死的单测数/冷却期等与代码不一致',
     fault: (root) => {
@@ -25,6 +26,7 @@ export const CASES = [
   },
   {
     name: '整句文案重复',
+    files: ['client.js'],
     kb: 'recurring-theme-means-missing-check.md',
     what: '同一句中文在源码里出现两次（改一处忘另一处）',
     fault: (root) => {
@@ -42,13 +44,16 @@ export const CASES = [
   },
   {
     name: '打包缺必需文件',
+    files: ['package.json'],
     kb: 'pack-check-both-directions.md',
     what: '运行必需的文件没进 npm 包（装上但不工作）',
     fault: (root) => {
       const path = join(root, 'package.json')
       const original = readFileSync(path, 'utf8')
       const data = JSON.parse(original)
-      data.files = ['lib/index.js', 'lib/watch.js', 'lib/gh-format.js', 'lib/redact.js', 'cordis.patch.yml', 'README.md', 'CHANGELOG.md', 'LICENSE', 'client.js']
+      // 从**当前清单**里删一条，而不是硬编码一份「正确清单」——
+      // 硬编码那份一旦落后于 package.json，还原时就会把过期的清单写回去（真机踩过：跑完门禁 files 少了两项）。
+      data.files = data.files.filter((item) => item !== 'lib/gitee.js')
       writeFileSync(path, JSON.stringify(data, null, 2) + '\n')
       return () => writeFileSync(path, original)
     },
@@ -56,6 +61,7 @@ export const CASES = [
   },
   {
     name: '模式差异文档漂移',
+    files: ['docs/模式差异.md'],
     kb: 'cheap-mode-needs-a-contract.md',
     what: '改了「--fast 跳过什么」的清单但没重新生成文档',
     fault: (root) => {
@@ -68,6 +74,7 @@ export const CASES = [
   },
   {
     name: '计数加不上总数',
+    files: ['scripts/lib-counts.mjs'],
     kb: 'counters-must-partition.md',
     what: '面板顶部「主理中/已暂停/异常/时段外」加起来不等于总数',
     fault: (root) => {
