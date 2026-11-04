@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.201'
+    const CLIENT_VERSION = '0.9.202'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -686,6 +686,8 @@ window.__ModuleLoader__.load({
     }
     function StatusOrbit() {
       const [watchers, setWatchers] = useState(null)
+      // 写操作的失败提示（M4）：为空表示没有错误
+      const [orbitError, setOrbitError] = useState(null)
       const [open, setOpen] = useState(false)
       const [anchor, setAnchor] = useState(null)
       const btnRef = useRef(null)
@@ -797,13 +799,21 @@ window.__ModuleLoader__.load({
             : true
           if (!ok) return
         }
+        // 审核 M4：两层空 catch 让写操作遇 409/404/503/断网时**完全静默** ——
+        // 界面不变、无提示，客户以为按钮坏了。失败必须说出来。
         try {
           await call('/watch', { method: 'POST', body: JSON.stringify({ action, id: watcherId(w) }) })
-        } catch {}
+        } catch (error) {
+          setOrbitError(String((error && error.message) || error).slice(0, 160))
+          return
+        }
         try {
           const body = await call('/state')
           setWatchers(Array.isArray(body && body.watchers) ? body.watchers : [])
-        } catch {}
+          setOrbitError(null)
+        } catch (error) {
+          setOrbitError('写成功了，但刷新列表失败：' + String((error && error.message) || error).slice(0, 120))
+        }
       }
 
       // 悬浮面板也走移植来的 dt-* 设计系统（以前这里是一套自成体系的 inline style，
@@ -880,6 +890,8 @@ window.__ModuleLoader__.load({
         list.length === 0
           ? h('div', { className: 'sa-dock-empty' }, '还没有。在「主理鱼」标签页填 owner/name 加一条。')
           : h('div', { className: 'sa-dock-rows' }, rows),
+        // 写操作的失败必须出现在弹层里（M4）：以前两层空 catch，点了没反应也没提示
+        orbitError ? h('div', { className: 'sa-dock-err', role: 'alert' }, '操作失败：' + orbitError) : null,
         list.length > 0
           ? h('div', { className: 'sa-dock-foot' }, '详细状态与凭证在「主理鱼」标签页')
           : null)
@@ -1001,9 +1013,14 @@ window.__ModuleLoader__.load({
       const hasBodyRef = useRef(false)
       hasBodyRef.current = Boolean(snap.body)
 
+      // 审核 M1：四条路径（轮询 / 工具栏刷新 / 错误卡重试 / run() 成功后）都能并发，
+      // 没有序号时「后到的旧响应」会覆盖新数据。序号只认最新的那次。
+      const loadSeqRef = useRef(0)
       const load = useCallback(async () => {
+        const seq = ++loadSeqRef.current
         try {
           const payload = await call('/state', stateEtag ? { headers: { 'if-none-match': stateEtag } } : undefined)
+          if (seq !== loadSeqRef.current) return null // 已经有更新的一次请求在飞：这次结果作废
           // 304：内容没变，别白白重渲染 —— 前提是本地已经有一份能渲染的 body
           if (payload && payload.notModified) {
             if (hasBodyRef.current) return null
@@ -1015,6 +1032,7 @@ window.__ModuleLoader__.load({
           setSnap({ loading: false, error: null, body })
           return body
         } catch (error) {
+          if (seq !== loadSeqRef.current) return null // 旧请求的失败也别盖掉新数据
           setSnap((prev) => ({ loading: false, error: String((error && error.message) || error), body: prev.body }))
           return null
         }
