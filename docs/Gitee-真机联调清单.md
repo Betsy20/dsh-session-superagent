@@ -1,11 +1,12 @@
 # Gitee 真机联调清单
 
-> 插件：`dsh-session-superagent`（主理鱼）0.9.179 · 宿主：DSH
-> Gitee 支持是 0.9.177–0.9.179 加的：**离线用例 + 一次公开仓库探测**验过，**没在真实 Gitee 仓库上跑完整闭环**。这份清单就是补那一步。
+> 插件：`dsh-session-superagent`（主理鱼）**0.9.180**（磁盘）· 宿主：DSH
+> （本机宿主当前仍在跑 0.9.179 —— `/state` 的 `installedVersion` 已是 0.9.180，属于「代码已更新但未生效」，见 1.5 末条与 5.5。）
+> Gitee 支持是 0.9.177–0.9.180 加的：**离线用例 + 一次公开仓库探测**验过，**没在真实 Gitee 仓库上跑完整闭环**。这份清单就是补那一步。
 > 用法：从上往下做，一条做一次、打一次勾（把标题前的 `[ ]` 改成 `[x]`）。每条固定三段：
 > **怎么操作** → 点哪里/敲什么；**期望看到什么** → 精确到文案或字段；**看到别的说明什么** → 故障归因，别瞎猜。
 >
-> 本机现场（下面的输出都是本次真跑的原样）：node v24.20.0、gh 2.101.0（账号 `MYCF711`）、插件 0.9.179、Gitee 私人令牌已配置（`GET /api/v5/user` → 200，`login=MYCF711`）。
+> 本机现场（下面的输出都是本次真跑的原样）：node v24.20.0、gh 2.101.0（账号 `MYCF711`）、宿主在跑的 0.9.179（磁盘已 0.9.180）、Gitee 私人令牌已配置（`GET /api/v5/user` → 200，`login=MYCF711`）。
 >
 > 代码定位：`lib/gitee.js`、`lib/watch.js` 用 `文件:行号`；`lib/index.js` 写这份清单期间被并行改动过，行号会漂，**统一按函数名/代码段定位**。
 
@@ -109,7 +110,7 @@ pulls len 1 { number: 14, numberType: 'number', state: 'closed', hasHead: false 
 repo permissions: undefined private: false has_issues: true
 ```
 
-两个结论，后面每一组都要用到：
+三个结论，后面每一组都要用到：
 
 1. **issue 的 `number` 是字符串（`IKSQJH`），PR 的是数字（`14`）。** 任何 `Number(number)` 都会把 issue 编号变成 `NaN`/`0` —— 去重、ack、评论 URL 全废。
 2. **条目里没有 `state_reason` 字段。** 这是 3.4 的根因。
@@ -150,7 +151,7 @@ $ node --input-type=module -e "import { parseRepoSpec } from './lib/watch.js'; .
 "gitee：Ghandi/workbuddy-pro"                  -> ok=true provider=gitee repo=Ghandi/workbuddy-pro id前缀=gitee:
 ```
 
-**注意 `parseRepoSpec` 只被面板那条 HTTP 路由调用**（`lib/index.js · /watch 路由里的 parseRepoSpec(body.repo)`）。`watch_start` 工具没走它 —— 见 2.5，那是个坑。
+**注意：`parseRepoSpec` 现在有两个调用点** —— 面板那条 HTTP 路由（`lib/index.js · /watch 路由里的 parseRepoSpec(body.repo)`）和 `watch_start` 工具。两处算出来的 `id` 必须一致，这是 2.5 的回归点。
 
 ### 0.8 现场状态（`/state` 与状态文件）
 
@@ -213,7 +214,7 @@ kind = other | retryable = false
 watch_ack 实际会返回: [error: #IKSQJH 需要你处理] （没归类的错误：已按退避自动重试；持续出现就跑 watch_doctor 看检查清单，或把这行贴给对方）
 ```
 
-**这正是「标签不存在」的表现** —— 不是「仓库或编号不存在」。5.4 会再讲一次。
+**这正是「标签不存在」的表现** —— 不是「仓库或编号不存在」。5.1 会再讲一次。
 
 ---
 
@@ -292,7 +293,7 @@ repoAccess = {"push":false,"private":false,"fork":false,"hasIssues":true,"archiv
 - 弹 `Gitee 仓库 owner/name 不存在，或 token 看不到这个私有仓库` → 体检拿到 404：名字错，或令牌账号不在成员里。
 - 弹 `Gitee token 无效或没权限（设置 → 凭证里重新填一次）` → 401/403，先跑 1.1 / 1.2。
 - 弹 `添加前没能确认这个 Gitee 仓库（…），稍后会在面板里再次探测。` → 网络/超时。**不影响建守**，下一轮 `probeAccess` 会补上 `repoAccess`。
-- **历史坑（0.9.179 已修）**：旧版本这里走 `gh api repos/owner/name`，Gitee 仓库必然 404，会误报「仓库不存在」。看到这句说明宿主还在跑旧代码 —— `watch_doctor` 会给 `WARN 代码已更新但未生效`。
+- **历史坑（0.9.180 已修）**：0.9.179 及以前，这里的 `isNew = !created && !state.watchers[id]` 两项互为否定 → **体检从来没跑过**（既不会误报也不会发现真问题）；0.9.180 改成 `isNew = created` 才接上，并给 Gitee 补了 REST 分支（否则 Gitee 守会去 `gh api` 必然 404）。看到「仓库不存在」的假警告说明宿主还在跑更早的代码 —— `watch_doctor` 会给 `WARN 代码已更新但未生效`。
 
 ---
 
@@ -547,7 +548,7 @@ Gitee 网页上该 issue 出现这个标签；`/state` 里 `lastAcked = { number
 **期望看到什么**：Gitee 那条守打出**这些行**（顺序固定）：
 
 ```text
-OK   版本一致：0.9.179
+OK   版本一致：0.9.180
 OK   面板接口挂载：6 条，无失败
 INFO 没有 GitHub 守：跳过 gh 登录检查（Gitee 那条走令牌，见上面）
 OK   gitee:owner/name 可访问
@@ -555,6 +556,8 @@ INFO Gitee 没有 ETag 条件请求，所以这条守每轮都会真的读一次
 ```
 
 （第三行**只在全是 Gitee 守时**出现；只要还挂着一条 GitHub 守，它就换成 `OK   gh 登录：正常` —— 见 5.5。有令牌时**没有** `WARN 没有配置 Gitee token…`，没令牌时多这一行。）
+
+> 0.9.180 在「ack 标签」块里加了 Gitee 的 `INFO ack 标签「…」：Gitee 需要先在仓库里手动建好这个标签…`，但那一段在 gitee 分支的 `continue` **之后**，对 Gitee **不可达**（死代码）。所以预期仍然**看不到**这行 —— 这是新引入的缺陷，不是清单写错。
 
 同时注意：Gitee 条目**不会**打出下面这三行 —— 因为 gitee 分支在 `lib/index.js · watch_doctor 的 Gitee 分支末尾的 continue` 直接 `continue` 了：
 
@@ -585,10 +588,11 @@ INFO Gitee 没有 ETag 条件请求，所以这条守每轮都会真的读一次
 2. **`UNCHANGED_TEXT` 写着「未变化（304，不计入速率限制）」** —— Gitee 没有 304，3.3 会看到这句。
 3. **`watch_ack` 的失败标签表是 GitHub 措辞**（`被 GitHub 限流` / `gh 登录失效`），Gitee 429 也会套用。
 4. **自回声那行少一个空格**：`09:00:00Z我（上一轮留的）`（0.10 原文）。
-5. **建守走两套入口时容易分叉**：面板（`POST /session-superagent/watch`）与 `watch_start` 工具各有各的 id 公式，0.9.179 已统一成 `parseRepoSpec` + `gitee:` 前缀；再改其中一处必须同时改另一处，否则同一条守会有两个 id（2.5 的回归点）。
+5. **建守走两套入口时容易分叉**：面板（`POST /session-superagent/watch`）与 `watch_start` 工具各有各的 id 公式，0.9.180 已统一成 `parseRepoSpec` + `gitee:` 前缀；再改其中一处必须同时改另一处，否则同一条守会有两个 id（2.5 的回归点）。
 6. **添加前体检**现在也分两家（`precheckRepo(repo, provider)`），Gitee 走 `giteeRepo`；1.5 的三个警告文案是 Gitee 专属分支。
 7. **`/state` 投影没有 `provider`** —— 只能从 `id` 前缀或磁盘 `watchers.json` 判断。
 8. **`watch_trace` 对字符串编号不可用**（`Number("IKSQJH") = NaN`）。
+9. **`watch_doctor` 里 Gitee 的 ack 标签 `INFO` 是死代码**：它写在 gitee 分支 `continue` 之后，永远打不出来（5.4 已说明预期输出）。
 
 ## 还没做的
 

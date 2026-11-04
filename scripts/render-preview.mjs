@@ -165,7 +165,9 @@ function render(node) {
   const parts = []
   if (props.className) parts.push(attr('class', props.className))
   if (props.style) parts.push(attr('style', styleToCss(props.style)))
-  for (const key of ['data-tone', 'data-state', 'data-open', 'data-stage', 'role', 'title', 'aria-label', 'aria-current', 'aria-selected', 'aria-pressed', 'aria-expanded', 'aria-checked', 'aria-modal', 'aria-hidden', 'type', 'placeholder', 'value', 'disabled']) {
+  // svg 的 width/height/viewBox 必须在白名单里：否则图标拿不到尺寸，量出来的按钮高 28px、内容 89px
+  // （T2 出图时发现的工装缺陷 —— 面板没问题，是预览工具把它画坏了）
+  for (const key of ['data-tone', 'data-state', 'data-open', 'data-stage', 'role', 'title', 'aria-label', 'aria-current', 'aria-selected', 'aria-pressed', 'aria-expanded', 'aria-checked', 'aria-modal', 'aria-hidden', 'type', 'placeholder', 'value', 'disabled', 'width', 'height', 'viewBox', 'fill', 'stroke', 'strokeWidth', 'strokeLinecap', 'strokeLinejoin', 'd', 'x', 'y', 'rx', 'ry', 'cx', 'cy', 'r', 'points', 'transform', 'xmlns']) {
     if (props[key] !== undefined && props[key] !== false) parts.push(attr(key, props[key]))
   }
   if (keyIsVoid(tag)) return '<' + tag + parts.join('') + '>'

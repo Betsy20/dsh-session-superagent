@@ -2,6 +2,43 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.181] - 2026-11-05 —— 按钮像裸文字（.dt-btn-ghost 没有基础样式）+ 预览工具把 svg 画坏
+
+### 本轮派单（LEAD.md 纪律：Lead 只拆包/派单/集成/验收）
+三个子代理同轮发出、各自只写一份新文档，Lead 串行做 `lib/**` 与 `client.js`：
+
+| ID | 交付 | 关键结论 |
+|---|---|---|
+| T1 | `docs/报告-gh调用点审计.md` | 18 处 `run('gh'` 分类：7 provider-dependent / 11 github-only / 0 unknown |
+| T2 | `docs/报告-设置页视觉核对.md` + 3 张图 | **纠正了我的错误假设**：三个分区 0 处文字截断（我原以为「被切」） |
+| T3 | `docs/Gitee-真机联调清单.md` | 8 节 25 条；真实 Gitee 只读探测；挖出 6 条缺陷 |
+
+### ① `.dt-btn-ghost` 从来没有基础样式
+CSS 里只有 `.dt-btn-ghost:hover` 和 `:active`，没有不带伪类的那条 ——
+于是 `variant="ghost"` 的按钮**看起来和裸文字一样**（bg 透明、border 0）。T2 实测：
+「复制命令」与「重新检查」同为 68×28、只隔 8px，而后者会发 `/update?refresh=1` 改写上方 kv。
+补上基础样式（透明底 + 0.5px 描边 + 次要色），出图已确认两者能分开。
+
+### ② 预览工具把 svg 画成 89px 高的怪东西
+`scripts/render-preview.mjs` 的 `render()` 属性白名单里没有 `viewBox/width/height`
+→ 图标拿不到尺寸，量出来按钮高 28px、内容 89px。**这是工装缺陷，不是面板缺陷**（T2 明确区分了）。
+已补齐白名单（`viewBox` 等 20 个属性）。
+
+### ③ 文案按 provider 分家（T3 发现写死）
+- 唤醒消息尾句：Gitee 守不再写「写回 GitHub」；
+- Gitee 的「未变化」不再说「304」（Gitee 没有 ETag，每轮都真读）；
+- `/state` 补 `provider` 字段（面板不必靠 id 前缀猜）；
+- `watch_trace` 接受字符串编号（Gitee 的 `IKSQJH` 以前 `Number()` 成 NaN，永远查不到）。
+
+### 证据
+```
+node --test → 288/288
+ui-audit → 11/11（100）
+preflight 全量 → 37/37
+出图：shot-set-update-after.png（ghost 按钮已有描边）
+派单表：docs/派单表.md（T1/T2/T3 全 DONE，B1/B2 是只有人能做的）
+```
+
 ## [0.9.180] - 2026-11-05 —— 审计发现的三个真故障：precheck 是死代码、watch_start 不认 Gitee、gh 探测误报
 
 ### 来源
