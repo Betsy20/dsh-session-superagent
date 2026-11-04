@@ -1396,3 +1396,27 @@ test('系统错误码各归其类：EACCES 是权限、EPIPE/ETIMEDOUT 是网络
   assert.equal(watchModule.classifyGhError('EPIPE: broken pipe, write').kind, 'network')
   assert.equal(watchModule.classifyGhError('ETIMEDOUT connect').kind, 'network')
 })
+
+test('唤醒消息的完成标准：有/无隔离区两种情况都对（曾经引用过不存在的 iso）', async () => {
+  const { wakeCriteria } = await import('../lib/watch.js')
+  const plain = wakeCriteria({})
+  assert.equal(plain.length, 3)
+  assert.ok(plain[2].includes('在 issue 里留言'), '没有隔离区时不该提分支：' + plain[2])
+  assert.ok(!plain[2].includes('推分支'), '没有隔离区却说推分支 = 骗人：' + plain[2])
+
+  const isolated = wakeCriteria({ isolation: { dir: '/tmp/wt', branch: 'b' } })
+  assert.ok(isolated[2].includes('推分支并开 PR'), '有隔离区时要教它推分支：' + isolated[2])
+
+  assert.ok(wakeCriteria()[2].includes('在 issue 里留言'))
+})
+
+test('lib/index.js 里不再引用未声明的 iso（那条 ReferenceError 只在空闲会话真发消息时才爆）', () => {
+  const src = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+  const bad = src.split(/\r?\n/).filter((line) => {
+    if (!/\biso\b/.test(line)) return false
+    if (/isolation|iso\.|isoLine|const iso|let iso/.test(line)) return false
+    if (/^\s*(\/\/|\*)/.test(line)) return false
+    return true
+  })
+  assert.deepEqual(bad, [], '发现未声明的 iso 引用：' + bad.join(' | '))
+})

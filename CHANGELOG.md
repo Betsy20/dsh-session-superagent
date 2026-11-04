@@ -2,6 +2,42 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.172] - 2026-11-04 —— 真机第一轮唤醒就炸：`iso is not defined`
+
+### 现场（你截图的那条红色「异常」）
+给本仓库新建一条守之后，第一次真正要走「发唤醒消息」时，
+面板直接红 `iso is not defined`。
+
+### 根因
+`lib/index.js` 的 `criteria: [...]` 里写着：
+
+```js
+iso && iso.dir ? '回写到哪：推分支并开 PR…' : '回写到哪：在 issue 里留言…'
+```
+
+而那个作用域里的变量叫 **`isolation`**（上一行 `const isolation = await prepareIsolation(entry)`），
+从来没有 `iso`。所以只要真的走到"构造唤醒文本"这一步就抛 ReferenceError。
+
+**为什么一直没被发现**：老那条守（dsh-go）长期停在 304 / 会话忙的提前 return 上，
+永远到不了这一行；而 269 个用例里没有一个覆盖"pollOnce 走到发消息"的完整路径。
+新建守 + 仓库真有新条目 = 第一次踩中。
+
+### 改法
+把三条完成标准抽成纯函数 `wakeCriteria({ isolation })`（`lib/watch.js`），`index.js` 调用它。
+这样这段逻辑第一次有了**能直接覆盖的入口**，而不是埋在 400 行 pollOnce 中间。
+
+### 测试
+- 新：`wakeCriteria` 有/无隔离区两条分支都对（无隔离区时**不许**说"推分支"）；
+- 新：静态守卫 —— `lib/index.js` 里出现裸 `iso` 标识符即失败（注释里出现不算）。
+
+合计 **269 例**。
+
+### 修复后的真机验证
+```
+POST /watch {action:'poll', id:'MYCF711/dsh-session-superagent#…'}
+→ 202；下一轮 lastError 从「iso is not defined」变成「会话正忙，下一轮重试」（正常推迟）
+```
+
 ## [0.9.171] - 2026-11-04 —— 本地解析错误不该被说成「可能是代理干扰」
 
 ### 为什么（这是 PR #2 那句判断的落地）
