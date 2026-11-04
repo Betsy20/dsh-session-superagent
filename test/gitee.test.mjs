@@ -38,7 +38,7 @@ test('Gitee issue/PR 归一成下游认识的形状', () => {
     labels: [{ name: 'bug' }, 'ui'], html_url: 'https://gitee.com/a/b/issues/7',
     updated_at: '2026-11-04T10:00:00Z',
   })
-  assert.equal(issue.number, 7)
+  assert.equal(issue.number, '7', '编号统一成字符串（Gitee issue 真机就是字符串）')
   assert.equal(issue.state, 'open', 'progressing 要当成开着')
   assert.equal(issue.user.login, 'ysl289')
   assert.deepEqual(issue.assignees, [{ login: 'MYCF711' }])
@@ -46,7 +46,7 @@ test('Gitee issue/PR 归一成下游认识的形状', () => {
 
   const pr = normalizeGiteeItem({ number: 9, title: 'PR', state: 'open', head: {}, user: { login: 'x' }, updated_at: '2026-11-04T11:00:00Z' }, { kind: 'pull' })
   assert.ok(pr.pull_request, 'PR 要带 pull_request，下游靠它分类')
-  assert.equal(pr.number, 9)
+  assert.equal(pr.number, '9')
 })
 
 test('issue 与 PR 合并后按 updated_at 倒序', () => {
@@ -55,7 +55,7 @@ test('issue 与 PR 合并后按 updated_at 倒序', () => {
     [{ number: 2, updated_at: '2026-11-03T00:00:00Z', state: 'open' }],
   )
   assert.equal(list.length, 2)
-  assert.equal(list[0].number, 2, '最近更新的排前面')
+  assert.equal(list[0].number, '2', '最近更新的排前面')
 })
 
 test('拉列表：issue 与 PR 两个端点都要打，一半失败要标出来', async () => {
@@ -103,4 +103,23 @@ test('打标签：POST 到 issues/{n}/labels，body 是 labels 数组', async ()
   assert.equal(captured.init.method, 'POST')
   assert.deepEqual(JSON.parse(captured.init.body), { labels: ['主理鱼:已处理'] })
   assert.equal(captured.init.headers.authorization, 'token t')
+})
+
+test('真机样例：issue 的 number 是字符串（IKSQJH），PR 是数字 —— 都不能被转成 0', () => {
+  // 2026-11-04 真机抓的真实响应形状
+  const issue = normalizeGiteeItem({ id: 34933085, number: 'IKSQJH', state: 'open', title: 't', user: { login: 'x' }, updated_at: '2026-11-04T10:00:00Z' })
+  assert.equal(issue.number, 'IKSQJH', 'Gitee issue 编号是字符串，转 Number 会变 0 → 去重与 ack 全部失效')
+  const pr = normalizeGiteeItem({ id: 5474824, number: 14, state: 'closed', title: 't', user: { login: 'q' }, updated_at: '2026-11-02T11:16:51+08:00' }, { kind: 'pull' })
+  assert.equal(pr.number, '14')
+  // 两种都要能进 URL（评论/打标签都按原样拼）
+  assert.ok(pr.pull_request)
+})
+
+test('字符串编号也要能拼出评论与打标签的 URL', async () => {
+  const urls = []
+  const f = async (u) => { urls.push(u); return { ok: true, status: 200, text: async () => '[]' } }
+  await fetchGiteeLastComment({ repo: 'o/r', item: { number: 'IKSQJH' }, fetchImpl: f })
+  await addGiteeLabel({ repo: 'o/r', number: 'IKSQJH', label: 'L', fetchImpl: f })
+  assert.ok(urls[0].endsWith('/issues/IKSQJH/comments?per_page=1&sort=created&direction=desc'), urls[0])
+  assert.ok(urls[1].endsWith('/issues/IKSQJH/labels'), urls[1])
 })

@@ -2,6 +2,42 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.178] - 2026-11-04 —— 用真实 Gitee 响应校对：编号是字符串，不是数字
+
+### 怎么发现的
+0.9.177 合入后拿**真实** Gitee API 跑了一遍（`oschina/git-osc`，公开仓库）：
+
+```text
+#IKMFKU | open | issue | 显示问题
+#1      | closed | PR  | test
+```
+
+issue 的 `number` 是 **`"IKSQJH"` 这种字符串**（`id` 才是数字 34933085），PR 的 `number` 才是数字。
+
+### 原来错在哪
+```js
+number: Number(item.number ?? item.id) || 0   // → NaN → 0
+```
+所有 Gitee issue 的编号都会变成 `0`：去重键相同（永远只有一条）、ack 打不中、唤醒消息里全是 `#0`。
+
+### 改法
+- `normalizeGiteeItem`：编号**保持原样转字符串**，不再 `Number()`；
+- `fetchGiteeLastComment` / `addGiteeLabel`：按原样拼 URL（`/issues/IKSQJH/comments`、`/pulls/14/comments`）；
+- `watch_ack`：编号不再强制 `Number()` —— 以前 Gitee 的字符串编号会被过滤成空数组，
+  报「number is required」，看着像用户没填。
+
+### 真机联调结果
+```
+listGiteeItems({ repo:'oschina/git-osc', perPage:5 })
+→ ok:true, partial:null, 10 条（issue + PR 混排，按 updated_at 倒序）
+→ #IKMFKU open issue 显示问题 / #1 closed PR test …
+```
+
+### 证据
+```
+node --test → 285/285（新增 2 条：真机字符串编号 / 字符串编号也能拼出评论与标签 URL）
+```
+
 ## [0.9.177] - 2026-11-04 —— 兼容 Gitee：同一个插件盯两家
 
 ### 为什么
