@@ -25,6 +25,13 @@ const args = new Set(process.argv.slice(2))
 const DRY = args.has('--dry-run')
 const TAG_ONLY = args.has('--tag-only')
 const LATEST_ONLY = args.has('--latest')
+// --limit N：按 CHANGELOG 顺序只回填前 N 个（"之前的慢慢改"用这个，别一次造几百个 Release）
+const LIMIT = (() => {
+  const i = process.argv.indexOf('--limit')
+  if (i < 0) return 0
+  const n = Number(process.argv[i + 1])
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0
+})()
 
 const run = (cmd, argv) => execFileSync(cmd, argv, { encoding: 'utf8' })
 const quiet = (cmd, argv) => {
@@ -68,7 +75,7 @@ try {
 }
 
 const entries = readChangelog()
-const todo = LATEST_ONLY ? entries.slice(0, 1) : entries
+const todo = LATEST_ONLY ? entries.slice(0, 1) : (LIMIT > 0 ? entries.slice(0, LIMIT) : entries)
 const createdTags = []
 const createdReleases = []
 const skipped = []

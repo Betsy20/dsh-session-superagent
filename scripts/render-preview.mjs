@@ -194,7 +194,7 @@ const DOCK_CSS = clientSrc.slice(dockHead, dockTail)
 // glossary, update, checking, settingsSection
 const blankForm = { repo: '', intervalSec: '60', goal: '', labels: '', onlyAssigned: false, activeHours: '', isolated: false, workdir: '' }
 const deskHooks = ({ tab = 'overview', notice = null, glossary = false, update = null, settingsSection = 'source' } = {}) => [
-  snapshot, tab, notice, blankForm, '', '', false, [], null, {}, '', glossary, update, false, settingsSection, null, null, false, null,
+  snapshot, tab, notice, blankForm, '', '', false, [], null, {}, '', glossary, update, false, settingsSection, null, null, false, null, '',   // 0.9.175 追加的 ghDir（gh 账号配置目录）
 ]
 
 const ONLY_NAME = (process.argv.find((a) => a.startsWith('--only=')) || '').slice('--only='.length)
@@ -204,6 +204,7 @@ const scenarios = [
   { name: '判定', hooks: deskHooks({ tab: 'judge' }) },
   { name: '触发', hooks: deskHooks({ tab: 'trigger' }) },
   { name: '设置（来源）', hooks: deskHooks({ tab: 'settings' }) },
+  { name: '设置（凭证）', hooks: deskHooks({ tab: 'settings', settingsSection: 'creds' }) },
   { name: '设置（诊断）', hooks: deskHooks({ tab: 'settings', settingsSection: 'diagnose' }) },
   { name: '设置（版本与更新）', hooks: deskHooks({ tab: 'settings', settingsSection: 'update', update: { current: '0.8.45', latest: '0.9.0', hasUpdate: true, command: 'dsh plugin add dsh-session-superagent@0.9.0' } }) },
   { name: '有新版本横幅', hooks: deskHooks({ update: { current: '0.8.45', latest: '0.9.0', hasUpdate: true } }) },

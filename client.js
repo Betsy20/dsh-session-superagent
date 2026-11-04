@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.175'
+    const CLIENT_VERSION = '0.9.176'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1720,7 +1720,7 @@ window.__ModuleLoader__.load({
           h(KeyValues, { rows: [['GitHub token', credentials.token === 'none' ? '未配置（回退到已登录的 gh CLI）' : '已配置'], ['SSH 私钥', credentials.sshKeyPath === 'none' ? '未配置（当前版本不使用）' : '已配置'],
             ['gh 账号', credentials.ghConfigDir === 'configured' ? '已绑定独立配置目录（评论挂智能体账号）' : '宿主当前登录的账号']] }),
           field('Token', h(Input, { type: 'password', value: token, placeholder: 'ghp_… / github_pat_…（留空不改）', onChange: (e) => setToken(e.target.value) })),
-          field('gh 账号目录', h(Input, { value: ghDir, placeholder: '绝对路径；只想让它用自己的账号时填（留空 = 用宿主账号）', onChange: (e) => setGhDir(e.target.value) })),
+          field('gh 账号目录', h(Input, { value: ghDir, placeholder: '绝对路径（留空 = 用宿主账号）', onChange: (e) => setGhDir(e.target.value) })),
           h('div', { className: 'dt-actions' }, h(Btn, { variant: 'primary', onClick: saveCredentials }, '保存凭证')),
           h(Hint, null, '不填也能用：插件直接复用已登录的 gh CLI。填了 gh 账号目录，插件就用那个目录里的账号发言（git push 仍用会话自己的身份，唤醒消息里会提醒会话）。')),
         h(Section, { key: 'update', title: '版本与更新' },
