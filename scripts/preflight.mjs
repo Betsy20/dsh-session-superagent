@@ -214,7 +214,11 @@ if (!FAST) {
   const grab = (theme) => { const m = out.match(new RegExp('· ' + theme + '：\\d+ 个节点 / \\d+ 组 ｜ 不达标 (\\d+) 组 (\\d+) 节点')); return m ? { groups: Number(m[1]), nodes: Number(m[2]) } : null }
   const light = grab('light'); const dark = grab('dark')
   const bad = []
-  if (!light || !dark) bad.push('量不到数据（渲染/浏览器失败）')
+  // 退出码 2 = 环境问题（本机没有浏览器 / 渲染空）。CI 上没有浏览器是正常的，
+  // 这种情况必须 SKIP 而不是 FAIL —— 否则「没量」会被当成「不达标」，门禁在 CI 里永远红。
+  if (res.status === 2) {
+    record('对比度体检', true, '跳过：本机没有可用的浏览器（CI 环境正常现象）')
+  } else if (!light || !dark) bad.push('量不到数据（渲染/浏览器失败）')
   else {
     if (light.groups > base.light.groups) bad.push('浅色不达标 ' + light.groups + ' 组 > 基线 ' + base.light.groups)
     if (dark.groups > base.dark.groups) bad.push('深色不达标 ' + dark.groups + ' 组 > 基线 ' + base.dark.groups)
