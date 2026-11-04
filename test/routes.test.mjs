@@ -1283,6 +1283,11 @@ test('代理返回网页而不是 JSON：要明说是"被拦截"，不是"代理
   assert.ok(why.hint.includes('代理'), '要指向代理设置')
 
   // 合法 JSON 不该报
+  // 本地切分错误：正文以 HTTP 状态行开头，不该被当成代理问题（真机踩过两次）
+  const localParse = diagnoseBadBody({ bodyText: 'HTTP/2.0 200 OK' + String.fromCharCode(10) + 'content-type: application/json' + String.fromCharCode(10) + '[{"number":1}]' })
+  assert.equal(localParse && localParse.kind, 'local-parse', '状态行开头的正文应判为本地解析问题')
+  assert.ok(!/代理/.test((localParse && localParse.hint) || ''), '不要再把本地解析错误说成代理问题：' + (localParse && localParse.hint))
+  assert.equal(diagnoseBadBody({ bodyText: 'HTTP/1.1 404 Not Found' })?.kind, 'local-parse', 'HTTP/1.1 变体也要认')
   assert.equal(diagnoseBadBody({ bodyText: '[]' }), null)
 
   // 空内容仍然走原来的判断（凭证优先）

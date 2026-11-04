@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.170'
+    const CLIENT_VERSION = '0.9.171'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1240,6 +1240,8 @@ window.__ModuleLoader__.load({
               moved: { label: '改仓库地址', onClick: () => setTab('trigger') },
               notfound: { label: '改仓库地址', onClick: () => setTab('trigger') },
               permission: { label: '去填 token', onClick: () => setTab('settings') },
+              // 本地解析错误：重试没用，只能让人把这段贴出来
+              'local-parse': { label: '看诊断', onClick: () => setTab('settings') },
               network: { label: '立刻重试', onClick: () => act(watcher, 'poll') },
               ratelimit: { label: '立刻重试', onClick: () => act(watcher, 'poll') },
               gateway: { label: '立刻重试', onClick: () => act(watcher, 'poll') },
