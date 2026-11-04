@@ -2,6 +2,43 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.180] - 2026-11-05 —— 审计发现的三个真故障：precheck 是死代码、watch_start 不认 Gitee、gh 探测误报
+
+### 来源
+派单表 T1（子代理只读审计，`docs/报告-gh调用点审计.md`）逐个分类了 `lib/index.js` 里 **18 处 `run('gh'`**：
+7 处 provider-dependent、11 处 github-only、0 处 unknown。以下三条是它挖出来的真故障。
+
+### ① `precheckRepo` 从来没跑过（死代码）
+```js
+const created = !(state.watchers && state.watchers[id])   // 新建 = true
+const isNew  = !created && !state.watchers[id]            // ← 两项互为否定，恒 false
+```
+于是「添加前体检」（仓库不存在/只读/归档/关 Issues 的警告）**一次都没执行**。
+改成 `const isNew = created`。修复后这条路径立刻成为活代码，所以同一轮把它的 Gitee 分支也补上了
+（否则 Gitee 守会去 `gh api repos/<gitee-repo>` 404，还给仓库写上假的「不存在」警告）。
+
+### ② `watch_start` 工具不认 Gitee 写法
+面板走 `/watch` 路由（已支持 `gitee:owner/name`），但**工具**走的是另一条创建路径，
+按 `owner/name` 正则校验、且不写 `provider` —— 用工具建的 Gitee 守没有 provider，
+默认走 GitHub 轮询，每轮 404。现在两条路径共用 `parseRepoSpec()`，id 也统一带 `gitee:` 前缀。
+
+### ③ 全 Gitee 的客户看到「gh 未登录」假故障
+`/state` 的 `ghHealth()` / `tokenScopes()` 与 `watch_doctor` 的 `gh auth status` 都**无条件**执行。
+按需探测：没有 GitHub 守时跳过，并给出 `ok: null + skipped: '没有 GitHub 守'`（不再伪装成布尔）。
+
+### 顺带
+- `viewerLogin(provider)` 分家缓存：Gitee 守拿 GitHub 的 login 去比，自回声判定永远不成立；
+- `probeAccess` 增加 Gitee 分支 + `mapGiteeRepoAccess()`（Gitee 的 `permissions.{push,admin}` 形状）；
+- Gitee 的 ack 标签在 doctor 里改成 **INFO**（Gitee 没有建标签端点，不会自动创建，别假装探测过）。
+
+### 证据
+```
+node --test → 288/288（新增：repoAccess 映射、state 跳过探测）
+preflight --fast → 除 tag 外全绿
+审计报告：docs/报告-gh调用点审计.md（18 行表格 + 3 条 404 点）
+派单表：docs/派单表.md
+```
+
 ## [0.9.179] - 2026-11-04 —— 兼容 DSH 0.2.2-rc.1（静态核对）+ Gitee 增量轮询
 
 ### 一、DSH 0.2.2-rc.1 兼容核对（不装新版也能查）

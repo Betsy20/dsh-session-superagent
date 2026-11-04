@@ -26,6 +26,13 @@ const DRY = args.has('--dry-run')
 const TAG_ONLY = args.has('--tag-only')
 const LATEST_ONLY = args.has('--latest')
 // --limit N：按 CHANGELOG 顺序只回填前 N 个（"之前的慢慢改"用这个，别一次造几百个 Release）
+// --max-create N：最多新建 N 个 Release（已存在的不算）——回填时用这个，别让「跳过」吃掉额度
+const MAX_CREATE = (() => {
+  const i = process.argv.indexOf('--max-create')
+  if (i < 0) return 0
+  const n = Number(process.argv[i + 1])
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0
+})()
 const LIMIT = (() => {
   const i = process.argv.indexOf('--limit')
   if (i < 0) return 0
@@ -76,12 +83,14 @@ try {
 
 const entries = readChangelog()
 const todo = LATEST_ONLY ? entries.slice(0, 1) : (LIMIT > 0 ? entries.slice(0, LIMIT) : entries)
+  // --max-create 与 --limit 可以叠加：先按 CHANGELOG 顺序取窗口，再在里面建到 N 个为止
 const createdTags = []
 const createdReleases = []
 const skipped = []
 const noCommit = []
 
 for (const entry of todo) {
+  if (MAX_CREATE > 0 && createdReleases.length >= MAX_CREATE) break
   const tag = 'v' + entry.version
 
   if (!existingTags.has(tag)) {

@@ -166,7 +166,9 @@ test('未知路由不注册（不会误吞）', () => {
 test('/state 返回 gh 健康；/config 已下线', async () => {
   const state = (await call('GET', '/session-superagent/state')).json()
   assert.ok('gh' in state, '/state 必须回传 gh 字段（设置页「来源」卡片要用）')
-  assert.equal(typeof state.gh.ok, 'boolean')
+  // 没有 GitHub 守时不再 spawn `gh`：ok 允许为 null，但必须说明原因（否则面板分不清「没探」和「探失败」）
+  assert.ok(typeof state.gh.ok === 'boolean' || state.gh.ok === null, 'ok 只能是 boolean 或 null')
+  if (state.gh.ok === null) assert.ok(state.gh.skipped, '跳过探测时必须给原因：' + JSON.stringify(state.gh))
 
   // /config 已删除（与 /state 重复、是未鉴权 GET，且曾因引用未定义变量抛 ReferenceError）
   // 路由表里不应再注册它 —— 未注册即 404（宿主不会为未知路径分发到 handler）

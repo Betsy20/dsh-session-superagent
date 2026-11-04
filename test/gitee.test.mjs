@@ -7,6 +7,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { parseRepoSpec } from '../lib/watch.js'
+import * as giteeModule from '../lib/gitee.js'
 import {
   normalizeGiteeItem, normalizeGiteeList, normalizeGiteeState,
   listGiteeItems, fetchGiteeLastComment, addGiteeLabel,
@@ -131,4 +132,23 @@ test('since 会拼进两个端点的 URL（Gitee 没有 ETag，这是唯一能�
   assert.equal(urls.length, 2)
   assert.ok(urls.every((u) => u.includes('since=2026-11-04T00%3A00%3A00Z')), '两个端点都要带 since：' + urls.join(' '))
   assert.ok(urls[0].includes('per_page=5'))
+})
+
+test('repoAccess 映射：Gitee 的 permissions 形状 → 内部形状（别把只读误报成可写）', () => {
+  const { mapGiteeRepoAccess } = giteeModule
+  const rw = mapGiteeRepoAccess('o/r', { permissions: { push: true, admin: false }, private: true, has_issues: true })
+  assert.equal(rw.push, true)
+  assert.equal(rw.private, true)
+  assert.equal(rw.fork, false)
+
+  const ro = mapGiteeRepoAccess('o/r', { permissions: { push: false, admin: false, pull: true }, has_issues: false })
+  assert.equal(ro.push, false, '只读仓库不能报成可写')
+  assert.equal(ro.hasIssues, false, '关掉 issue 的仓库要能看出来')
+
+  // Gitee 没有 archived/disabled 字段：必须保持 false，不许瞎猜
+  assert.equal(ro.archived, false)
+  assert.equal(ro.disabled, false)
+
+  const admin = mapGiteeRepoAccess('o/r', { permissions: { admin: true } })
+  assert.equal(admin.push, true, 'admin 也应当能写')
 })
