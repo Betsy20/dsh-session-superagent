@@ -2,6 +2,37 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.185] - 2026-11-05 —— 「被重新打开」这个信号在面板上从来没出现过（两个 bug 叠着）
+
+### 来源
+T8 子代理把 Gitee 的 6 条历史缺陷逐条回头核对，发现第 1 条其实**两个独立 bug 叠在一起**，
+而且**对 GitHub 同样成立** —— 不是 Gitee 专属。
+
+### ① 顺序错了：判 reopened 时还没标记
+```js
+const reopened = items.find((item) => item.state_reason === 'reopened')  // ← 先算
+if (reopened) entry.lastReopened = reopened.number
+...
+entry.lastStates = markGiteeReopened(items, entry.lastStates)              // ← 后标记
+```
+Gitee 的 `reopened` 是 `markGiteeReopened` 写进去的，等写进去时这一轮已经算完了；
+下一轮 `lastStates` 已是 `open`，**永远不再触发**。改成先标记、再判定。
+
+### ② 白名单漏字段：算出来也存不下去
+`POLL_RESULT_FIELDS` 里没有 `lastReopened` / `lastStates` → `mergePollResult` 直接丢弃 →
+落盘没有 → `/state` 恒 `null` → 面板的 ⚠ 与 problems 永不出现。已补。
+
+### ③ 顺带
+- 自回声那行少一个空格（`Z我（上一轮留的）` → `Z 我（上一轮留的）`）；
+- `watch_trace` 的 schema 写死 `type: 'number'`，宿主校验会把 Gitee 的 `"IKSQJH"` 直接拒掉 → 改成 `['number','string']`。
+
+### 证据
+```
+node --test → 302/302（新增：白名单必须含 lastReopened/lastStates）
+真机两轮轮询（T8 复现）：改前 entry.lastStates = undefined；改后能跨轮存活
+preflight 全量 → 37/37
+```
+
 ## [0.9.184] - 2026-11-05 —— Gitee 的 ack 标签根本建不出来：半角冒号非法
 
 ### 真机发现（不是猜的）

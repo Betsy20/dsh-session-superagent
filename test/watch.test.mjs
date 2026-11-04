@@ -1475,3 +1475,15 @@ test('绑了智能体账号：唤醒消息要提身份，但**不许带路径**�
 
   assert.ok(!formatWatchText('o/r', [item], {}).includes('【提交身份】'), '没绑就不该提')
 })
+
+test('lastReopened / lastStates 必须能跨轮存活（漏了白名单，面板永远看不到「被重新打开」）', async () => {
+  const { mergePollResult, POLL_RESULT_FIELDS } = await import('../lib/watch.js')
+  assert.ok(POLL_RESULT_FIELDS.includes('lastReopened'), 'lastReopened 要在白名单里')
+  assert.ok(POLL_RESULT_FIELDS.includes('lastStates'), 'lastStates 要在白名单里')
+
+  const merged = mergePollResult({ id: 'x', lastPoll: '2026-11-05T00:00:00Z' }, {
+    lastReopened: 'IK1', lastStates: { IK1: 'open' }, lastPoll: '2026-11-05T01:00:00Z',
+  })
+  assert.equal(merged.lastReopened, 'IK1')
+  assert.deepEqual(merged.lastStates, { IK1: 'open' })
+})
