@@ -2,6 +2,32 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.186] - 2026-11-05 —— 空态/错误态/暂停态首次出图，四条真缺陷
+
+### 来源
+T7 子代理给预览工装补了三个从没出过图的场景（空态 / 错误态 / 暂停态），逐条量了坐标与颜色。
+
+### 修掉的
+1. **统计条的单位与数字同色同号**（四个 `0` 的「条/主理中/已暂停/异常」全 `#e6edf3`/14px）：
+   根因 `.dt-stat-btn { color: inherit }` 盖掉了 `.dt-stat` 的 caption 色。给单位单独挂 `dt-stat-unit` + caption 色。
+2. **裸 `.dt-danger` 只有淡背景、文字仍是主色**：「需要关注」两条告警看起来像普通列表项，
+   红色要滚到下面才出现。补 `color: var(--dsw-alias-state-error-primary)`（竖条用 `currentColor`，一起变红）。
+3. **`(28 分钟前前)` 叠字**：`ageText()` 自己已带「前」，调用处又加了一个。
+4. **统计条四个 0 语义不同却长得一样** —— 这一条本轮只做到「单位可分辨」，真正的状态色留给下一轮（需要先定语义）。
+
+### 没修的（登记）
+- 引导卡标题 14px/400 比它自己的步骤标题还轻；
+- 「暂停唤醒：…」同一句出现两次；
+- 停用态工具栏「全部暂停」是空操作且无 disabled 态。
+
+### 证据
+```
+node --test → 302/302
+ui-audit → 11/11（100）
+preflight 全量 → 37/37
+出图：shot-empty.png / shot-error.png / shot-paused.png / shot-error-after.png
+```
+
 ## [0.9.185] - 2026-11-05 —— 「被重新打开」这个信号在面板上从来没出现过（两个 bug 叠着）
 
 ### 来源
