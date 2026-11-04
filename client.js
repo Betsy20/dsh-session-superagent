@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.176'
+    const CLIENT_VERSION = '0.9.177'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -990,6 +990,8 @@ window.__ModuleLoader__.load({
       const [stateFilter, setStateFilter] = useState(null)
       // gh 账号配置目录（只收绝对路径；留空 = 用宿主当前登录的账号）
       const [ghDir, setGhDir] = useState('')
+      // Gitee 私人令牌（和 GitHub token 分开存；留空 = 公开仓库也能读）
+      const [giteeToken, setGiteeToken] = useState('')
       // 建议规则弹层：给"叫醒了没回音"一个下一步动作（只提供可复制的规则，不替客户写仓库文件）
 
       // 「我现在手上有没有能渲染的数据」。判断依据必须是**当前 snap**，不是"以前拿到过一次" ——
@@ -1128,11 +1130,13 @@ window.__ModuleLoader__.load({
       const saveCredentials = () => run(async () => {
         const payload = {}
         if (token.trim()) payload.token = token.trim()
+        if (giteeToken.trim()) payload.giteeToken = giteeToken.trim()
         if (ghDir.trim()) payload.ghConfigDir = ghDir.trim()
         else if (ghDir === '') payload.ghConfigDir = ''   // 显式清空 = 回到宿主账号
         await call('/credentials', { method: 'POST', body: JSON.stringify(payload) })
         setToken('')
         setGhDir('')
+        setGiteeToken('')
       }, '凭证已保存')
 
       const saveGoal = () => run(async () => {
@@ -1676,7 +1680,7 @@ window.__ModuleLoader__.load({
 
       const trigger = h(Section, { title: '新增主理鱼' },
         h('div', { className: 'dt-form' },
-          field('仓库', h(Input, { value: form.repo, placeholder: 'owner/name', onChange: (e) => setForm({ ...form, repo: e.target.value }) })),
+          field('仓库', h(Input, { value: form.repo, placeholder: 'owner/name，或 gitee:owner/name', onChange: (e) => setForm({ ...form, repo: e.target.value }) })),
           field('间隔（秒）', h(Input, { value: form.intervalSec, onChange: (e) => setForm({ ...form, intervalSec: e.target.value }) })),
           field('单次最多唤醒条数', h(Input, { value: form.batchLimit || '', placeholder: '5（1-20）', onChange: (e) => setForm({ ...form, batchLimit: e.target.value }) })),
           field('每小时最多唤醒次数', h(Input, { value: form.maxWakesPerHour || '', placeholder: '6（1-60）', onChange: (e) => setForm({ ...form, maxWakesPerHour: e.target.value }) })),
@@ -1718,8 +1722,10 @@ window.__ModuleLoader__.load({
           ] })),
         h(Section, { key: 'creds', title: '凭证' },
           h(KeyValues, { rows: [['GitHub token', credentials.token === 'none' ? '未配置（回退到已登录的 gh CLI）' : '已配置'], ['SSH 私钥', credentials.sshKeyPath === 'none' ? '未配置（当前版本不使用）' : '已配置'],
-            ['gh 账号', credentials.ghConfigDir === 'configured' ? '已绑定独立配置目录（评论挂智能体账号）' : '宿主当前登录的账号']] }),
+            ['gh 账号', credentials.ghConfigDir === 'configured' ? '已绑定独立配置目录（评论挂智能体账号）' : '宿主当前登录的账号'],
+            ['Gitee 令牌', credentials.giteeToken === 'configured' ? '已配置' : '未配置（公开仓库也能读，私有仓库需要）']] }),
           field('Token', h(Input, { type: 'password', value: token, placeholder: 'ghp_… / github_pat_…（留空不改）', onChange: (e) => setToken(e.target.value) })),
+          field('Gitee 令牌', h(Input, { type: 'password', value: giteeToken, placeholder: '私人令牌（留空不改）；只盯 GitHub 可以不管' , onChange: (e) => setGiteeToken(e.target.value) })),
           field('gh 账号目录', h(Input, { value: ghDir, placeholder: '绝对路径（留空 = 用宿主账号）', onChange: (e) => setGhDir(e.target.value) })),
           h('div', { className: 'dt-actions' }, h(Btn, { variant: 'primary', onClick: saveCredentials }, '保存凭证')),
           h(Hint, null, '不填也能用：插件直接复用已登录的 gh CLI。填了 gh 账号目录，插件就用那个目录里的账号发言（git push 仍用会话自己的身份，唤醒消息里会提醒会话）。')),

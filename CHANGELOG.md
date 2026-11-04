@@ -2,6 +2,45 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.177] - 2026-11-04 —— 兼容 Gitee：同一个插件盯两家
+
+### 为什么
+客户要盯 `Ghandi/workbuddy-pro`（Gitee），而插件此前只认 `gh` CLI + `api.github.com`。
+
+### 怎么用（三种写法）
+```
+owner/name                       # GitHub（默认）
+gitee:owner/name                 # Gitee
+https://gitee.com/owner/name     # 直接粘地址栏（.git 结尾也行）
+```
+
+### 两家不一样的地方（只换域名会踩的坑）
+| 维度 | GitHub | Gitee |
+|---|---|---|
+| 认证 | `gh` CLI / 面板 token | 私人令牌（设置里新增「Gitee 令牌」） |
+| 状态值 | open / closed | 还有 `progressing` / `rejected`（rejected 才算关闭） |
+| PR 列表 | `/issues` 里带 `pull_request` | 独立 `/pulls`，要合并 |
+| 批量评论 | GraphQL 一次查多条 | 逐条 REST |
+| 条件请求 | ETag → 304 不计额度 | **没有 ETag**，每轮全读 |
+
+### 实现（不复制判定逻辑）
+- 新增 `lib/gitee.js`：请求 / 归一化 / 失败分类，输出**和 GitHub 一样的条目形状**；
+- 把 `pollOnce` 里「拿到一页之后的所有事」抽成 `pollWithItems()`：两家共用筛选、推迟、唤醒、水位；
+- `parseRepoSpec()` 认 `gitee:` 前缀、全角冒号、`https://gitee.com/...`、带 `.git` 和尾巴的 URL；
+- 轮询 / 取最后评论 / ack 打标签 / `watch_doctor` 四处都按 provider 分支；
+- 面板「设置 → 凭证」新增 Gitee 令牌输入 + 状态行；仓库输入框提示可填 `gitee:owner/name`。
+
+### 顺带补一个会摘掉插件的坑
+profile 的 `node_modules` 和仓库是**硬链接**：仓库里写坏一个 import，宿主下次加载就整个没有面板/状态栏
+（本轮真的把「鱼」弄丢过一次）。新增 `test/meta.test.mjs` 一条：**必须能 `import('../lib/index.js')`**。
+
+### 证据
+```
+node --test → 283/283（新增 test/gitee.test.mjs 8 条 + 模块加载守卫 1 条）
+truthy 探针：gitee:a/b / 全角冒号 / gitee.com URL / .git / 带尾巴 URL 全部解析正确
+preflight --fast → 36/36（--no-maintenance 形态）
+```
+
 ## [0.9.176] - 2026-11-04 —— 凭证页出图核对 + 历史 Release 补了一批
 
 ### 真机界面（本轮出图核对）

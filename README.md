@@ -3,7 +3,7 @@
 <img src="assets/icon-180.png" width="88" height="88" alt="">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.9.176-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
+[![Version](https://img.shields.io/badge/version-0.9.177-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
 [![npm](https://img.shields.io/npm/v/dsh-session-superagent.svg)](https://www.npmjs.com/package/dsh-session-superagent)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-plugin-orange.svg)](https://github.com/topics/dsh-plugin)
 
@@ -78,6 +78,27 @@ dsh plugin install /path/to/dsh-session-superagent
 装进 profile 后是 `file:` 硬链接：改源码即改线上；**但新增文件不会被自动带过去**，
 加完文件要跑 `pnpm run sync:profile`（否则下次重启插件会整体不挂载，这坑踩过一次）。
 
+## 盯 Gitee 仓库（0.9.177 起）
+
+同一个插件既盯 GitHub 也盯 Gitee。写法三种，随便挑一种：
+
+```text
+owner/name                          # GitHub（默认）
+gitee:owner/name                    # Gitee
+https://gitee.com/owner/name        # 直接粘地址栏（.git 结尾也行）
+```
+
+区别在这里（用之前该知道）：
+
+| | GitHub | Gitee |
+|---|---|---|
+| 走什么 | `gh` CLI 或面板 token | REST v5 + 私人令牌 |
+| 条件请求 | 有 ETag，没变化时 304 **不计额度** | **没有** ETag，每轮都真读一次列表 |
+| 批量取评论 | GraphQL 一次查多条 | 逐条 REST（最多前 3 条） |
+| ack 标签 | 不存在会自动建 | 标签必须先存在，否则打不上 |
+
+Gitee 私有仓库要在「设置 → 凭证」填私人令牌；公开仓库不填也能读，但打不了 ack 标签。
+
 ## 一次真实运行长什么样
 
 1. `watch_start` 登记 watcher（状态存 `~/.dsh/state/session-superagent/watchers.json`）；
@@ -123,7 +144,7 @@ dsh plugin install /path/to/dsh-session-superagent
 ## 开发
 
 ```sh
-node --test          # 274 项单测
+node --test          # 283 项单测
 ```
 
 ### 工具输出：文本给人和 agent，JSON 给程序

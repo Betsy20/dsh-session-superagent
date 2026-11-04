@@ -183,3 +183,11 @@ test('doctor 的版本一致性检查：磁盘版本必须等于加载版本（�
   assert.ok(m, '找不到 SERVER_VERSION')
   assert.equal(m[1], disk, 'package.json 与 SERVER_VERSION 必须一致')
 })
+
+test('插件模块能被加载（硬链接安装下，一个 import 写错会当场摘掉整个插件）', async () => {
+  // 真机：profile 的 node_modules 与仓库是**硬链接**，所以仓库里写坏一个 import，
+  // 宿主下次加载就直接没有面板/没有状态栏 —— 2026-11-04 实际发生过一次（鱼没了）。
+  const mod = await import('../lib/index.js')
+  assert.equal(typeof mod.apply, 'function', '要能导出 apply')
+  assert.equal(typeof mod.SERVER_VERSION, 'string')
+})

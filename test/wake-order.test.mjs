@@ -8,8 +8,9 @@ import test from 'node:test'
 
 const src = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
 
-test('pollOnce 里先判会话是否空闲，再准备隔离区', () => {
-  const pollStart = src.indexOf('async function pollOnce')
+test('轮询主体里先判会话是否空闲，再准备隔离区', () => {
+  // 0.9.177 起这段逻辑搬进了 pollWithItems（GitHub / Gitee 共用），断言跟着搬家
+  const pollStart = src.indexOf('async function pollWithItems')
   assert.ok(pollStart > 0, '找不到 pollOnce')
   const body = src.slice(pollStart, src.indexOf('\n}\n', pollStart))
 
