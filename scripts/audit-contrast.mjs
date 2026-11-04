@@ -417,8 +417,10 @@ function measurePage(cfg) {
         const opacity = opacityOf(el, themed)
         // 是「控件」还是「装饰」：1.4.11 只对控件的边界/状态硬要求 3:1，
         // 纯分隔线（列表项之间的 0.5px 边框）属装饰，记下来供参考，别让人以为每根线都得改。
+        // 「包着表单控件的壳」也算控件：搜索框的边框画在 `span.dt-input` 上，不是 <input> 自己身上。
         const control = /^(button|input|select|textarea|a)$/i.test(el.tagName)
           || ['button', 'tab', 'switch', 'checkbox', 'link', 'menuitem', 'option'].indexOf(el.getAttribute('role') || '') >= 0
+          || Boolean(el.querySelector(':scope > input, :scope > textarea, :scope > select'))
         // 整条链路透明度 ≈ 0 = 根本看不见（`.sa-dock-actions` 就是 hover 才显形的那组按钮）。
         // 这种元素没有「读不读得清」的问题，硬算会把比值算成 1.00 的假缺陷。
         if (opacity < 0.05) {
@@ -850,6 +852,7 @@ function printJson(rows, summaries, options) {
     violations: violations.map((row) => ({
       theme: row.theme,
       kind: row.kind,
+      control: row.control,
       selector: row.selector,
       ratio: Number(row.ratio.toFixed(4)),
       need: row.need,
@@ -863,6 +866,7 @@ function printJson(rows, summaries, options) {
     groups: rows.map((row) => ({
       theme: row.theme,
       kind: row.kind,
+      control: row.control,
       selector: row.selector,
       ratio: Number(row.ratio.toFixed(4)),
       need: row.need,
@@ -942,4 +946,14 @@ const invokedDirectly = (() => {
   try {
     return Boolean(process.argv[1]) && pathToFileURL(process.argv[1]).href === import.meta.url
   } catch (error) {
-    return fa
+    return false
+  }
+})()
+
+if (invokedDirectly) {
+  // `| head -30` 会提前关掉管道；别让 EPIPE 变成一段红色堆栈把 JSON 淹了。
+  process.stdout.on('error', (error) => {
+    if (error && error.code === 'EPIPE') process.exit(process.exitCode || 0)
+  })
+  main()
+}
