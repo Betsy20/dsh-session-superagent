@@ -1029,6 +1029,7 @@ test('暂停一条守时会清掉旧的错误（否则暂停后永远显示"异�
 test('非错误状态码聚一遍：200/204/304 都不该被当成失败', async () => {
   const { classifyGhError, parseGhInclude } = await import('../lib/gh-format.js')
   const CRLF = String.fromCharCode(13, 10)
+  const LF = String.fromCharCode(10)
 
   // 解析层：能从 gh --include 输出里认出状态码
   const notModified = parseGhInclude('HTTP/2.0 304 Not Modified' + CRLF + 'ETag: "abc"' + CRLF + CRLF)
@@ -1037,7 +1038,22 @@ test('非错误状态码聚一遍：200/204/304 都不该被当成失败', async
 
   const ok = parseGhInclude('HTTP/2.0 200 OK' + CRLF + 'ETag: "def"' + CRLF + CRLF + '[{"number":1}]')
   assert.equal(ok.status, 200)
-  assert.ok(ok.body.includes('number'))
+  // 这里以前只断言 body.includes('number') —— 整段未切开的输出当然也含 number，
+  // 于是「头没被切掉」的 bug 一路绿灯。正文必须**只剩** JSON。
+  assert.equal(ok.body, '[{"number":1}]', 'body 要只剩正文，不能把状态行/响应头带进来')
+
+  // 真机 gh 2.103.3（Windows）的输出行尾是**混的**：状态行以 LF 结尾，响应头以 CRLF 结尾，
+  // 于是头体之间是 "\r\n\r\n" —— 里面没有连续两个 LF。只认 "\n\n" 会切不开，
+  // 正文变成「状态行 + 头 + JSON」，JSON.parse 必失败，面板报「不是合法 JSON：可能是代理干扰」。
+  const realGh = 'HTTP/2.0 200 OK' + LF
+    + 'content-type: application/json; charset=utf-8' + CRLF
+    + 'etag: W/"abc"' + CRLF + CRLF
+    + '[{"number":16,"title":"中文标题也不该被切坏"}]'
+  const mixed = parseGhInclude(realGh)
+  assert.equal(mixed.status, 200, '混合行尾也要认出状态码')
+  assert.equal(mixed.etag, 'W/"abc"')
+  assert.equal(mixed.body, '[{"number":16,"title":"中文标题也不该被切坏"}]')
+  assert.doesNotThrow(() => JSON.parse(mixed.body), '正文必须是能直接 JSON.parse 的纯 JSON')
 
   const noContent = parseGhInclude('HTTP/2.0 204 No Content' + CRLF + CRLF)
   assert.equal(noContent.status, 204)
