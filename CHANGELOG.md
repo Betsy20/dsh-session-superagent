@@ -2,6 +2,29 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.196] - 2026-11-05 —— watch 审计「值得改」三条：定时器诈尸、字符串暂停、坏数组
+
+### W1 · 首轮的错峰定时器不能取消
+`startWatcher` 为了错峰开了个一次性 `setTimeout`，但**没登记** —— `stopWatcher` 取消不掉它。
+于是删掉/暂停的守还会「诈尸」轮询一轮。现在登记进 `bootTimers`，stop 与 teardown 都会清。
+
+### W2 · `enabled: "false"` 字符串不会暂停
+`watchers.json` 是**人也会手改**的文件。全仓 11 处 `entry.enabled === false` 都只认真布尔，
+写成字符串 `"false"` 或数字 `0` 时守照常轮询。统一走 `isEnabled()`：缺省 = 启用，
+`false` / `0` / `"false"` / `"0"` / `"no"` / `"off"` 都算暂停。
+
+### W7 · `partitionItems` 收到非数组会抛
+`items ?? []` 只防 null。手写坏的状态或上游返回对象时 `for-of` 抛 `TypeError`，
+而 tick 的 `catch` 会把它当成「这一轮失败」→ 该守**永久退避**。非数组一律当空。
+
+### W5 · 暂缓（记录理由）
+「teardown 只清本实例的定时器」改完会让 routes 注册路径整片挂掉 —— 风险/收益不划算。
+先按原样全清，等能拆得更小时再做。**这条不进「已修」清单。**
+
+### 证据
+```
+node --test → 336/336（新增：非数组 partitionItems、enabled 字符串/0 两条）
+```
 ## [0.9.195] - 2026-11-05 —— watch 并发审计：4 条必须修（全部真跑出来）
 
 ### M1 · 白名单还漏 13 个字段

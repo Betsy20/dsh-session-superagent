@@ -1,6 +1,6 @@
 // 路由层单测：之前 0 覆盖，全靠真机 curl 手测。
 // 用环境变量把状态目录指到临时目录，并把轮询关掉，避免打到真 GitHub。
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tempDir } from './fixtures/tmpdir.mjs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -1306,4 +1306,23 @@ test('ghConfigDir：路由只收绝对路径，摘要只回「配没配」（吸
   assert.ok(!/ghConfigDir: s\.ghConfigDir \? s\.ghConfigDir/.test(src), '不许回显路径')
   // ③ 空串等于清除（回到宿主账号）
   assert.ok(/if \(dir === ''\) delete next\.ghConfigDir/.test(src), '空串要能清除')
+})
+
+test('手改成 enabled:"false" / 0 的守要真的算暂停（不能只看 === false）', async () => {
+  // 真机踩过：watchers.json 是人也会手改的文件，写成字符串 "false" 时守照常轮询。
+  const original = readFileSync(join(STATE_DIR, 'watchers.json'), 'utf8')
+  try {
+    writeFileSync(join(STATE_DIR, 'watchers.json'), JSON.stringify({
+      watchers: {
+        'o/str#s1': { id: 'o/str#s1', repo: 'o/str', sessionId: 's1', intervalSec: 60, enabled: 'false', seen: {}, lastReported: {} },
+        'o/zero#s1': { id: 'o/zero#s1', repo: 'o/zero', sessionId: 's1', intervalSec: 60, enabled: 0, seen: {}, lastReported: {} },
+      },
+    }, null, 2))
+    const snap = (await call('GET', '/session-superagent/state')).json()
+    const byRepo = new Map((snap.watchers || []).map((w) => [w.repo, w]))
+    assert.equal(byRepo.get('o/str').enabled, false, 'enabled:"false" 必须是暂停')
+    assert.equal(byRepo.get('o/zero').enabled, false, 'enabled:0 必须是暂停')
+  } finally {
+    writeFileSync(join(STATE_DIR, 'watchers.json'), original)
+  }
 })

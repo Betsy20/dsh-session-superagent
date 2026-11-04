@@ -1529,3 +1529,16 @@ test('水位只许前进：并发 tick 手里的旧快照不许把 watch_ack 推
     'seen[42] 后退了：' + merged.seen[42] + ' < ' + disk.seen[42],
   )
 })
+
+test('partitionItems 收到非数组不许抛（坏状态会让该守永久退避）', async () => {
+  const { partitionItems } = await import('../lib/watch.js')
+  for (const bad of ['abc', {}, 0, true, undefined, null]) {
+    assert.doesNotThrow(() => partitionItems(bad, {}), '输入 ' + JSON.stringify(bad) + ' 不该抛')
+    const { fresh, absorbed } = partitionItems(bad, {})
+    assert.deepEqual(fresh, [])
+    assert.deepEqual(absorbed, [])
+  }
+  // 正常输入照旧
+  const { fresh } = partitionItems([{ number: 1, updated_at: '2026-11-05T00:00:00Z' }], {})
+  assert.equal(fresh.length, 1)
+})
