@@ -210,8 +210,8 @@ if (!FAST) {
 {
   const res = tryRun('node', ['scripts/audit-contrast.mjs'], { timeout: 180000 })
   const out = String(res.stdout || '')
-  const base = JSON.parse(String(require('node:fs').readFileSync(join(ROOT, 'test/fixtures/contrast-baseline.json'), 'utf8')))
-  const grab = (theme) => { const m = out.match(new RegExp('· ' + theme + '：\d+ 个节点 / \d+ 组 ｜ 不达标 (\d+) 组 (\d+) 节点')); return m ? { groups: Number(m[1]), nodes: Number(m[2]) } : null }
+  const base = JSON.parse(readFileSync(join(ROOT, 'test/fixtures/contrast-baseline.json'), 'utf8'))
+  const grab = (theme) => { const m = out.match(new RegExp('· ' + theme + '：\\d+ 个节点 / \\d+ 组 ｜ 不达标 (\\d+) 组 (\\d+) 节点')); return m ? { groups: Number(m[1]), nodes: Number(m[2]) } : null }
   const light = grab('light'); const dark = grab('dark')
   const bad = []
   if (!light || !dark) bad.push('量不到数据（渲染/浏览器失败）')
