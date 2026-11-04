@@ -206,6 +206,22 @@ if (!FAST) {
   record('JSON 契约', res.status === 0, out.replace(/^PASS /, '') || '无输出')
 }
 
+// ⑥.459 对比度体检（只对「变多」报警：基线里已经登记的不达标项是官方设计语言）
+{
+  const res = tryRun('node', ['scripts/audit-contrast.mjs'], { timeout: 180000 })
+  const out = String(res.stdout || '')
+  const base = JSON.parse(String(require('node:fs').readFileSync(join(ROOT, 'test/fixtures/contrast-baseline.json'), 'utf8')))
+  const grab = (theme) => { const m = out.match(new RegExp('· ' + theme + '：\d+ 个节点 / \d+ 组 ｜ 不达标 (\d+) 组 (\d+) 节点')); return m ? { groups: Number(m[1]), nodes: Number(m[2]) } : null }
+  const light = grab('light'); const dark = grab('dark')
+  const bad = []
+  if (!light || !dark) bad.push('量不到数据（渲染/浏览器失败）')
+  else {
+    if (light.groups > base.light.groups) bad.push('浅色不达标 ' + light.groups + ' 组 > 基线 ' + base.light.groups)
+    if (dark.groups > base.dark.groups) bad.push('深色不达标 ' + dark.groups + ' 组 > 基线 ' + base.dark.groups)
+  }
+  record('对比度体检', bad.length === 0, bad.length ? bad[0] : (light && dark ? '浅色 ' + light.groups + ' / 深色 ' + dark.groups + ' 组（不高于基线）' : '无数据'))
+}
+
 // ⑥.458 全 docs/ 一致性（老文档最容易把人带到不存在的工具/路由/文件）
 {
   const res = tryRun('node', ['scripts/audit-docs-all.mjs'], { timeout: 60000 })
