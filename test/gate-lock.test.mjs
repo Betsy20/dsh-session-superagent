@@ -4,7 +4,7 @@
 // 审核 M4：**这些用例绝不能碰仓库根的生产锁** —— `preflight` 的第一项就是 `node --test`，
 // 并行跑两次时第二次会删掉第一次正持有的锁（等于把事故重演一遍）。所以每条用例都显式传临时目录。
 import assert from 'node:assert/strict'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { tempDir } from './fixtures/tmpdir.mjs'
@@ -44,4 +44,16 @@ test('单测不许再碰生产锁（M4 回归）', () => {
   const src = readFileSync(new URL('./gate-lock.test.mjs', import.meta.url), 'utf8')
   assert.ok(!/rmSync\(\s*GATE_LOCK_PATH/.test(src), '不许删除生产锁路径 —— 那会拆掉别人的锁')
   assert.ok(!/GATE_LOCK_PATH\s*\)/.test(src.split('import')[1] || ''), '生产锁路径不该出现在用例里')
+})
+
+test('释放时只删自己的锁（旧进程醒来不许拆新持有者的锁）', () => {
+  const lockPath = tmpLock()
+  const release = acquireGate('owner-test', { quiet: true, lockPath })
+  // 模拟「锁已经归别人」：把 owner.json 改成另一个 pid
+  writeFileSync(join(lockPath, 'owner.json'), JSON.stringify({
+    name: 'owner-test', pid: process.pid === 1 ? 2 : 1, at: new Date().toISOString(),
+  }))
+  release()
+  assert.ok(existsSync(lockPath), '不是自己的锁，不能删')
+  rmSync(lockPath, { recursive: true, force: true })
 })

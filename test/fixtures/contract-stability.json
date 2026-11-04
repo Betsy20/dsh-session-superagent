@@ -111,7 +111,8 @@
       "repo": "stable",
       "label": "stable",
       "acked": "stable",
-      "at": "stable"
+      "at": "stable",
+      "labelNote": "stable"
     }
   }
 }

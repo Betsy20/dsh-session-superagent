@@ -64,6 +64,10 @@ export function acquireGate(name = 'mutate', { timeoutMs = 240000, maxAgeMs = 5 
       if (waited && !quiet) console.log('（等到锁了：另一个门禁先跑完了）')
       return () => {
         if (process.env.DSH_GATE_LOCK_HELD === name) delete process.env.DSH_GATE_LOCK_HELD
+        // 只删自己的锁：一个被挂起的旧进程醒来时，锁可能已经归别人了 ——
+        // 无条件 rmSync 会把新持有者的锁拆掉（审核 W5）。
+        const owner = readOwner(lockPath)
+        if (owner && Number(owner.pid) !== process.pid) return
         try { rmSync(lockPath, { recursive: true, force: true }) } catch { /* 尽力而为 */ }
       }
     } catch (error) {
