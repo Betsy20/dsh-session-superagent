@@ -76,7 +76,9 @@ const record = (name, detected, detail) => {
   const path = join(root, 'client.js')
   const original = readFileSync(path, 'utf8')
   try {
-    const mutated = original.replace("'全部暂停'", "'全部暂停（注入）'")
+    // 注入**可见文字**（children），不是 aria-label —— 快照只收可见文案，
+    // 以前锚在第一个 '全部暂停' 上，恰好命中 aria-label，于是「改坏了也不红」（假绿）。
+    const mutated = original.replace("}, '全部暂停') : null", "}, '全部暂停（注入）') : null")
     writeFileSync(path, mutated)
     const res = run(['scripts/render-panel-copy.mjs', '--check'])
     record('面板文案快照（注入改字）', res.code !== 0)
