@@ -93,15 +93,26 @@ if (orphans.length > 0) {
 }
 
 
+
+// ④ 阅读路径：一百多篇的索引要有一条「第一次读」的入口，否则新人无从下手
+const entry = readFileSync(join(kbDir, 'README.md'), 'utf8')
+// ④ 总数也要对：板块逐个数是对的，但开头那句「共 N 篇」曾经落后 18 篇没人发现
+const statedTotal = (entry.match(/共 \*\*(\d+)\*\* 篇/) || [])[1]
+const sumOfSections = countMismatch.length === 0
+  ? (entry.match(/^\|[^|]+\|\s*(\d+)\s*\|/gm) || []).reduce((acc, line) => acc + Number(line.match(/(\d+)\s*\|$/)[1]), 0)
+  : null
+
 if (countMismatch.length > 0) {
   console.log(`FAIL 索引板块篇数对不上（${countMismatch.length} 处）：`)
   for (const item of countMismatch) console.log('  ' + item)
 } else {
   console.log('PASS 索引板块篇数与实际条目一致')
 }
-
-// ④ 阅读路径：一百多篇的索引要有一条「第一次读」的入口，否则新人无从下手
-const entry = readFileSync(join(kbDir, 'README.md'), 'utf8')
+if (statedTotal && sumOfSections !== null && Number(statedTotal) !== sumOfSections) {
+  console.log(`FAIL 索引开头的总数对不上：写 ${statedTotal}，板块合计 ${sumOfSections}`)
+} else if (statedTotal) {
+  console.log(`PASS 索引总数与板块合计一致（${statedTotal} 篇）`)
+}
 const pathStart = entry.indexOf('**第一次读')
 const pathEnd = pathStart >= 0 ? entry.indexOf('其余按板块检索') : -1
 const pathBlock = pathStart >= 0 && pathEnd > pathStart ? entry.slice(pathStart, pathEnd) : ''
@@ -115,5 +126,6 @@ if (pathLinks.length < 3) {
   console.log('PASS 索引有「第一次读」路径（' + pathLinks.length + ' 篇，文件都存在）')
 }
 
+const totalBad = Boolean(statedTotal) && sumOfSections !== null && Number(statedTotal) !== sumOfSections
 const pathBad = pathLinks.length < 3 || pathMissing.length > 0
-if (problems.length > 0 || orphans.length > 0 || countMismatch.length > 0 || pathBad) process.exitCode = 1
+if (problems.length > 0 || orphans.length > 0 || countMismatch.length > 0 || pathBad || totalBad) process.exitCode = 1

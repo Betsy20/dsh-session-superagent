@@ -2,6 +2,40 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.169] - 2026-11-04 —— 发布通道补齐 + 维护标准本地化（取自 magpie 脚手架）
+
+### 你指出的两件事
+1. 「更新这么多，不推版本号吗？」—— GitHub Releases 面板停在 **v0.8.11**（三天前），
+   而 npm 已经到 0.9.168：版本一直在发，Release 一个没建；
+2. 「谁让你在版本号上面加中文的？」—— 早年 Release 标题写成 `v0.8.11 —— 官方 GUI 移植…`，
+   列表里没法扫读。
+
+### 改法
+- **Release 标题只写版本号**，说明放正文；早年那 6 个已批量改成纯版本号；
+- 新增 `scripts/release-gh.mjs`：从 CHANGELOG 读版本 → 打 tag（只推新建那个，避免历史 tag 整批 reject）→ 建 Release；
+- 已补 v0.9.136–v0.9.168 共 33 个 Release，`v0.9.168` 设为 **Latest**；更早的按批次慢慢回填（你的要求）。
+
+### 维护标准本地化（参照 `MYCF711/magpie-plugin-scaffold`）
+| 脚手架 | 本仓库落地 |
+|---|---|
+| `MAINTENANCE.md` 台账（身份 / 当前状态+证据 / 下一步 / 硬约束 / 最短路径） | 整篇重写，填真实数字（267 例 / 36 项门禁 / 176 篇 KB / 33 个 Release） |
+| `AGENTS.md` 定位表 + 坑表 | 新增「先定位你在哪一步」9 行表 + 「十一条会静默出错的坑」（全部来自本项目真机踩过的） |
+| `scripts/check-maintenance.mjs` | 六条：CHANGELOG 小节 / 最新小节 = 当前版本 / tag 存在 / tag 指向真 commit / 四处版本一致 / 改代码未 bump 提示 |
+| 受控发布流程 | `UPDATING.md` 重写为七步，含发布后核对与「服务端要重启」 |
+
+### 顺带修掉一个真实漂移
+`docs/kb/README.md` 写「共 158 篇」，实际 **176 篇** —— 板块逐个数是对的，总数没人核。
+`check-docs` 新增一条：**索引声明的总数必须等于板块合计**（现在会红）。
+
+### 证据
+```
+node --test → 267/267
+preflight 全量 → 36/36（新增「维护一致性」一项）
+check-maintenance → 6 项通过
+check-docs → 四项 PASS（含新增的总数校验）
+release-gh --latest → 已建 v0.9.168（Latest）
+```
+
 ## [0.9.168] - 2026-11-04 —— 合入 @ysl289 的修复：推迟的事件不该被 ETag 吞掉
 
 > 来自 **@ysl289**（PR #6）。这是本轮最隐蔽的一个 bug —— 和 #2/#3 是同一个家族：

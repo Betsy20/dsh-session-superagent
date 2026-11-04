@@ -376,6 +376,16 @@ if (FAST) {
   }
 }
 
+// ⑨ 维护一致性（版本 / tag / CHANGELOG / 徽章 是否真的对齐）
+//    本地化自 magpie-plugin-scaffold 的 check-maintenance：六条都不报错也都不崩，
+//    但任何一条不满足，用户拿到的就是旧版。
+{
+  const res = tryRun('node', ['scripts/check-maintenance.mjs'])
+  const out = String(res.stdout || '')
+  const bad = out.split(String.fromCharCode(10)).filter((line) => line.startsWith('FAIL ')).map((l) => l.slice(5).split('  ')[0])
+  record('维护一致性', res.status === 0, res.status === 0 ? '版本/tag/CHANGELOG/徽章 对齐' : '不一致：' + bad.join('；'))
+}
+
 const failures = rows.filter((r) => !r.ok)
 // 最慢的 3 项：下次优化先从这里挑
 {

@@ -1,35 +1,75 @@
-# MAINTENANCE —— 维护台账（给接手的 agent 看）
+# MAINTENANCE.md —— 维护台账（给接手的 agent 看）
+
+> 接手前先读这一页，再按 [AGENTS.md](./AGENTS.md) 的「先定位你在哪一步」读对应文档。
+> **每次干完活必须更新「二、当前状态」与「三、下一步」** —— 这页不是历史，是交接单。
+>
+> 形态参照 `MYCF711/magpie-plugin-scaffold` 的维护台账，本地化成这个仓库的真实命令与数字。
 
 ## 一、身份
 
-- 包名：`dsh-session-superagent`
-- 形态：DSH 插件（tools-only + 自带 `cordis.patch.yml`）
-- 目标宿主：DeepSeek Harness ≥ 0.2.1-rc.5
-- 依赖：宿主已安装并登录 `gh` CLI；Node ≥ 22.19
+| 项 | 值 |
+|---|---|
+| 仓库 | `MYCF711/dsh-session-superagent` |
+| npm 包名 | `dsh-session-superagent` |
+| 当前版本 | `0.9.168`（npm 已发布 / tag `v0.9.168` / GitHub Release 为 Latest） |
+| 形态 | DSH 插件：7 个工具 + 自带 `cordis.patch.yml` + 客户端面板与状态栏圆环 |
+| 目标宿主 | DeepSeek Harness ≥ 0.2.1-rc.5；Node ≥ 22.19；需已登录 `gh` CLI |
 
-## 二、当前状态（2026-11-01）
+## 二、当前状态（2026-11-04）
 
-- [x] 七个工具可用（github / repo_here / watch_start / watch_status / watch_stop / watch_ack / watch_doctor），`node --test` 136/136 通过
-- [x] 自回声抑制（逐条水位）
-- [x] 仅空闲注入（避免草稿回放）
-- [x] 唤醒失败不推进水位
-- [ ] webhook 代替轮询（未做）
-- [ ] 多仓库单会话（未做，当前每会话一仓库）
+```text
+分支        main（HEAD 4a0e370）
+版本        0.9.168；tag v0.9.168（远端已推）；release v0.9.168 = Latest
+工作区      clean；安装副本 %DSH_HOME%\profiles\desktop\node_modules\... = 0.9.168
+```
+
+| 资产 | 数量 |
+|---|---:|
+| `node --test` | 267 例全过 |
+| `scripts/preflight.mjs` | 36 项全 PASS（`--fast` 35 项） |
+| `scripts/ui-audit.mjs` | 11/11，100 分（写死颜色 0 / 自造 token 0） |
+| `docs/kb` | 176 篇 / 9 板块（`check-docs` 四项 PASS） |
+| `scripts/` | 52 个门禁与工装脚本 |
+| GitHub Release | 33 个（v0.9.136–v0.9.168 已补，其余待按批次回填） |
+
+已验证（本轮实测）：
+
+- `node --test` → 267/267；preflight 全量 36/36；ui-audit 11/11 = 100；`check-docs` 四项 PASS；
+- `sync-profile --check` → 缺失 0 / 断链 0 / 陈旧 0；安装副本 `package.json` = 0.9.168；
+- `npm publish` → `+ dsh-session-superagent@0.9.168`；`git push` → `4a0e370`；
+- 外部 PR：#2 / #3 / #5 / #6 已处理（#2 #3 → 0.9.167，#6 → 0.9.168，#5 按重复关闭）；
+  #7（`ghConfigDir`）留在 open 等作者按三条意见改完。
+
+未验证（不能写成"通过"）：
+
+- **真机走查 22 项**（`docs/真机走查清单-弹层.md`）—— 需要人在界面上按 Tab/Escape、看两套主题；
+- 连续 24 小时运行的误唤醒率、限流表现；
+- 键盘 Tab 顺序无自动化手段（只有静态断言）。
 
 ## 三、下一步
 
-1. 真实仓库连跑 24h，统计 `lastWake` 与误唤醒次数；
-2. 把 `trigger.json` 从正式包移出（或加开关），它只是测试通道；
-3. 评估 `steer()` 与 `followup()` 在不同场景下的取舍。
+按价值排序，**不要一次混着做**：
+
+1. 回填剩余 GitHub Release（`node scripts/release-gh.mjs`，用户要求"之前的慢慢改"）；
+2. 收掉 `diagnoseBadBody()` 的盲区：本地切分错误不该被报成"网络/代理问题"；
+3. PR #7（`ghConfigDir`）等作者改完三条后复核合入；
+4. 真机走查 22 项（需要用户配合，或按用户截图逐条对照）。
 
 ## 四、硬约束
 
-1. **不注入正在运行的会话**——会污染客户端输入框，可能导致重复发送。
-2. **凭证永不出插件**：所有返回必须过 `redact()`；新增输出路径要补测试。
-3. **不改 profile 的 `bundles`**：那是操作者动作，包只带 patch。
-4. **不删除用户文件**；状态文件写失败必须静默降级。
-5. **没跑过的写成“未验证”**，不写“通过”。
+1. **不重启、不关闭宿主的 DSH**；需要重启才生效的改动（服务端部分）只提示用户，自己不执行。
+2. **凭证永不出插件**：所有返回必须过 `redact()`；新增输出路径要补测试；
+   **路径也不回显**（Windows 反斜杠曾让掩码整段漏出）。
+3. **不修改用户 profile 的 `bundles`**；本项目只随包带 `cordis.patch.yml`。
+4. **没跑过的写成"未验证"**，不写"通过"；"包含"式断言不算验证过（见 AGENTS 坑 7）。
+5. **发布三处必须一致**：`package.json` / `lib/index.js` / `client.js` / README 徽章 / CHANGELOG
+   （`test/meta.test.mjs` 会拦），外加 **tag 与 Release 标题只写版本号**。
+6. **不代改他人 PR**：给意见让对方改，改完我复核合入。
 
-## 五、最短接手路径
+## 五、给接手者的最短路径
 
-读 `README.md`（做什么）→ 本文件（现状与约束）→ `CHECKLIST.md`（交付门）→ `UPDATING.md`（怎么发版）→ `lib/watch.js`（核心逻辑，纯函数，测试齐全）。
+1. 读本文件 + [AGENTS.md](./AGENTS.md) 的两张表（定位 / 坑）；
+2. `git status` + `git log --oneline -5` + `node --test` 核实现状（**别信本文件的数字，跑一遍**）；
+3. 按 AGENTS 定位表读对应专档，别通读；
+4. 改完跑 `node scripts/preflight.mjs`（全量）再交付；
+5. 发版按 [UPDATING.md](./UPDATING.md)，最后回来更新本文件的「当前状态」。
