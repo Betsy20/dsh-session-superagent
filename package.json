@@ -17,7 +17,6 @@
     "lib/gh-format.js",
     "lib/redact.js",
     "lib/body.js",
-    "lib/gitee.js",
     "cordis.patch.yml",
     "README.md",
     "CHANGELOG.md",

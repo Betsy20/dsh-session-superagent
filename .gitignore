@@ -15,3 +15,5 @@ tmp-*.json
 tmp-*.txt
 tmp-*.md
 .gate-lock/
+.gate-recover/
+preview-light*
