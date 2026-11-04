@@ -139,3 +139,17 @@ test('`gh` 找不到的判据不能宽到抢走 404', async () => {
   // 真正的「命令不存在」仍然要认
   assert.equal(classifyGhError('gh: command not found').kind, 'nogh')
 })
+
+test('额度推迟：deferReason 必须是稳定原因，时间只能出现在人读的那句话里（T20 真 bug 回归）', async () => {
+  const { quotaDeferText, DEFER_REASONS } = await import('../lib/gh-format.js')
+  const t = quotaDeferText(10, 30 * 60 * 1000, Date.parse('2026-11-05T09:00:00Z'))
+  // 旧 bug：'quota' + '09:30' + 'Z' = 'quota09:30Z' —— 面板按 DEFER_LABELS 查不到，筛选永远空
+  assert.equal(t.reason, 'quota')
+  assert.ok(DEFER_REASONS.includes(t.reason), 'reason 必须是已知的稳定值')
+  assert.ok(!t.reason.includes(':'), 'reason 里不许掺时间')
+  assert.ok(t.text.includes('09:30'), '时间里该在人读的那句里')
+  assert.ok(t.text.includes('剩余 10'), '要说清还剩多少')
+  // 负数/非法不该崩
+  assert.equal(quotaDeferText(1, -5000, Date.parse('2026-11-05T09:00:00Z')).reason, 'quota')
+  assert.equal(quotaDeferText(1, 'x', 0).reason, 'quota')
+})

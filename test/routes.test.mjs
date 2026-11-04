@@ -1370,3 +1370,13 @@ test('Gitee 令牌形状不对要拒绝（别把垃圾存成凭证）', async ()
   assert.equal(res.statusCode, 400)
   assert.match(String(res.json().error || ''), /32 位十六进制/)
 })
+
+test('凭证写入校验：sshKeyPath 必须绝对、ghConfigDir 必须绝对（T20：以前只有一个 grep 源码的测试在守）', async () => {
+  const rel = await call('POST', '/session-superagent/credentials', { sshKeyPath: 'relative/key' })
+  assert.equal(rel.statusCode, 400, '相对路径必须被拒')
+  const relDir = await call('POST', '/session-superagent/credentials', { ghConfigDir: 'relative/dir' })
+  assert.equal(relDir.statusCode, 400, 'ghConfigDir 相对路径必须被拒')
+  // 清空是合法的
+  const cleared = await call('POST', '/session-superagent/credentials', { token: '', sshKeyPath: '', ghConfigDir: '' })
+  assert.equal(cleared.statusCode, 200)
+})
