@@ -2,7 +2,7 @@
 
 ## A 表 · 代码交付前
 
-- [ ] `node --test` 全绿，且新增行为有测试
+- [ ] `npm test` 全绿，且新增行为有测试
 - [ ] 所有返回字符串都过 `redact()`（新增输出路径重点查）
 - [ ] 写操作仍要求 `confirm: true`
 - [ ] 唤醒仍受 `agent.status === 'idle'` 约束
@@ -14,7 +14,7 @@
 
 - [ ] 从最新 `main` 起功能分支
 - [ ] `CHANGELOG.md` 增加条目，`package.json` bump 版本
-- [ ] 本地 `node --test` 通过
+- [ ] 本地 `npm test` 通过
 - [ ] PR 合并到 `main`
 - [ ] 打 annotated tag `vX.Y.Z` 并推送
 - [ ] 创建 GitHub Release，说明取自 CHANGELOG

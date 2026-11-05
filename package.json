@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-superagent",
-  "version": "0.9.225",
+  "version": "0.9.226",
   "description": "Session-level superagent for DeepSeek Harness: watch a GitHub repository and wake a session when something needs doing. Credentials never reach the model.",
   "type": "module",
   "main": "lib/index.js",
@@ -29,8 +29,8 @@
     "dsh": ">=0.2.1-rc.5"
   },
   "scripts": {
-    "test": "node --test",
-    "check": "node --test",
+    "test": "node scripts/test.mjs",
+    "check": "node scripts/test.mjs",
     "preview:orbit": "node scripts/preview-orbit.mjs",
     "sync:profile": "node scripts/sync-profile.mjs",
     "smoke:observe": "node scripts/smoke-observe.mjs",

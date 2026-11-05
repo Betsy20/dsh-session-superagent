@@ -11,7 +11,7 @@
 
 ```bash
 # 1) 改代码 + 补测试
-node --test
+npm test
 
 # 2) bump 版本 + 写 CHANGELOG
 #    语义化：修 bug → patch；加能力 → minor；改默认行为 / 改 patch 行 id → major

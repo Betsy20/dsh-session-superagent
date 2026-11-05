@@ -12,7 +12,7 @@
 
 ## 提交前四道门
 
-1. `node --test` 全绿；
+1. `npm test` 全绿；
 2. 新增行为有测试覆盖（纯逻辑放 `lib/watch.js` / `lib/redact.js`，便于测）；
 3. `CHANGELOG.md` 已更新；
 4. 没有凭证、本机路径、个人信息的泄漏。

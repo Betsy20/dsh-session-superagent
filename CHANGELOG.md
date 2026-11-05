@@ -2,6 +2,49 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.226] - 2026-11-05 —— 文档给的 `node --test` 不是绿色路径
+
+### ① 裸 `node --test` 会真的去 spawn `gh`
+
+`test/routes.test.mjs` 里有几条会真起 `gh` 进程。实测：
+
+```
+带 DSH_SUPERAGENT_OFFLINE=1 → 1123 ms
+不带                        → 146574 ms（两分半）
+timeout 120 node --test     → 被 kill 成 pass 355 / fail 1
+```
+
+而 README / CONTRIBUTING / CHECKLIST 给的都是**裸 `node --test`** ——
+客户和协作者照着敲，会看到「测试挂了」，其实是在等 `gh` 超时。
+
+新增 `scripts/test.mjs`：带齐环境变量（离线 + 更新离线 + 清掉可能污染的状态目录变量），
+`npm test` 指向它，文档里的命令也全部改成 `npm test`。实测 **1.6 秒**。
+
+### ② 测试改 `process.env` 从不还原
+
+7 个测试文件写 `process.env.DSH_SUPERAGENT_STATE` 却不恢复 ——
+同一个进程里后跑的用例会拿到前一个的目录。
+
+实测修复前 `node --test --experimental-test-isolation=none` → **10 红**
+（`ENOENT watchers.json`、`TypeError: ... setting 'seen'`、「回调必须被调用」），
+**红哪几条取决于文件加载顺序** —— 这是最阴的一类不稳定。
+
+修法：在改动 env 的测试文件顶部装 `afterEach` 还原（谁改谁收拾）。
+修复后同一条命令 **370/370 全绿**。
+
+### 一个没做成的尝试（记下来）
+
+我先把 `lib/index.js` 的四个路径常量改成**惰性函数**（每次调用现读 env），
+结果 `routes.test.mjs` 里靠「改 env → cache-bust 重新 import」的 6 处用法全部失效（2 红）。
+**已回退**，改用测试侧还原。惰性化本身是更彻底的修法，但它要求测试同步改造，不是一轮能安全做完的。
+
+### 证据
+
+```
+npm test                        → 370/370（1.6 秒）
+node --test --isolation=none    → 370/370（修复前 10 红）
+```
+
 ## [0.9.225] - 2026-11-05 —— 文档里的路径与报错原文，和代码对不上
 
 ### ① 状态文件路径写错
