@@ -24,6 +24,10 @@ ConfirmButton 已统一为「触发 → Modal → 取消/确认」，主面板�
 
 修复 `.dt-open::after` 覆盖展开表单导致的“只能看不能改”：表单 z-index 提升，外壳改 `form.dt-card`；Chromium A/B 证实命中、焦点与键盘输入均恢复。主面板接入 DSH Modal/Toast，Tooltip 适配补 scroll-close；AGENTS 写入原生 DSH 优先、最小自制硬约束。全量 **500/500**，UI 体检 **11/11=100**。
 
+## 实施回写（0.9.268）
+
+InfoTip 已接 DSH Tooltip（scroll-close、aria 映射与独立回退）；StatusOrbit 已接 OrbitPopover（锚点、外点、portal、Escape），删除确认先关 orbit、独立 ConfirmDialog、回焦圆环。全量 **524/524**，UI 体检 **11/11=100**，对比度不高于基线；真实 WebView 行为仍单列未验。
+
 ## 0. 基线、口径与复用边界
 
 | 来源 | 本次核对基线 | 用法 |

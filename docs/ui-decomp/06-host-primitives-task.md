@@ -2,6 +2,13 @@
 
 > 依据：`docs/ui-decomp/04-host-primitives-smoke.md`（290 exports、8/8 调用 smoke）。浏览器行为均未验，不能按“同名组件”直接全站替换。
 
+## 当前状态
+
+- Modal/Toast：主面板已接入（0.9.267），orbit 仍保留 superagent 同源确认。
+- InfoTip：已接 DSH Tooltip，scroll-close 与 fallback 测试 5/5。
+- OrbitPopover：独立适配器与确认焦点策略测试 10/10；StatusOrbit 集成在 T58。
+- 真实 WebView 的 portal、焦点、计时、读屏与双主题键鼠仍未验，不能因测试桩全绿提前删除回退路径。
+
 ## 顺序与可写边界
 
 1. **Modal**：保留 `ConfirmButton` 业务适配器与 `busyRef + onConfirm()=>boolean`，只把内部本地 Modal shell 换成 DSH Modal。

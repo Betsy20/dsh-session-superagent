@@ -3,7 +3,7 @@
 <img src="assets/icon-180.png" width="88" height="88" alt="">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.9.267-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
+[![Version](https://img.shields.io/badge/version-0.9.268-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
 [![npm](https://img.shields.io/npm/v/dsh-session-superagent.svg)](https://www.npmjs.com/package/dsh-session-superagent)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-plugin-orange.svg)](https://github.com/topics/dsh-plugin)
 [![awesome](https://img.shields.io/badge/awesome-dsh--plugin-%E2%9C%93-success.svg)](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
@@ -46,10 +46,12 @@ GitHub 有新动态 → watcher 轮询 → Agent.followup(消息) → 会话跑�
 | 位置 | 是什么 |
 |---|---|
 | 输入框下面那一行的**最左端**（`轮/步 · token · 上下文环` 同一行） | **总卫星环**：一个环代表这台机器，环上每一颗卫星 = 一个在运行的会话级 superagent。绿=主理中，琥珀=已暂停，红=上次轮询失败；一圈转起来说明至少还有一个在盯。**点一下**展开详情：仓库 / 会话标题 / 间隔 / 上次轮询 / 上次唤醒 / 状态 / 错误原文。 |
-| 中间栏「主理鱼」标签页 | **移植自官方 superagent 的 GUI**：总览（统计 + 需要关注 + 最近被过滤）/ 判定（每轮唤醒结果与原因）/ 触发（新增 + 行内编辑）/ 设置（来源 · 凭证 · 版本与更新 · 分诊信号 · 会话 goal；术语表是独立弹层） |
+| 中间栏「主理鱼」标签页 | **DSH 原生结构树、素材与设计语言**（superagent 同源控件作为适配）：总览 / 判定 / 触发 / 设置；Modal、Toast 等优先使用宿主 primitives，官方确无同物才最小 derived |
 | 会话头部 | 不再挂徽章（0.3.2 起移到上面那行） |
 
 没有主理鱼时这里画一个**灰色空环**（不转、无卫星），点开提示怎么添加 —— 不占位但也不消失，免得看着像功能坏了。
+
+UI 开发先读 `AGENTS.md` 的「原生 DSH 优先，最小自制」；`dsh-session-superagent/host-primitives` 与 `dsh-session-superagent/orbit-popover` 导出经测试的薄适配，不实现第二套弹层。
 
 ## 环境要求
 
@@ -146,7 +148,7 @@ Gitee 私有仓库要在「设置 → 凭证」填私人令牌；公开仓库不
 ## 开发
 
 ```sh
-npm test             # 500 项单测（带离线开关；裸 node --test 会真去 spawn gh，两分半）
+npm test             # 524 项单测（带离线开关；裸 node --test 会真去 spawn gh，两分半）
 ```
 
 ### 工具输出：文本给人和 agent，JSON 给程序
@@ -206,7 +208,7 @@ dsh plugin --profile <profile> add dsh-session-superagent@latest
 
 
 ```bash
-npm test                    # 500 项单测（带离线开关，约 1.6 秒）
+npm test                    # 524 项单测（带离线开关，约 1.6 秒）
 node scripts/ui-audit.mjs   # 11 项 UI 指标（写死颜色 / 自造 token / 官方结构采用 …）
 node scripts/preflight.mjs  # 41 项门禁（含上面两条，外加 profile 一致性、路由面、包内容）
 node scripts/render-preview.mjs preview.html   # 双主题静态预览，直接浏览器打开

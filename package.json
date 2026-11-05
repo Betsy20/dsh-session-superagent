@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-superagent",
-  "version": "0.9.267",
+  "version": "0.9.268",
   "description": "Session-level superagent for DeepSeek Harness: watch a GitHub repository and wake a session when something needs doing. Credentials never reach the model.",
   "type": "module",
   "main": "lib/index.js",
@@ -10,7 +10,8 @@
     "./redact": "./lib/redact.js",
     "./package.json": "./package.json",
     "./client": "./client.js",
-    "./host-primitives": "./ui-host-primitives.js"
+    "./host-primitives": "./ui-host-primitives.js",
+    "./orbit-popover": "./ui-orbit-popover.js"
   },
   "files": [
     "lib/index.js",
@@ -27,6 +28,7 @@
     "LICENSE",
     "client.js",
     "ui-host-primitives.js",
+    "ui-orbit-popover.js",
     "bin/check.mjs",
     "assets/icon-180.png",
     "docs/whats-new-0.9.md",

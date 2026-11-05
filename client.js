@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // client.js 是 UMD：宿主原语只能走 factory 注入的 require，不能 import 相对 ESM 适配模块。
-    // 这里的参数与 ui-host-primitives.js 的 createHostUi 保持一致，仅接入本面板需要的 Modal/Toast。
+    // 这里的参数与 ui-host-primitives.js 的 createHostUi 保持一致，仅接入本面板需要的 Modal/Toast/Tooltip。
     function dismissToast(current, id) {
       return current && current.id === id ? null : current
     }
@@ -51,6 +51,42 @@ window.__ModuleLoader__.load({
           onDone: () => onDone(item.id),
         })
       }
+      // DSH 只给 trigger 合并 aria-describedby，不维护 aria-expanded。
+      // forwardRef 把宿主 ref/事件原样落到原 button；expanded 仅映射 DSH 已管理的 describedby，不另管 open。
+      const TooltipTrigger = primitives.Tooltip && typeof HostReact.forwardRef === 'function'
+        ? HostReact.forwardRef(function InfoTipTrigger({ text, icon = 'question', warn, 'aria-describedby': describedBy, ...triggerProps }, ref) {
+          const triggerIcon = HostReact.isValidElement(icon) ? icon : hostH(Icon, { name: icon, size: 14 })
+          return hostH('button', {
+            ...triggerProps,
+            ref,
+            type: 'button',
+            className: cx('dt-info', warn && 'dt-info-warn'),
+            'aria-label': text,
+            'aria-describedby': describedBy,
+            'aria-expanded': Boolean(describedBy),
+          }, triggerIcon)
+        })
+        : null
+      const HostTooltip = ({ text, icon = 'question', warn = false } = {}) => {
+        const TooltipPrimitive = primitive('Tooltip')
+        if (!TooltipTrigger) throw new Error('DSH Tooltip 需要宿主 React.forwardRef')
+        const [remountKey, setRemountKey] = HostReact.useState(0)
+        HostReact.useEffect(() => {
+          if (typeof window === 'undefined') return undefined
+          const closeOnScroll = () => setRemountKey((current) => current + 1)
+          // Tooltip 没有受控 open API；capture 覆盖主面板及任意嵌套滚动容器。
+          window.addEventListener('scroll', closeOnScroll, true)
+          return () => window.removeEventListener('scroll', closeOnScroll, true)
+        }, [])
+        return hostH(TooltipPrimitive, {
+          key: remountKey,
+          label: text,
+          side: 'top',
+          portal: true,
+          openOnClick: true,
+          gap: 8,
+        }, hostH(TooltipTrigger, { text, icon, warn }))
+      }
       const createToastState = () => {
         const [item, setItem] = HostReact.useState(null)
         const sequence = HostReact.useRef(0)
@@ -65,22 +101,229 @@ window.__ModuleLoader__.load({
         }, [])
         return { item, notify, dismiss }
       }
-      return { Modal: HostModal, Toast: HostToast, createToastState }
+      return { Modal: HostModal, Toast: HostToast, Tooltip: HostTooltip, createToastState }
+    }
+
+    // 以下来源：ui-orbit-popover.js（L84e）的同一薄适配，因 client.js 是 UMD 而在 factory 内镜像。
+    // createOrbitPopover({React, primitives}) 的参数、OrbitPopover/useOrbitConfirm 调用面与来源模块一致；
+    // React.createPortal 由调用方用宿主 require('react-dom').createPortal 注入，不伪造 primitives.createPortal。
+    const DEFAULT_ORBIT_Z_INDEX = 1100
+
+    function focusIfConnected(node) {
+      if (!node || typeof node.focus !== 'function') return false
+      if ('isConnected' in node && !node.isConnected) return false
+      try {
+        node.focus()
+        return true
+      } catch {
+        return false
+      }
+    }
+
+    function closeReason(detail) {
+      if (detail === false) return { reason: 'outside-pointer' }
+      if (typeof detail === 'string') return { reason: detail }
+      if (detail && typeof detail === 'object' && typeof detail.reason === 'string') return detail
+      return { reason: 'dismiss' }
+    }
+
+    // 单独抽出确认 hook 只为让 StatusOrbit 在 fallback 也无条件执行同样数量的 hooks；
+    // 弹层创建仍严格要求完整 DSH 能力，缺少能力不会创建替代 Popover。
+    function createOrbitConfirm({ React: HostReact }) {
+      return function useOrbitConfirm({ orbitRef, onCloseOrbit, onRequestConfirm } = {}) {
+        const orbitRefRef = HostReact.useRef(orbitRef)
+        const onCloseOrbitRef = HostReact.useRef(onCloseOrbit)
+        const onRequestConfirmRef = HostReact.useRef(onRequestConfirm)
+        const restoreFocusRef = HostReact.useRef(null)
+        orbitRefRef.current = orbitRef
+        onCloseOrbitRef.current = onCloseOrbit
+        onRequestConfirmRef.current = onRequestConfirm
+
+        const requestConfirm = HostReact.useCallback((detail = {}) => {
+          restoreFocusRef.current = 'orbit'
+          if (typeof onCloseOrbitRef.current === 'function') {
+            onCloseOrbitRef.current({ reason: 'confirm' })
+          }
+          const request = onRequestConfirmRef.current
+          if (typeof request === 'function') {
+            const extra = detail && typeof detail === 'object' ? detail : { value: detail }
+            return request({ ...extra, reason: 'confirm', restoreFocus: 'orbit' })
+          }
+          return undefined
+        }, [])
+
+        const onConfirmClose = HostReact.useCallback(() => {
+          if (restoreFocusRef.current !== 'orbit') return false
+          restoreFocusRef.current = null
+          const ref = orbitRefRef.current
+          return focusIfConnected(ref && ref.current)
+        }, [])
+
+        return {
+          onRequestConfirm: requestConfirm,
+          onConfirmClose,
+          restoreFocus: restoreFocusRef.current,
+        }
+      }
+    }
+
+    const useOrbitConfirm = createOrbitConfirm({ React })
+
+    function createOrbitPopover({ React: HostReact, primitives } = {}) {
+      if (!HostReact || typeof HostReact.createElement !== 'function') {
+        throw new TypeError('createOrbitPopover 需要宿主 React.createElement')
+      }
+      for (const hook of ['useRef', 'useCallback', 'useEffect']) {
+        if (typeof HostReact[hook] !== 'function') {
+          throw new TypeError(`createOrbitPopover 需要宿主 React.${hook}`)
+        }
+      }
+      if (typeof HostReact.createPortal !== 'function') {
+        throw new TypeError('createOrbitPopover 需要宿主 React.createPortal（从 react-dom 注入）')
+      }
+      if (!primitives || (typeof primitives !== 'object' && typeof primitives !== 'function')) {
+        throw new TypeError('createOrbitPopover 需要 DSH primitives')
+      }
+
+      const primitive = (name, kind) => {
+        const value = primitives[name]
+        if (kind === 'function' ? typeof value !== 'function' : !value) {
+          throw new Error(`DSH primitives.${name} 不可用；OrbitPopover 不会创建替代弹层`)
+        }
+        return value
+      }
+      const useAnchoredPosition = primitive('useAnchoredPosition', 'function')
+      const useDismissOnOutsidePointer = primitive('useDismissOnOutsidePointer', 'function')
+      const MenuSurface = primitive('MenuSurface')
+      const hostH = HostReact.createElement
+      const createPortal = HostReact.createPortal
+
+      function OrbitPopover({
+        open,
+        anchorRef,
+        orbitRef,
+        panelRef: suppliedPanelRef,
+        onClose,
+        width,
+        zIndex = DEFAULT_ORBIT_Z_INDEX,
+        portalTarget: suppliedPortalTarget,
+        className,
+        style,
+        ariaLabel,
+        children,
+      } = {}) {
+        const internalPanelRef = HostReact.useRef(null)
+        const panelRef = suppliedPanelRef || internalPanelRef
+        const returnFocusRef = orbitRef || anchorRef
+        const onCloseRef = HostReact.useRef(onClose)
+        onCloseRef.current = onClose
+
+        const close = HostReact.useCallback((detail) => {
+          const callback = onCloseRef.current
+          if (typeof callback === 'function') callback(closeReason(detail))
+        }, [])
+
+        // 与来源适配器一致：宿主 hooks 和本地 effect 都在 open 分支前无条件调用。
+        const position = useAnchoredPosition({
+          open: Boolean(open),
+          anchorRef,
+          panelRef,
+          side: 'top',
+          align: 'end',
+          gap: 8,
+          margin: 8,
+        })
+        useDismissOnOutsidePointer(panelRef, Boolean(open), close, anchorRef)
+
+        const portalTarget = suppliedPortalTarget === undefined
+          ? (typeof document !== 'undefined' ? document.body : null)
+          : suppliedPortalTarget
+        const ownerDocument = portalTarget && portalTarget.ownerDocument
+          ? portalTarget.ownerDocument
+          : (typeof document !== 'undefined' ? document : null)
+
+        HostReact.useEffect(() => {
+          if (!open || !ownerDocument || typeof ownerDocument.addEventListener !== 'function') return undefined
+          focusIfConnected(panelRef.current)
+          const onKeyDown = (event) => {
+            if (!event || event.key !== 'Escape' || event.repeat) return
+            if (typeof event.preventDefault === 'function') event.preventDefault()
+            if (typeof event.stopPropagation === 'function') event.stopPropagation()
+            close({ reason: 'escape' })
+          }
+          ownerDocument.addEventListener('keydown', onKeyDown, true)
+          return () => {
+            ownerDocument.removeEventListener('keydown', onKeyDown, true)
+            focusIfConnected(returnFocusRef && returnFocusRef.current)
+          }
+        }, [open, close, ownerDocument, panelRef, returnFocusRef])
+
+        if (!open) return null
+        if (!anchorRef || typeof anchorRef !== 'object') {
+          throw new TypeError('OrbitPopover 需要调用方传入 anchorRef')
+        }
+        if (!Number.isFinite(width) || width <= 0) {
+          throw new TypeError('OrbitPopover 需要调用方传入正数 width；适配器不推导业务宽度')
+        }
+        if (!portalTarget) {
+          throw new Error('OrbitPopover portal target 不可用；不会退化为非 portal surface')
+        }
+
+        const surface = hostH(MenuSurface, {
+          ref: panelRef,
+          role: 'dialog',
+          'aria-label': ariaLabel,
+          tabIndex: -1,
+          className,
+          style: {
+            ...style,
+            position: 'fixed',
+            left: position ? position.left : 0,
+            top: position ? position.top : 0,
+            width,
+            zIndex,
+            visibility: position ? 'visible' : 'hidden',
+          },
+        }, children)
+        return createPortal(surface, portalTarget)
+      }
+
+      return { OrbitPopover, useOrbitConfirm: createOrbitConfirm({ React: HostReact }) }
     }
 
     // 老宿主没有这个映射时 require 会抛错；可选探测失败必须完整保留本地实现。
     let hostUi = null
+    let hostTooltip = null
+    let hostOrbit = null
     try {
       const primitives = require('@deepseek-ai/dsh-client-ui-primitives')
       if (primitives && primitives.Modal && primitives.Toast && primitives.IconWarningOutlineMedium) {
         hostUi = createHostUi({ React, primitives })
+        // Tooltip 独立探测：缺少它只回退 InfoTip，不把已接入的 Modal/Toast 一起降级。
+        if (primitives.Tooltip && typeof React.forwardRef === 'function') hostTooltip = hostUi.Tooltip
       }
     } catch {
       hostUi = null
+      hostTooltip = null
+    }
+
+    // Orbit 独立探测：缺 MenuSurface/定位/外点 hook 或 react-dom.createPortal 任一能力，完整保留旧 StatusOrbit。
+    try {
+      const primitives = require('@deepseek-ai/dsh-client-ui-primitives')
+      if (primitives && primitives.MenuSurface
+        && typeof primitives.useAnchoredPosition === 'function'
+        && typeof primitives.useDismissOnOutsidePointer === 'function') {
+        const reactDom = require('react-dom')
+        if (reactDom && typeof reactDom.createPortal === 'function') {
+          hostOrbit = createOrbitPopover({ React: { ...React, createPortal: reactDom.createPortal }, primitives })
+        }
+      }
+    } catch {
+      hostOrbit = null
     }
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.267'
+    const CLIENT_VERSION = '0.9.268'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -484,8 +727,8 @@ window.__ModuleLoader__.load({
         open ? children : null)
     }
 
-    /** 官方 InfoTip：点一下出气泡（我们之前只有 dt-info 的样式，没有组件）。 */
-    function InfoTip({ text, icon = 'question', warn }) {
+    /** 无 DSH Tooltip 时完整保留原实现：原 trigger、点击/失焦与本地气泡都不改写。 */
+    function FallbackInfoTip({ text, icon = 'question', warn }) {
       const [open, setOpen] = useState(false)
       return h('span', { style: { position: 'relative', display: 'inline-flex' } },
         h('button', {
@@ -494,6 +737,11 @@ window.__ModuleLoader__.load({
           onClick: () => setOpen(!open), onBlur: () => setOpen(false),
         }, h(Icon, { name: icon, size: 14 })),
         open ? h('span', { className: 'dt-tooltip', role: 'tooltip', style: { position: 'absolute', bottom: '130%', left: 0, visibility: 'visible' } }, text) : null)
+    }
+
+    // 保持 InfoTip({text,icon,warn}) 调用面；静态分支不会在组件生命周期内改变 hooks 顺序。
+    function InfoTip(props) {
+      return hostTooltip ? h(hostTooltip, props) : h(FallbackInfoTip, props)
     }
 
     const Hint = ({ children }) => h('p', { className: 'dt-hint' }, children)
@@ -822,12 +1070,10 @@ window.__ModuleLoader__.load({
     // 直接别名而不是 h(Component, props) 转发，避免测试桩与真 React 的 children 处理差异。
     const PanelModal = hostUi ? hostUi.Modal : Modal
 
-    /** 官方 ConfirmButton 动线：触发按钮只开 Modal，取消不执行，确认期间 busy 防重复。 */
-    function ConfirmButton({ label, confirmLabel = '确定执行', title = confirmLabel, message, onConfirm, variant = 'ghost', icon, size, modalContext = 'panel' }) {
-      const [open, setOpen] = useState(false)
+    /** 确认层与触发器分离：DSH orbit 关闭后，同一个本地 Modal 仍能由 StatusOrbit 持有。 */
+    function ConfirmDialog({ open, label, confirmLabel = '确定执行', title = confirmLabel, message, onConfirm, onClose, modalContext = 'panel' }) {
       const [busy, setBusy] = useState(false)
       const busyRef = useRef(false)
-      const close = useCallback(() => setOpen(false), [])
       const confirm = async () => {
         // state 还没来得及重渲染时也可能连点；同步 ref 是第二道锁。
         if (busyRef.current) return false
@@ -835,15 +1081,38 @@ window.__ModuleLoader__.load({
         setBusy(true)
         try {
           const done = await onConfirm()
-          if (done) setOpen(false)
+          if (done) onClose()
           return done
         } finally {
           busyRef.current = false
           setBusy(false)
         }
       }
-      // orbit 与官方 portal 的叠放/焦点归还策略尚未验收，删除确认明确保留本地 Modal。
+      // orbit 删除明确保留 superagent 同源 Modal；普通主面板删除仍走 PanelModal，不换 RiskConfirmation。
       const ModalView = modalContext === 'orbit' ? Modal : PanelModal
+      return h(ModalView, {
+        open,
+        title,
+        description: message || ('确定要执行「' + label + '」操作吗？'),
+        onClose,
+        children: null,
+        footer: h(React.Fragment, null,
+          h(Btn, { variant: 'ghost', onClick: onClose }, '取消'),
+          h(Btn, {
+            variant: 'primary',
+            className: cx('dt-danger', busy && 'dt-btn-busy'),
+            disabled: busy,
+            'aria-label': confirmLabel,
+            'aria-busy': busy ? 'true' : undefined,
+            onClick: confirm,
+          }, confirmLabel)),
+      })
+    }
+
+    /** 官方 ConfirmButton 动线：触发按钮只开 Modal，取消不执行，确认期间 busy 防重复。 */
+    function ConfirmButton({ label, confirmLabel = '确定执行', title = confirmLabel, message, onConfirm, variant = 'ghost', icon, size, modalContext = 'panel' }) {
+      const [open, setOpen] = useState(false)
+      const close = useCallback(() => setOpen(false), [])
       return h(React.Fragment, null,
         h(Btn, {
           variant,
@@ -853,23 +1122,7 @@ window.__ModuleLoader__.load({
           'aria-haspopup': 'dialog',
           onClick: () => setOpen(true),
         }, label),
-        h(ModalView, {
-          open,
-          title,
-          description: message || ('确定要执行「' + label + '」操作吗？'),
-          onClose: close,
-          children: null,
-          footer: h(React.Fragment, null,
-            h(Btn, { variant: 'ghost', onClick: close }, '取消'),
-            h(Btn, {
-              variant: 'primary',
-              className: cx('dt-danger', busy && 'dt-btn-busy'),
-              disabled: busy,
-              'aria-label': confirmLabel,
-              'aria-busy': busy ? 'true' : undefined,
-              onClick: confirm,
-            }, confirmLabel)),
-        }))
+        h(ConfirmDialog, { open, label, confirmLabel, title, message, onConfirm, onClose: close, modalContext }))
     }
 
     const watcherId = (w) => (w && w.id) || String((w && w.repo) || '') + '#' + String((w && w.sessionId) || '')
@@ -1078,6 +1331,12 @@ window.__ModuleLoader__.load({
       const [anchor, setAnchor] = useState(null)
       const btnRef = useRef(null)
       const panelRef = useRef(null)
+      const orbitConfirm = useOrbitConfirm({
+        orbitRef: btnRef,
+        onCloseOrbit: () => setOpen(false),
+        // DSH 路径复用旧 anchor 槽保存待删 watcher；fallback 仍只保存手算坐标，状态槽位不变。
+        onRequestConfirm: ({ watcher }) => setAnchor(watcher),
+      })
 
       // 弹层的样式（DOCK_CSS）挂在 PORTED_CSS 同一张 <style> 里，而那张表以前只有「主理鱼」面板挂载时才注入。
       // 用户从没打开过面板就直接点状态栏圆环时，弹层就是一堆无样式的裸文字（真机复现过）。
@@ -1104,7 +1363,8 @@ window.__ModuleLoader__.load({
       useEffect(() => { if (open) ensurePortedCss(true) }, [open])
 
       useEffect(() => {
-        if (!open) return undefined
+        // 仅旧路径保留 capture mousedown / 手算焦点；DSH 由 OrbitPopover 与宿主 dismiss hook 接管。
+        if (!open || hostOrbit) return undefined
         const onDown = (event) => {
           const target = event.target
           if (panelRef.current && panelRef.current.contains(target)) return
@@ -1141,10 +1401,12 @@ window.__ModuleLoader__.load({
           + '（共 ' + list.length + ' 条）'
 
       const toggle = () => {
-        const el = btnRef.current
-        if (el) {
-          const rect = el.getBoundingClientRect()
-          setAnchor({ x: rect.left + rect.width / 2, y: rect.top })
+        if (!hostOrbit) {
+          const el = btnRef.current
+          if (el) {
+            const rect = el.getBoundingClientRect()
+            setAnchor({ x: rect.left + rect.width / 2, y: rect.top })
+          }
         }
         setOpen((value) => !value)
       }
@@ -1167,16 +1429,15 @@ window.__ModuleLoader__.load({
         },
       }, h(OrbitMark, { watchers: list }))
 
-      if (!open) return button
-
-      // 空态没什么内容，窄一点更像提示而不是一张空表格
-      // 弹层宽度是固定的，但窗口可能更窄：按可视宽度夹一下，别溢出屏幕
+      // DSH 固定业务宽度 252/368，坐标全部交给 useAnchoredPosition；只有 fallback 保留视口夹紧与手算 bottom。
       const viewport = Number(window && window.innerWidth) || 1200
-      const width = Math.min(list.length === 0 ? 252 : PANEL_W, Math.max(240, viewport - 16))
-      const left = anchor
+      const width = hostOrbit
+        ? (list.length === 0 ? 252 : PANEL_W)
+        : Math.min(list.length === 0 ? 252 : PANEL_W, Math.max(240, viewport - 16))
+      const left = !hostOrbit && anchor
         ? Math.max(8, Math.min(anchor.x - width / 2, (window.innerWidth || 1200) - width - 8))
         : 8
-      const bottom = anchor ? Math.max(8, (window.innerHeight || 800) - anchor.y + 8) : 64
+      const bottom = !hostOrbit && anchor ? Math.max(8, (window.innerHeight || 800) - anchor.y + 8) : 64
 
       const act = async (w, action) => {
         // 删除只走 ConfirmButton + Modal；不要再叠一层原生确认框（同一动作问两次）。
@@ -1197,6 +1458,13 @@ window.__ModuleLoader__.load({
         }
         // 刷新失败不等于删除失败：动作已成功，确认框仍应关闭。
         return true
+      }
+
+      // fallback 完全保留原提前返回；DSH 即使 orbit 已关，也要继续渲染由本组件持有的确认 Modal。
+      if (!open && !hostOrbit) return button
+      const closeConfirm = () => {
+        setAnchor(null)
+        orbitConfirm.onConfirmClose()
       }
 
       // 悬浮面板也走移植来的 dt-* 设计系统（以前这里是一套自成体系的 inline style，
@@ -1248,11 +1516,18 @@ window.__ModuleLoader__.load({
             h(Btn, { size: 'sm', variant: 'ghost', onClick: () => act(w, 'poll') }, '立刻'),
             h(Btn, { size: 'sm', variant: 'ghost', onClick: () => act(w, w.enabled ? 'pause' : 'resume') },
               w.enabled ? '暂停' : '恢复'),
-            h(ConfirmButton, {
-              label: '删除', confirmLabel: '确认删除', variant: 'ghost', size: 'sm', modalContext: 'orbit',
-              icon: h(Icon, { name: 'trash' }),
-              onConfirm: () => act(w, 'delete'),
-            })))
+            hostOrbit
+              ? h(Btn, {
+                variant: 'ghost', size: 'sm', icon: h(Icon, { name: 'trash' }),
+                'aria-label': '删除', 'aria-haspopup': 'dialog',
+                // 适配器保证先 onCloseOrbit，再由 onRequestConfirm 选中待删 watcher。
+                onClick: () => orbitConfirm.onRequestConfirm({ watcher: w }),
+              }, '删除')
+              : h(ConfirmButton, {
+                label: '删除', confirmLabel: '确认删除', variant: 'ghost', size: 'sm', modalContext: 'orbit',
+                icon: h(Icon, { name: 'trash' }),
+                onConfirm: () => act(w, 'delete'),
+              })))
       })
 
       // 比例条：和官方的「上下文已用」同一种表达（一眼看出多少在跑）
@@ -1262,10 +1537,7 @@ window.__ModuleLoader__.load({
       const bar = barCounts.length === 0 ? null : h('div', { className: 'sa-dock-bar', 'aria-hidden': 'true' },
         barCounts.map(([tone, n]) => h('span', { key: tone, 'data-tone': tone, style: { flexGrow: n } })))
 
-      const panel = h('div', {
-        ref: panelRef, role: 'dialog', 'aria-label': summary, tabIndex: -1, className: 'dt-card sa-dock-panel',
-        style: { position: 'fixed', left, bottom, width, zIndex: 2147483000 },
-      },
+      const panelBody = h(React.Fragment, null,
         h('div', { className: 'sa-dock-head' },
           h('span', { className: 'sa-dock-title' }, '主理鱼'),
           // 和面板统计条同一套官方素材：dt-stat（数值强 + 单位弱），不再自己发明 sa-dock-metric-*
@@ -1280,8 +1552,36 @@ window.__ModuleLoader__.load({
           ? h('div', { className: 'sa-dock-foot' }, '详细状态与凭证在「主理鱼」标签页')
           : null)
 
+      const panel = hostOrbit
+        ? h(hostOrbit.OrbitPopover, {
+          open,
+          anchorRef: btnRef,
+          orbitRef: btnRef,
+          panelRef,
+          onClose: () => setOpen(false),
+          width,
+          className: 'dt-card sa-dock-panel',
+          ariaLabel: summary,
+        }, panelBody)
+        : h('div', {
+          ref: panelRef, role: 'dialog', 'aria-label': summary, tabIndex: -1, className: 'dt-card sa-dock-panel',
+          style: { position: 'fixed', left, bottom, width, zIndex: 2147483000 },
+        }, panelBody)
 
-      return h(React.Fragment, null, button, panel)
+      // 选中待删 watcher 时 open 已被适配器先置 false：portal surface 卸载，本地确认 Modal 才打开。
+      const confirmation = hostOrbit && anchor
+        ? h(ConfirmDialog, {
+          open: true,
+          label: '删除',
+          confirmLabel: '确认删除',
+          title: '确认删除',
+          modalContext: 'orbit',
+          onConfirm: () => act(anchor, 'delete'),
+          onClose: closeConfirm,
+        })
+        : null
+
+      return h(React.Fragment, null, button, panel, confirmation)
     }
 
 

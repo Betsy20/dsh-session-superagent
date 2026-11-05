@@ -2,6 +2,39 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.268] - 2026-11-05 —— InfoTip 与卫星环接入 DSH 原生浮层
+
+### InfoTip → DSH Tooltip
+
+- 保留 `{text,icon,warn}` 与原 trigger；使用 `top / portal / openOnClick / gap=8`；
+- capture scroll → remount key 清掉 pinned，effect 对称清理；
+- DSH 的 `aria-describedby` 映射为 `aria-expanded`；不添加受控 open 假 API；
+- 仅缺 Tooltip 时只回退 InfoTip，不连带降级 Modal/Toast。
+
+### StatusOrbit → OrbitPopover
+
+新增 `ui-orbit-popover.js` 与 UMD 同源适配：
+
+- `useAnchoredPosition + useDismissOnOutsidePointer + MenuSurface`；
+- `top / end / gap=8 / margin=8`，不传 center，不宣称自动 flip；
+- 主 surface 通过宿主 `react-dom.createPortal` 到 body，`role=dialog`；
+- 空态 252 / 常规 368、watcher rows、轮询和动作全部保留；
+- DSH 路径不再使用手算 left/bottom 或极大 z-index；缺原语时完整保留旧实现。
+
+删除确认改为「先关 orbit → 独立 ConfirmDialog → 取消/完成后回焦圆环」，
+不再让浮层层级压住确认框，也不把焦点还给已卸载的删除按钮。
+
+### 证据
+
+```
+Tooltip 定向 5/5；Orbit 适配 10/10；Orbit 集成 7/7；主线锚点 2/2
+npm test → 524/524
+scripts/ui-audit.mjs → 11/11，100 分
+对比度 → 浅色 16 组 ≤ 基线 16；深色 13 组 ≤ 基线 13
+```
+
+真实 WebView 的 portal、键鼠、焦点、读屏与叠层仍列入走查，不宣称已验。
+
 ## [0.9.267] - 2026-11-05 —— 修掉行内编辑透明遮挡，主面板接入 DSH Modal/Toast
 
 ### 修复「展开后只能看，不能改」
