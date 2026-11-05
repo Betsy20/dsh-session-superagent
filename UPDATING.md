@@ -56,7 +56,13 @@ node -e "console.log(require('<安装副本>/package.json').version)"
 dsh plugin --profile <p> update dsh-session-superagent
 ```
 
-pnpm 依据 `github:` 规格重新解析；或重新 `add` 一次覆盖。
+升级走的是**装的时候那条来源**：从 npm 装的就重新解析 npm 的 latest；从 `file:` 或 github 规格装的按那条重解析。
+
+分不清当时怎么装的就直接重新 add 一次覆盖：
+
+```bash
+dsh plugin --profile <p> add dsh-session-superagent@latest
+```
 
 **服务端改动（`lib/`）要重启宿主才生效；`client.js` 改动刷新即可。**
 面板报「代码已更新到 X，但宿主还在跑 Y」时，就是这一条没做。

@@ -3,7 +3,7 @@
 <img src="assets/icon-180.png" width="88" height="88" alt="">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.9.224-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
+[![Version](https://img.shields.io/badge/version-0.9.225-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
 [![npm](https://img.shields.io/npm/v/dsh-session-superagent.svg)](https://www.npmjs.com/package/dsh-session-superagent)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-plugin-orange.svg)](https://github.com/topics/dsh-plugin)
 [![awesome](https://img.shields.io/badge/awesome-dsh--plugin-%E2%9C%93-success.svg)](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
@@ -46,7 +46,7 @@ GitHub 有新动态 → watcher 轮询 → Agent.followup(消息) → 会话跑�
 | 位置 | 是什么 |
 |---|---|
 | 输入框下面那一行的**最左端**（`轮/步 · token · 上下文环` 同一行） | **总卫星环**：一个环代表这台机器，环上每一颗卫星 = 一个在运行的会话级 superagent。绿=主理中，琥珀=已暂停，红=上次轮询失败；一圈转起来说明至少还有一个在盯。**点一下**展开详情：仓库 / 会话标题 / 间隔 / 上次轮询 / 上次唤醒 / 状态 / 错误原文。 |
-| 中间栏「主理鱼」标签页 | **移植自官方 superagent 的 GUI**：总览（统计 + 需要关注 + 最近被过滤）/ 判定（每轮唤醒结果与原因）/ 触发（新增 + 行内编辑）/ 设置（来源 · 凭证 · goal · 术语表） |
+| 中间栏「主理鱼」标签页 | **移植自官方 superagent 的 GUI**：总览（统计 + 需要关注 + 最近被过滤）/ 判定（每轮唤醒结果与原因）/ 触发（新增 + 行内编辑）/ 设置（来源 · 凭证 · 版本与更新 · 分诊信号 · 会话 goal；术语表是独立弹层） |
 | 会话头部 | 不再挂徽章（0.3.2 起移到上面那行） |
 
 没有主理鱼时这里画一个**灰色空环**（不转、无卫星），点开提示怎么添加 —— 不占位但也不消失，免得看着像功能坏了。
@@ -56,6 +56,7 @@ GitHub 有新动态 → watcher 轮询 → Agent.followup(消息) → 会话跑�
 - DSH ≥ 0.2.1-rc.5（`engines.dsh`）
 - Node ≥ 22.19（宿主自带）
 - 已登录的 `gh` CLI（插件复用它取凭证；**不会**把 token 交给模型）
+- **pnpm**（只有开发流程用：`pnpm run sync:profile` 等；装插件不需要）
 
 ## 安装
 
@@ -122,7 +123,7 @@ Gitee 私有仓库要在「设置 → 凭证」填私人令牌；公开仓库不
 ## 已知限制
 
 - 依赖 `gh` CLI 已登录；需要 GitHub 账号权限。
-- 凭证失效时（例如 keyring 里的 token 过期）会显示「gh 登录失效：跑 gh auth login」；轮询会按退避重试，但**不会**自己恢复，需要你重新登录。
+- 凭证失效时（例如 keyring 里的 token 过期）会显示「gh 登录失效：跑 gh auth login」（原文：`（gh 登录失效：跑 gh auth login，或在面板填 token）`）；轮询会按退避重试，但**不会**自己恢复，需要你重新登录。
 - 轮询而非 webhook：延迟等于轮询间隔。
 - 一条会话可以守多个仓库（每条守独立配置间隔/过滤/时段），但**同一会话同一时刻只处理一批**：
   多仓库同时有动静时按每小时上限排队。
@@ -174,7 +175,7 @@ node --test          # 369 项单测
 | | 本机（开发者） | 客户 |
 |---|---|---|
 | 插件来源 | `file:` 硬链接到本仓库 | npm / 市场安装的发布版 |
-| 状态文件 | `<DSH_HOME>/state/session-superagent/watchers.json` | 同路径，但在客户自己的 `~/.dsh/` 下 |
+| 状态文件 | `~/.dsh/state/session-superagent/watchers.json`（Windows：`%USERPROFILE%\.dsh\state\session-superagent\`） | 同路径，但在客户自己的机器上 |
 | 我能不能直接查 | 能 | **不能** —— 只能让客户贴信息 |
 
 所以客户报问题时要这三样，缺一件就只能猜：
@@ -217,7 +218,7 @@ node scripts/render-preview.mjs preview.html   # 双主题静态预览，直接�
 | `npm i dsh-session-superagent@<新版本>` 报 `ETARGET` | 刚发布，npm 客户端元数据缓存还没刷新 | 等 1-2 分钟，或 `npm i <tarball URL>` / `--prefer-online` |
 | 有动静但会话没被叫醒 | 会话忙 / 时段外 / 每小时上限 / 被子过滤器刷掉 | `watch_status` 会显示 `deferred=` / `paused`；面板「总览」的「最近被过滤」给原因 |
 
-| 面板显示原始 `Get "https://api.github.com/…": EOF` | 客户网络抖动（换网/代理），不是插件坏了 | 升级到 ≥0.8.36：会显示「网络抖动，已按退避自动重试」；本机能访问不代表客户能 |
+| 面板显示原始 `Get "https://api.github.com/…": EOF` | 客户网络抖动（换网/代理），不是插件坏了 | 升级到 ≥0.8.36：会显示「网络抖动：这一轮没连上 GitHub，已按退避自动重试，不需要手动处理」；本机能访问不代表客户能 |
 | 设了时段 `09:00-23:00`，窗口外还显示绿色「主理中」 | 0.8.40 之前的 bug：只判断 enabled，不看是否在窗口内 | 升级到 ≥0.8.40：窗口外显示灰色「时段外」（只攒条目不唤醒） |
 | 改了服务端代码、也重载了，面板却还是旧行为 | 宿主重载后**旧 handler 摘不掉**，HTTP 仍走旧代码 | ≥0.8.32 起会自动换到 `/session-superagent/rN` 重放；客户端 ≥0.8.34 会自动跟过去。仍异常时重启一次宿主 |
 | 面板建的 watcher 一跑就报 `inactive context`，工具建的却正常 | 同上：那条 HTTP 路径由**已释放的旧实例**处理 | ≥0.8.31 起会直接返回 503 并提示「请重载 DSH」，不再静默造死守 |

@@ -2,6 +2,43 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.225] - 2026-11-05 —— 文档里的路径与报错原文，和代码对不上
+
+### ① 状态文件路径写错
+
+README 写 `<DSH_HOME>/state/session-superagent/watchers.json`，实际是
+**`~/.dsh/state/session-superagent/watchers.json`**（`lib/index.js:82` 硬编码 `homedir()/.dsh`，没有 `DSH_HOME` 这一层）。
+
+客户按错路径去找，只会得出「没有这个文件」的结论。
+
+### ② 报错原文与代码不符
+
+- 代码是「gh 登录失效：跑 gh auth login，**或在面板填 token**」，文档只写了前半句；
+- 代码是「网络抖动：**这一轮没连上 GitHub**，已按退避自动重试，**不需要手动处理**」，文档写成了短版。
+
+客户拿文档里的字去搜日志，搜不到。
+
+### ③ 升级路径把两条来源混成一条
+
+`UPDATING.md` 说「pnpm 依据 `github:` 规格重新解析」—— 而从 README 装的是 **npm 包**，不是 `github:` 规格。
+现在写清「走装的时候那条来源」，并给了「分不清就直接重新 add」的兜底命令。
+
+### ④ 设置页分区列表过时
+
+文档写「设置（来源 · 凭证 · goal · 术语表）」，实际左栏是
+**来源 / 凭证 / 版本与更新 / 分诊信号 / 会话 goal**，术语表是独立弹层。
+
+### ⑤ 环境要求漏了 pnpm
+
+文档让人跑 `pnpm run sync:profile`，环境要求里却没写 pnpm。已补（并注明「只有开发流程用」）。
+
+### 证据
+
+```
+node --test → 369/369
+check-docs → 5 项 PASS
+```
+
 ## [0.9.224] - 2026-11-05 —— 用户文档「照着做会失败」：安装命令、端口、入口路径全是错的
 
 ### ① README 的安装命令根本跑不起来
