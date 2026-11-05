@@ -252,6 +252,43 @@ test('超时返回 504；迟到完成会被接收并释放并发闸', async () =
   assert.equal(retry.statusCode, 200)
 })
 
+test('spawn 超时后未 close 时 runner 保持 pending，外层 504 后第二个 POST 始终 409', async () => {
+  const child = new EventEmitter()
+  child.stdout = new EventEmitter()
+  child.stderr = new EventEmitter()
+  let spawns = 0
+  let kills = 0
+  const killObserved = deferred()
+  child.kill = () => { kills += 1; killObserved.resolve(); return true }
+  const runner = createSpawnRunner({
+    resolveCommand: () => ({ file: '/dsh', args: [], env: {} }),
+    env: {},
+    spawn: () => { spawns += 1; return child },
+  })
+  const route = await setup({ runner, timeoutMs: 20 })
+  const first = await route.call('POST', { version: '0.9.271' })
+  assert.equal(first.statusCode, 504)
+  assert.equal(first.json().code, 'timeout')
+  await killObserved.promise
+  assert.equal(kills, 1)
+  assert.equal(spawns, 1)
+
+  // 假 child 在 kill 后始终不 close：外层已经超时，也不能放行第二次安装。
+  for (const version of ['0.9.272', '0.9.273']) {
+    const retry = await route.call('POST', { version })
+    assert.equal(retry.statusCode, 409)
+    assert.equal(retry.json().code, 'update_in_flight')
+    assert.equal(spawns, 1)
+  }
+
+  // 测试收尾才让迟到 close 到达；runner 以 timeout 结算后，锁才可释放。
+  child.emit('close', null, 'SIGKILL')
+  await new Promise((resolve) => setImmediate(resolve))
+  const next = await setup({ runner: async () => ({ code: 0, stdout: '', stderr: '' }) })
+  const afterClose = await next.call('POST', { version: '0.9.271' })
+  assert.equal(afterClose.statusCode, 200)
+})
+
 test('runner 自己拒绝 timeout 也会释放锁，不伪装成仍在执行的外层计时器', async () => {
   const route = await setup({
     runner: async () => {
@@ -304,6 +341,28 @@ test('runner 的 stdout/stderr 都有字节上限与截断标记', async () => {
   assert.equal(Buffer.byteLength(res.json().stderr), UPDATE_OUTPUT_LIMIT_BYTES)
   assert.equal(res.json().stdoutTruncated, true)
   assert.equal(res.json().stderrTruncated, true)
+})
+
+test('16KiB 边界前先脱敏再按 UTF-8 截断，不泄露完整或部分动态 token', async () => {
+  const token = 'gh' + 'p_' + 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8'
+  const prefix = 'x'.repeat(UPDATE_OUTPUT_LIMIT_BYTES - 10)
+  const raw = prefix + token + '🙂'.repeat(UPDATE_OUTPUT_LIMIT_BYTES)
+  const tokenStart = Buffer.byteLength(prefix)
+  assert.ok(tokenStart < UPDATE_OUTPUT_LIMIT_BYTES)
+  assert.ok(tokenStart + Buffer.byteLength(token) > UPDATE_OUTPUT_LIMIT_BYTES, '假 token 必须横跨截断边界')
+
+  const route = await setup({ runner: async () => ({ code: 0, stdout: raw, stderr: '' }) })
+  const res = await route.call('POST', { version: '0.9.271' })
+  assert.equal(res.statusCode, 200)
+  const output = res.json().stdout
+  for (let length = 4; length <= token.length; length += 1) {
+    assert.equal(output.includes(token.slice(0, length)), false, '不得保留完整或部分秘密前缀')
+  }
+  assert.ok(Buffer.byteLength(output) <= UPDATE_OUTPUT_LIMIT_BYTES)
+  assert.equal(output.includes('\uFFFD'), false)
+  assert.equal(Buffer.from(output, 'utf8').toString('utf8'), output, 'UTF-8 截断不能留下半个字符')
+  assert.equal(output.endsWith('🙂'), true)
+  assert.equal(res.json().stdoutTruncated, true)
 })
 
 test('profile 不写死 desktop：环境缺失时 503 且 runner 不执行', async () => {
@@ -362,17 +421,19 @@ test('CLI 解析顺序：DSH_CLI_PATH → PATH → DSH 安装布局；找不到�
   }), (error) => error.code === 'cli_not_found' && /DSH_CLI_PATH/.test(error.message))
 })
 
-test('DSH_PROFILE_DIR 安装布局可解析 asar 内官方 bin.js', () => {
+test('DSH_PROFILE_DIR 安装布局从 asar bin 候选转到 desktop-host CLI', () => {
   const root = process.platform === 'win32' ? 'C:\\DSH' : '/dsh'
   const executable = join(root, 'Desktop', 'DeepSeek Harness.exe')
-  const expected = join(root, 'Desktop', 'resources', 'app.asar', 'dsh', 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
+  const binCandidate = join(root, 'Desktop', 'resources', 'app.asar', 'dsh', 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
+  const hostCli = join(root, 'Desktop', 'resources', 'app.asar', 'dsh', 'node_modules', '@deepseek-ai', 'dsh-desktop-host', 'lib', 'cli.js')
   const command = resolveDshCommand({
     env: { DSH_PROFILE_DIR: join(root, 'home', 'profiles', 'desktop'), PATH: '' },
     platform: 'win32', execPath: executable, resourcesPath: null,
-    fileExists: (path) => path === expected,
+    fileExists: (path) => [binCandidate, hostCli, executable].includes(path),
   })
   assert.equal(command.file, executable)
-  assert.deepEqual(command.args, [expected])
+  assert.deepEqual(command.args, ['--expose-internals', hostCli])
+  assert.equal(command.env.ELECTRON_RUN_AS_NODE, '1')
   assert.equal(command.source, 'DSH installation CLI JS')
 })
 
@@ -401,6 +462,21 @@ test('DSH_CLI_PATH 指向 cli.js 时用当前 runtime 加 argv，不经 shell', 
   })
   assert.equal(command.file, '/runtime/node')
   assert.deepEqual(command.args, ['/dsh/cli.js'])
+  assert.equal(command.env.ELECTRON_RUN_AS_NODE, '1')
+})
+
+test('显式 desktop-host cli.js 在 Windows 保留宿主入口并加 expose-internals', () => {
+  const root = process.platform === 'win32' ? 'C:\\DSH\\Desktop' : '/dsh/Desktop'
+  const executable = join(root, 'DeepSeek Harness.exe')
+  const hostCli = join(root, 'resources', 'app.asar', 'dsh', 'node_modules', '@deepseek-ai', 'dsh-desktop-host', 'lib', 'cli.js')
+  const command = resolveDshCommand({
+    env: { DSH_CLI_PATH: hostCli, PATH: '' },
+    platform: 'win32', execPath: executable, resourcesPath: null,
+    fileExists: (path) => [hostCli, executable].includes(path),
+  })
+  assert.equal(command.file, executable)
+  assert.deepEqual(command.args, ['--expose-internals', hostCli])
+  assert.equal(command.env.ELECTRON_RUN_AS_NODE, '1')
 })
 
 test('生产 spawn runner 使用固定 argv、shell:false，并截断两路输出', async () => {
@@ -410,14 +486,23 @@ test('生产 spawn runner 使用固定 argv、shell:false，并截断两路输�
   child.kill = () => true
   let invocation
   const runner = createSpawnRunner({
-    resolveCommand: () => ({ file: '/dsh', args: [], env: {} }),
-    env: { DSH_PROFILE: 'spawn-profile' },
+    resolveCommand: () => ({ file: '/dsh', args: [], env: { ELECTRON_RUN_AS_NODE: '1' } }),
+    env: {
+      DSH_PROFILE: 'spawn-profile',
+      DSH_PROFILE_DIR: '/dsh-profile',
+      PATH: '/dsh-bin',
+      ELECTRON_RUN_AS_NODE: '0',
+    },
     spawn: (file, args, options) => { invocation = { file, args, options }; return child },
   })
   const pending = runner({ version: '0.9.271', profile: 'spawn-profile', timeoutMs: 1000 })
   assert.equal(invocation.file, '/dsh')
   assert.deepEqual(invocation.args, ['plugin', '--profile', 'spawn-profile', 'add', 'dsh-session-superagent@0.9.271'])
   assert.equal(invocation.options.shell, false)
+  assert.equal(invocation.options.env.DSH_PROFILE, 'spawn-profile')
+  assert.equal(invocation.options.env.DSH_PROFILE_DIR, '/dsh-profile')
+  assert.equal(invocation.options.env.PATH, '/dsh-bin')
+  assert.equal(invocation.options.env.ELECTRON_RUN_AS_NODE, '1', '命令必需项可覆盖错误的继承值')
   child.stdout.emit('data', Buffer.from('a'.repeat(UPDATE_OUTPUT_LIMIT_BYTES + 100)))
   child.stderr.emit('data', Buffer.from('b'.repeat(UPDATE_OUTPUT_LIMIT_BYTES + 100)))
   child.emit('close', 0)
@@ -429,12 +514,38 @@ test('生产 spawn runner 使用固定 argv、shell:false，并截断两路输�
   assert.equal(result.stderrTruncated, true)
 })
 
-test('生产 spawn runner 超时只终止自己的 CLI 子进程并返回 timeout', async () => {
+test('生产 outputCollector 也在跨边界截断前脱敏，不留秘密前缀', async () => {
+  const child = new EventEmitter()
+  child.stdout = new EventEmitter()
+  child.stderr = new EventEmitter()
+  child.kill = () => true
+  const runner = createSpawnRunner({
+    resolveCommand: () => ({ file: '/dsh', args: [], env: {} }),
+    env: { DSH_PROFILE: 'spawn-profile' },
+    spawn: () => child,
+  })
+  const pending = runner({ version: '0.9.271', profile: 'spawn-profile', timeoutMs: 1000 })
+  const token = 'ghp_' + 'A'.repeat(30)
+  child.stdout.emit('data', Buffer.from('x'.repeat(UPDATE_OUTPUT_LIMIT_BYTES - 10) + token))
+  child.emit('close', 0)
+  const result = await pending
+  assert.equal(result.code, 0)
+  for (let length = 4; length <= token.length; length += 1) {
+    assert.equal(result.stdout.includes(token.slice(0, length)), false, '生产 collector 不得泄露部分 token')
+  }
+  assert.ok(Buffer.byteLength(result.stdout) <= UPDATE_OUTPUT_LIMIT_BYTES)
+})
+
+test('生产 spawn runner 超时 kill 后等 close，仍返回 timeout', async () => {
   const child = new EventEmitter()
   child.stdout = new EventEmitter()
   child.stderr = new EventEmitter()
   let killed = false
-  child.kill = () => { killed = true; return true }
+  child.kill = () => {
+    killed = true
+    queueMicrotask(() => child.emit('close', null, 'SIGKILL'))
+    return true
+  }
   const runner = createSpawnRunner({
     resolveCommand: () => ({ file: '/dsh', args: [], env: {} }),
     env: {},
