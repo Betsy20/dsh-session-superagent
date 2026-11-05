@@ -1684,3 +1684,21 @@ test('面板能设「只理这些人提的」，且不会把已有名单清空�
   assert.ok(texts.includes('只理这些人提的'), '表单要有这个字段')
   assert.ok(nodes.some((n) => n.type === 'input' && String(n.props.value) === 'alice'), '已有名单要显示在输入框里')
 })
+
+test('总览要显示「有动作率」（《为什么做这个产品》：没有这个数，「不打断」只是信念）', async () => {
+  const { loadClient, walk, watcher, deskQueue } = await import('./fixtures/panel-harness.mjs')
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = {
+    loading: false, error: null,
+    body: {
+      credentials: { token: 'none', sshKeyPath: 'none', ghConfigDir: 'none', giteeToken: 'none' },
+      gh: { ok: true, version: '2.0' },
+      defaults: { sessionMaxWakes: 12, maxWakesPerHour: 6, isolateKeepDays: 3, batchLimit: 5 },
+      watchers: [watcher('a/b', { quality: { itemsWoken: 10, itemsAcked: 7, actionRate: 0.7 } })],
+    },
+  }
+  const text = walk(render(desk, deskQueue(snap))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.match(text, /有动作/, '总览要有这个指标')
+  assert.match(text, /7 \/ 10/, '要显示 ack 数 / 叫醒数：' + text.slice(0, 200))
+})

@@ -1745,3 +1745,29 @@ test('acked / pending 必须真的写进状态文件（白名单是手维护的�
     assert.ok(POLL_RESULT_FIELDS.includes(key), key + ' 必须在落盘白名单里，否则「算出来了但没存」')
   }
 })
+
+test('唤醒质量：有动作率 / 开工时延 / 回执空白（《为什么做这个产品》的三个数）', async () => {
+  const { wakeQuality } = await import('../lib/watch.js')
+  const entry = {
+    history: [
+      { at: '2026-11-05T10:03:00Z', numbers: [1, 2], ok: true, oldest: '2026-11-05T10:00:00Z' },
+      { at: '2026-11-05T10:33:00Z', numbers: [3], ok: true, oldest: '2026-11-05T10:30:00Z' },
+      { at: '2026-11-05T11:00:00Z', numbers: [], ok: false, reason: 'busy' },
+    ],
+    acked: { 1: { at: '2026-11-05T10:10:00Z', note: 'done' } },
+    lastAcked: { numbers: [3] },
+    silentWakes: 0,
+  }
+  const q = wakeQuality(entry)
+  assert.equal(q.wakeCount, 2, '失败的那次不算一次成功唤醒')
+  assert.equal(q.itemsWoken, 3)
+  assert.equal(q.itemsAcked, 2, 'acked 里的 1 和 lastAcked 里的 3 都算有动作')
+  assert.equal(q.actionRate, 0.67)
+  assert.equal(q.medianLatencyMs, 180000, '两次都是 3 分钟')
+  assert.match(q.verdict, /偏低/, '2/3 低于 0.7 要说出来')
+  // 没叫醒过 = 没数据，不是 0
+  const empty = wakeQuality({ history: [] })
+  assert.equal(empty.actionRate, null, '没叫醒过不该显示 0%')
+  // **关键**：不能有每次调用都变的时间戳，否则 /state 的 ETag 永远不命中
+  assert.ok(!('computedAt' in q), 'quality 里不许放每次调用都变的时间戳')
+})

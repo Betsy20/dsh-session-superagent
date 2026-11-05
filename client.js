@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.255'
+    const CLIENT_VERSION = '0.9.256'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1540,6 +1540,17 @@ window.__ModuleLoader__.load({
               : null)
       })()
 
+      // 《为什么做这个产品》的三个成功指标：叫醒之后**有没有动作**。
+      // 没有这个数，「不打断」只是信念 —— 你没法知道自己在优化还是在变吵。
+      const qualityTotals = watchers.reduce((acc, w) => {
+        const q = w.quality
+        if (q && typeof q === 'object') {
+          acc.woken += Number(q.itemsWoken) || 0
+          acc.acked += Number(q.itemsAcked) || 0
+        }
+        return acc
+      }, { woken: 0, acked: 0 })
+
       const overview = [
         filterSummary,
         h('div', { className: 'dt-stats', key: 'stats' },
@@ -1559,6 +1570,11 @@ window.__ModuleLoader__.load({
             key: 'err', value: broken, unit: '异常',
             active: stateFilter === 'error', onClick: () => setStateFilter(stateFilter === 'error' ? null : 'error'),
           }),
+          // 叫醒之后有动作的比例（有 ack 的条数 / 叫醒过的条数）。
+          // 低于 0.7 就是「叫醒的是噪音」—— 这时候该做的是调过滤/优先级，不是叫醒更多。
+          qualityTotals.woken > 0 ? h(Stat, {
+            key: 'acted', value: qualityTotals.acked + ' / ' + qualityTotals.woken, unit: '有动作（ack）',
+          }) : null,
           dormant > 0 ? h(Stat, {
             key: 'dormant', value: dormant, unit: '时段外',
             active: stateFilter === 'dormant', onClick: () => setStateFilter(stateFilter === 'dormant' ? null : 'dormant'),
