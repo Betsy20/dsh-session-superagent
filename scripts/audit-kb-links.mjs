@@ -18,10 +18,10 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const KB = join(ROOT, 'docs', 'kb')
 
 // 引用数基线：只许涨，不许跌（跌了说明有人把注释删了）
-const BASELINE = 16
+const BASELINE = 19
 
 // 这两个板块是 T34 反查出来的 0 引用区，必须先长出来
-const MUST_COVER = ['priority-configurable.md', 'assignment-signal.md', 'filter-explainability.md', 'triage-signal-table.md', 'error-must-have-next-step.md']
+const MUST_COVER = ['priority-configurable.md', 'assignment-signal.md', 'filter-explainability.md', 'triage-signal-table.md', 'error-must-have-next-step.md', 'windows-secrets-perms.md', 'token-scopes.md']
 
 const SOURCES = ['client.js', ...readdirSync(join(ROOT, 'lib')).filter((n) => n.endsWith('.js')).map((n) => join('lib', n))]
 

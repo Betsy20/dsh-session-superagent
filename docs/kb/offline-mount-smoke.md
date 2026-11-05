@@ -16,7 +16,7 @@
 `scripts/smoke-mount.mjs`：
 1. 造一个够用的假 ctx（`tools.register` / `webServer.register` / `agents` / `get` / `effect` / `inject`）；
 2. 真的 `import` 当前 `lib/index.js` 并 `apply(ctx)`；
-3. 断言 8 条路由一条不少、工具 > 0、无异常；
+3. 断言路由一条不少（0.8 时代 8 条，2026-11 是 9 条 —— 用清单比，别写死数字）、工具 > 0、无异常；
 4. 输出一行：`挂载冒烟 OK：0.8.86，工具 7 个，路由 8 条`。
 
 `preflight` 已接入（对应检查），所以每次推送前都会被守一次。
