@@ -60,7 +60,9 @@ function makeRes() {
   }
 }
 
-async function setup({ runner, timeoutMs = 1000, installedVersion } = {}) {
+async function setup({ runner, timeoutMs = 1000, installedVersion, profile = 'test-profile' } = {}) {
+  for (const key of ['DSH_PROFILE', 'DSH_PROFILE_NAME', 'DSH_ACTIVE_PROFILE']) delete process.env[key]
+  if (profile) process.env.DSH_PROFILE = profile
   const routes = new Map()
   const tools = []
   const ctx = {
@@ -309,7 +311,7 @@ test('profile 不写死 desktop：环境缺失时 503 且 runner 不执行', asy
   delete process.env.DSH_PROFILE_NAME
   delete process.env.DSH_ACTIVE_PROFILE
   let runs = 0
-  const route = await setup({ runner: async () => { runs += 1; return { code: 0 } } })
+  const route = await setup({ profile: null, runner: async () => { runs += 1; return { code: 0 } } })
   const res = await route.call('POST', { version: '0.9.271' })
   assert.equal(res.statusCode, 503)
   assert.equal(res.json().code, 'profile_unavailable')
