@@ -1785,3 +1785,31 @@ test('编辑过滤字段时，已有作者名单和指派人不能被顺带清�
     assignee: 'octocat', allowAuthors: ['alice'],
   }, '只要提交 filters，就必须保留其中所有已有值（测试桩不重渲染，所以不断言输入后的新值）')
 })
+
+test('列表显示作者白名单与 ack 标签，编辑器也能改标签（T40 W3/W4）', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = {
+    loading: false, error: null,
+    body: {
+      credentials: { token: 'none', sshKeyPath: 'none', ghConfigDir: 'none', giteeToken: 'none' },
+      gh: { ok: true, version: '2.0' }, defaults: {},
+      watchers: [watcher('a/b', {
+        ackLabel: 'team:done',
+        filters: { labels: [], ignoreLabels: [], onlyAssigned: false, allowAuthors: ['alice', 'bob'] },
+      })],
+    },
+  }
+  const textOf = (nodes) => nodes.filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  const overview = textOf(walk(render(desk, deskQueue(snap))))
+  assert.match(overview, /作者: alice,bob/, '列表必须显示作者白名单，否则设了也看不出来')
+  assert.match(overview, /回执 team:done/, '列表必须显示实际 ack 标签')
+
+  const draft = {
+    intervalSec: '60', labels: '', ignoreLabels: '', onlyAssigned: false,
+    assignee: '', allowAuthors: 'alice,bob', ackLabel: 'team:done', activeHours: '', goal: '', isolated: false, workdir: '',
+  }
+  const editor = walk(render(desk, deskQueue(snap, 'a/b#session-a/b', draft)))
+  assert.ok(textOf(editor).includes('已处理标签'), '编辑器要有 ack 标签字段')
+  assert.ok(editor.some((n) => n.type === 'input' && n.props.value === 'team:done'), '编辑器要显示当前自定义标签')
+})

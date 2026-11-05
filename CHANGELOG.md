@@ -2,6 +2,44 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.259] - 2026-11-05 —— 工具不再只能「暂停」，优先级也不再只有面板能调
+
+### ① `watch_stop` 可以真正删除，但默认行为不变
+
+新增 `delete: true`：
+
+```js
+watch_stop({ repo: 'owner/name', delete: true })
+```
+
+- 默认仍然只暂停，文本与 JSON 返回形状完全不变；
+- 显式删除时先清轮询 timer 与 `bootTimers`，再删状态并写 ISO 墓碑，防止迟到快照复活；
+- 回执明确 `deleted:true`；Gitee 前缀同样支持；
+- 显式 `watch_start` 可重建同一仓库，只解除该 id 的墓碑，不影响其他 session。
+
+### ② `watch_start` 支持五个优先级开关
+
+`priority` 对象支持 `reopened / comments / labels / unassigned / stale`。
+只覆盖显式传入的布尔键，其他已有设置保留；**只改标签不会重置优先级**。
+
+### ③ doctor 不再写死 `/6`
+
+部分挂载失败按实际的 `routes / (routes + failed.length)` 报告；旧状态没有路由数时显示「未知」，
+不编造一个看似精确的分母。
+
+### ④ ack 标签从「隐藏配置」变成可见、可改
+
+`/state` 回传真实 `ackLabel`（GitHub/Gitee 各自默认值正确）。
+面板列表显示作者白名单与回执标签，编辑器可修改「已处理标签」。
+
+### 证据
+
+```
+npm test → 420/420（新增 12 条：删除/重建 4、priority 3、doctor/state 4、面板 ack 1）
+node scripts/contract.mjs --update → 登记 watch_start.priority 与 watch_stop.delete
+node scripts/measure-state.mjs → 20 条守 43.8 KB ≤ 50 KB
+```
+
 ## [0.9.258] - 2026-11-05 —— 新建能一次设好，模型也能看见自己写了什么
 
 继续收 T40「两个入口能力不对等」的尾项，并用**真实点击 + 请求体断言**验收，而不是只查字段出现在源码里。

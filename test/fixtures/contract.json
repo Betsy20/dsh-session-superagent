@@ -61,6 +61,7 @@
         "maxWakesPerHour",
         "observe",
         "onlyAssigned",
+        "priority",
         "repo",
         "resume",
         "sessionMaxWakes",
@@ -78,6 +79,7 @@
     {
       "name": "watch_stop",
       "params": [
+        "delete",
         "format",
         "repo"
       ],

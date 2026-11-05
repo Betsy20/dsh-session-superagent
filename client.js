@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.258'
+    const CLIENT_VERSION = '0.9.259'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -629,6 +629,8 @@ window.__ModuleLoader__.load({
       if (f.labels && f.labels.length) parts.push('标签: ' + f.labels.join(','))
       if (f.ignoreLabels && f.ignoreLabels.length) parts.push('排除: ' + f.ignoreLabels.join(','))
       if (f.onlyAssigned) parts.push(f.assignee ? '只看指派给 @' + f.assignee : '只看已指派')
+      // 设了作者白名单就要能自查；只在编辑器里出现，列表上看不出「到底生效的是谁」。
+      if (f.allowAuthors && f.allowAuthors.length) parts.push('作者: ' + f.allowAuthors.join(','))
       return parts.join(' · ')
     }
 
@@ -1118,6 +1120,8 @@ window.__ModuleLoader__.load({
               },
               activeHours: draft.activeHours || '',
               goal: draft.goal || '',
+              // 自定义 ack 标签是可写配置；未传时服务端保持原值。
+              ackLabel: String(draft.ackLabel || '').trim() || undefined,
               isolated: !!draft.isolated,
               workdir: draft.workdir || '',
               observe: !!draft.observe,
@@ -1297,6 +1301,7 @@ window.__ModuleLoader__.load({
                   // 审核 T26 M2：`watcher.goal` 是**对象**（goalView），当字符串塞进输入框会显示
                   // [object Object]；保存时后端只收 string，于是静默无效而 Toast 说「已保存」。
                   goal: watcher.note || (typeof watcher.goal === 'string' ? watcher.goal : (watcher.goal && watcher.goal.objective) || ''),
+                  ackLabel: watcher.ackLabel || (watcher.provider === 'gitee' ? '主理鱼-已处理' : '主理鱼:已处理'),
                   onlyAssigned: !!(watcher.filters && watcher.filters.onlyAssigned),
                   allowAuthors: (watcher.filters && watcher.filters.allowAuthors ? watcher.filters.allowAuthors : []).join(', '),
                   // 下面这些以前没填 —— 打开一条隔离执行的守再直接保存，会把 isolated 写回 false
@@ -1328,6 +1333,8 @@ window.__ModuleLoader__.load({
             watcher.activeHours ? h(Tag, null, '时段 ' + watcher.activeHours) : null,
             watcher.isolated ? h(Tag, null, isolationText(watcher)) : null,
             filterText(watcher.filters) ? h(Tag, null, filterText(watcher.filters)) : null,
+            // ack 标签决定这条是否还会被叫醒，不能只在工具参数里出现。
+            h(Tag, { tone: 'quiet' }, '回执 ' + (watcher.ackLabel || (watcher.provider === 'gitee' ? '主理鱼-已处理' : '主理鱼:已处理'))),
             backoffText(watcher) ? h(Tag, { tone: 'warning' }, backoffText(watcher)) : null),
           // 三行，各管一件事：① 是谁 ② 节律与最近结果 ③ 目标
           // 原来六段用 ' · ' 串成一行（会话 · 每 60s · 轮询 · 唤醒 · 上次唤醒 · 目标），
@@ -1407,6 +1414,7 @@ window.__ModuleLoader__.load({
             // 官方原型的 Policy 第一件事是「谁可以给你派活」。单人场景也要：别人随手提的 issue 不该叫醒你。
             field('只理这些人提的', h(Input, { value: draft.allowAuthors || '', placeholder: AUTHOR_LIST_PLACEHOLDER, onChange: (e) => setField({ ...draft, allowAuthors: e.target.value }) }), '不在名单里的人提的 issue/PR 不会叫醒你（Gitee 也可以填）'),
             field('目标/规则', h(Input, { value: draft.goal || '', placeholder: '可选，会附在唤醒消息里', onChange: (e) => setField({ ...draft, goal: e.target.value }) })),
+            field('已处理标签', h(Input, { value: draft.ackLabel || '', placeholder: '主理鱼:已处理', onChange: (e) => setField({ ...draft, ackLabel: e.target.value }) }), 'watch_ack 会把同名标签打到 issue/PR 上；改名字等于换一套已处理标记'),
             h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.onlyAssigned, onChange: (v) => setField({ ...draft, onlyAssigned: v }), label: '只看已指派' }), '只处理已指派给人的条目'),
             draft.onlyAssigned ? field('只看指派给谁', h(Input, { value: draft.assignee || '', placeholder: 'GitHub 登录名，留空 = 只要有指派就行', onChange: (e) => setField({ ...draft, assignee: e.target.value }) })) : null,
             field('单次最多唤醒条数', h(Input, { value: draft.batchLimit || '', placeholder: String(DEFAULTS.batchLimit || 5) + '（1-20）', onChange: (e) => setField({ ...draft, batchLimit: e.target.value }) })),
