@@ -335,4 +335,4 @@
 
 ## 索引本身也有门禁
 
-`node scripts/check-docs.mjs` 会检查两件事：所有相对链接都能解析、`docs/kb/*.md` 没有孤儿（没进索引 = 客户永远看不到）。已接入 `preflight`（第 10 项）。
+`node scripts/check-docs.mjs` 会检查两件事：所有相对链接都能解析、`docs/kb/*.md` 没有孤儿（没进索引 = 客户永远看不到）。已接入 `preflight`（对应检查）。

@@ -24,4 +24,4 @@
 `gh api --include` 会输出「状态行 + 头 + 空行 + 正文」，所以加了一个纯函数解析它，
 并写了用例覆盖 200 / 304 / 纯正文三种形态。
 
-**还没做的**：`x-poll-interval` 头还没读（GitHub 极少在 issues 列表上发这个头，先记着）。
+**已落地**：`x-poll-interval` 头已读（`lib/gh-format.js` 的 parseGhInclude 一带 + `lib/index.js` 的轮询路径），最小间隔会按它生效。

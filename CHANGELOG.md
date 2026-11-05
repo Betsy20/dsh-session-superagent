@@ -2,6 +2,44 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.211] - 2026-11-05 —— 182 篇知识库里有 8 篇的「还没做的」早就做完了
+
+### ① 8 篇过期条目（T21 审计，逐条 grep 复核后改）
+
+`docs/kb/` 从来没人整体复查过。门禁只查「索引篇数对不对得上」这类结构问题，于是出现了这种情况：
+
+> 条目里写着「**还没做的**：xxx」，而 xxx 在后续版本里已经做掉了 —— **没人回头删**。
+
+| 条目 | 它说 | 代码实际 |
+|---|---|---|
+| `github-conditional-requests` | `x-poll-interval` 还没读 | 已读 |
+| `measure-before-trimming` | `/state` 没有 ETag/304 | 有（sha1 指纹 + `if-none-match`） |
+| `triage-signal-table` | `stale` 只列没算 | `weight: 2` + `score += 2` |
+| `show-saturation` | `capped` 靠匹配文案 | 用原因码 |
+| `repo-permissions` / `repo-structure` | 还没有能力徽章 | `repoBadges(repoAccess)` 已渲染 |
+| `archived-repo` | 徽章只读不可点 | 可点筛选 |
+| `pr-blocked-state` | 没取 CI 状态 | GraphQL 里带了 `statusCheckRollup` |
+
+**这不是文档小毛病**：一个「还没做」会让下一个接手的人重做一遍已经做过的事。
+真正还没做的（面板渲染耗时、权重自定义、积压自动建议上限）保留，其余移进「已落地」并写明证据。
+
+### ② 「preflight 第 N 项」全部失效 → 做成门禁
+
+`preflight` **不打印序号**，任何一次插入都会让后面全部错位 —— T21 实测 **20 处全部失效**（现在实际 29 处）。
+
+新增 `scripts/audit-doc-ordinals.mjs` 并接进 preflight：文档里不许再用「第 N 项」引用 preflight（要写检查名）。
+29 处已全部改成「对应检查」。报告类文件（`报告-*.md`）跳过 —— 它们是历史快照，本来就该原样引用。
+
+**为什么要做成门禁而不是一次性修**：只要还能写序号，下一次插入就又会错位一遍。
+
+### 证据
+
+```
+node --test → 363/363
+preflight --fast → 全部通过（38 项，含新增「文档序号引用」）
+docs/验收清单.md → 40 项
+```
+
 ## [0.9.210] - 2026-11-05 —— 知识库一致性审计：8 篇「还没做的」早就做完了
 
 ### ① 知识库条目过期（T21 报的 8 条「必须改」）

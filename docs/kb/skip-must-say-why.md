@@ -23,7 +23,7 @@ node --test → skipped 0（本机 Windows 所以没跳过）
 > 与 [条件断言等于永远通过](fake-pass.md) 同源：**判据要盯着"结论"，不能盯着"像不像"。**
 
 ## 是否已落地
-✅ 0.9.82。`preflight` 第 28 项「跳过可见性」。
+✅ 0.9.82。`preflight` 对应检查「跳过可见性」。
 
 ## 还没做的
 - 只扫 `test/`；`scripts/` 里的集成脚本没有 skip 概念（它们直接 exit 0）；

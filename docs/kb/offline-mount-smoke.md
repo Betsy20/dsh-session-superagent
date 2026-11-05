@@ -19,10 +19,10 @@
 3. 断言 8 条路由一条不少、工具 > 0、无异常；
 4. 输出一行：`挂载冒烟 OK：0.8.86，工具 7 个，路由 8 条`。
 
-`preflight` 已接入（第 9 项检查），所以每次推送前都会被守一次。
+`preflight` 已接入（对应检查），所以每次推送前都会被守一次。
 
 ## 是否已落地
-✅ 0.8.87（`scripts/smoke-mount.mjs` + preflight 第 9 项）。
+✅ 0.8.87（`scripts/smoke-mount.mjs` + preflight 对应检查）。
 
 ## 还没做的
 - 没有模拟"真宿主重载两次"的场景（那由 `test/route-resilience.test.mjs` 覆盖）；

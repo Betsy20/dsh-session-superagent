@@ -48,6 +48,7 @@ const WHY = {
   'JSON 契约': ['字段清单与契约文档脱节', 'KB `field-stability-manifest.md`'],
   '全库文档一致': ['文档里提到不存在的工具/路由/文件', 'KB `audit-false-positives.md`'],
   '对比度体检': ['浅色/深色下文字与控件边界看不清', 'KB `contrast-baseline.md`'],
+  '文档序号引用': ['文档用「第 N 项」引用 preflight', 'KB `prose-numbers-drift.md`'],
   '单行长度': ['唤醒消息里出现过长的行', 'KB `line-length-limit.md`'],
   '信息密度': ['首屏区块过多', 'KB `information-density.md`'],
   '文档标识符': ['工具名/路由改名后文档没跟上', 'KB `identifier-drift.md`'],

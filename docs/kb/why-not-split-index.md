@@ -34,10 +34,10 @@
 PASS 所有内部链接都能解析
 PASS 知识库文档全部被索引
 ```
-都健康 —— 但**这是运气，不是保证**。已接入 preflight（第 10 项检查），以后写错立刻红。
+都健康 —— 但**这是运气，不是保证**。已接入 preflight（对应检查），以后写错立刻红。
 
 ## 是否已落地
-✅ 0.8.96（`scripts/check-docs.mjs` + preflight 第 10 项）。
+✅ 0.8.96（`scripts/check-docs.mjs` + preflight 对应检查）。
 index.js 未拆，理由与数字都记在上面。
 
 ## 还没做的

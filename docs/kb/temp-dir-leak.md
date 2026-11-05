@@ -40,7 +40,7 @@ $ node -e "…统计 tmpdir 里 superagent-*/zhuli-* 目录…"
 **测试基础设施的卫生，决定了门禁能不能被信任。**
 
 ## 是否已落地
-✅ 0.9.60。`preflight --fast` 新增第 3 项「临时目录收口」。
+✅ 0.9.60。`preflight --fast` 新增对应检查「临时目录收口」。
 
 ## 还没做的
 - 只覆盖 `test/`，`scripts/` 里的临时目录（如 `render-preview` 的输出）没纳入；

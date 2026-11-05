@@ -31,7 +31,7 @@ const stable = JSON.stringify({ ...stateBody, updatedAt: undefined })
 
 ## 判据
 **缓存/条件请求的唯一验收方式是"数 304 的次数"**，不是"代码里有 ETag"。
-顺手把 `/state` 体积接进 `preflight`（第 30 项），防止以后又悄悄变大。
+顺手把 `/state` 体积接进 `preflight`（对应检查），防止以后又悄悄变大。
 
 ## 是否已落地
 ✅ 0.9.100。用例断言 12 次里恰好 2 次 200。

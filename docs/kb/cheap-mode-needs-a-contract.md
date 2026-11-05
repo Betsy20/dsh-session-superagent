@@ -15,7 +15,7 @@
 ## 做法
 - `scripts/preflight-modes.mjs`：**单一事实来源**（跳过哪两项、为什么、风险）；
 - `scripts/render-preflight-modes.mjs`：从清单生成 `docs/preflight-modes.md`（`--write` / `--check`）；
-- `preflight` 第 34 项：文档与清单不一致就红（0.1 秒）。
+- `preflight` 对应检查：文档与清单不一致就红（0.1 秒）。
 
 文档里明确写着：
 > **`--fast` 全绿不代表可以提交。**

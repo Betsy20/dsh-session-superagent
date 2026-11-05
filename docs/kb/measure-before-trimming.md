@@ -36,5 +36,9 @@ events: (w.events ?? []).slice(-perWatcher)
 ✅ 0.9.88。新增 1 例（40 守 × 20 事件 → 每守 ≤ 6、总数 ≤ 240）。
 
 ## 还没做的
-- `/state` 没有 ETag/304（此前做过 conditional request 的探索，未用到自己的 API）；
-- 面板渲染耗时没测（只测了 JSON 生成，0.5 ms）。
+- 面板**渲染**耗时没测（只测了 JSON 生成，0.5 ms）。
+
+## 已落地
+- `/state` 已有 ETag/304（`lib/index.js` 里用 sha1 指纹做 etag、认 `if-none-match` 回 304，
+  并把每次都变的 `updatedAt` 排除在指纹之外，否则永远不命中）。
+  方向反过来了：我们以前对 GitHub 做 conditional request，现在**自己当服务端**也这么做。

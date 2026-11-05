@@ -26,6 +26,9 @@
 ✅ 0.8.64（`watch.js:accessNote` + `index.js:probeAccess`）。
 用例：有写权限不提示、null/空对象不提示、只读给出人话、消息里单独成行。
 
-## 还没做的
-- 还没有面板上的"只读"徽章（数据已经存进 `repoAccess`，前端只需读）；
-- private 仓库还没单独提示（`repoAccess.private` 已存）。
+## 还没做的（没有）
+两个都做完了，见下。
+
+## 已落地
+- 面板上的能力徽章已渲染（`repoBadges(repoAccess)`，只读 / fork / 关闭 Issues 都在）；
+- private 仓库单独提示也已接（同一个徽章源）。

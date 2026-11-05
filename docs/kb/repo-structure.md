@@ -25,5 +25,7 @@
 ✅ 0.8.65（`watch.js:repoStructureNote` + `index.js:probeAccess` 扩充字段 + 面板 problems 区）。
 用例：null 不提示、正常仓库不提示、关闭 Issues 提示、fork 提示上游、fork 但自己开了 Issues 不提示。
 
-## 还没做的
-- 面板上还没有"只读/fork/关闭 Issues"的徽章（数据已备好，前端可读 `repoAccess`）。
+## 还没做的（没有）
+
+## 已落地
+- 面板上「只读 / fork / 关闭 Issues」的徽章已渲染（`repoBadges(watcher.repoAccess)`）。

@@ -29,7 +29,7 @@ if (body.enabled === false || body.enabled === true) {
 ## 顺带：给"第三类装死"加了全库扫描
 `scripts/audit-exit-codes.mjs`：扫 `scripts/*.mjs`，**打印了 FAIL 却没返回非 0** 的一律报出来。
 验证方式：把 `audit-promises.mjs` 里两处 `process.exitCode = 1` 全换成 `void 0` → 立刻红；
-还原后 PASS。已接进 `preflight` 第 36 项。
+还原后 PASS。已接进 `preflight` 对应检查。
 
 ## 是否已落地
 ✅ 0.9.111。

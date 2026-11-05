@@ -228,6 +228,15 @@ if (!FAST) {
   record('JSON 契约', res.status === 0, out.replace(/^PASS /, '') || '无输出')
 }
 
+// ⑥.460 文档里的序号引用（「preflight 第 N 项」必然错位 —— 脚本不打印序号）
+{
+  const res = tryRun('node', ['scripts/audit-doc-ordinals.mjs'], { timeout: 30000 })
+  const out = String(res.stdout || '')
+  const line = (out.split(String.fromCharCode(10)).find((l) => l.startsWith('PASS') || l.startsWith('FAIL')) || '无输出')
+  record('文档序号引用', res.status === 0, line.replace(/^(PASS|FAIL) /, ''))
+
+}
+
 // ⑥.459 对比度体检（只对「变多」报警：基线里已经登记的不达标项是官方设计语言）
 {
   const res = tryRun('node', ['scripts/audit-contrast.mjs'], { timeout: 180000 })
