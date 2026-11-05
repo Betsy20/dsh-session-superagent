@@ -2,6 +2,44 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.215] - 2026-11-05 —— 把「测试在自己算」的两个函数抽出来，断言才真的在断言
+
+### ① `effectiveIntervalMs` 从 `index.js` 挪到 `watch.js`
+
+T23 指出 `routes.test.mjs` 那条断言其实在**算测试自己的 `Math.max`** —— `effectiveIntervalMs()` 一次没被调用。
+写反、写成 `Math.min`、忘了乘 1000（60 毫秒轮询 = 疯转），测试全都绿。
+
+它是纯函数，挪进 `watch.js` 之后可以直接 import：
+
+```
+effectiveIntervalMs({ minIntervalSec: 120 }, 60000) === 120000   ← 乘了 1000
+effectiveIntervalMs({ minIntervalSec: 10 }, 300000) === 300000   ← 自己更大时用自己的
+effectiveIntervalMs({ minIntervalSec: 'abc' }, 60000) === 60000  ← 坏值不产出 NaN
+```
+
+### ② `isOfflineMode()` 从 `run()` 闭包里抽出来
+
+`route-resilience.test.mjs` 那条叫「设了 OFFLINE 就不再调 gh」的用例，
+**实际只测了两个跟离线无关的纯函数** —— 删掉短路照样绿。
+
+现在离线判定是纯函数，真值表可以真断言 —— 尤其是 `'0'` / `'false'` 不该被当成离线这个坑：
+
+```
+'1' / 'true' / ' ON '  → true
+'0' / 'false' / 未设    → false
+```
+
+### ③ 为什么值得单独立一条
+
+这两条都属于同一类：**测试通过「重算一遍」来假装验证实现**。
+它比没有测试更糟 —— 看覆盖率是绿的，看代码是真没测。
+
+### 证据
+
+```
+node --test → 365/365（新增：effectiveIntervalMs 真实用法 6 组断言）
+```
+
 ## [0.9.214] - 2026-11-05 —— 覆盖率高 ≠ 测试有效：5 条「其实测不出东西」的断言
 
 ### ① 先说结论

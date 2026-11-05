@@ -1074,13 +1074,15 @@ test('尊重 x-poll-interval：GitHub 要求更慢就照它等（解析 + 间隔
   const without = parseGhInclude('HTTP/2.0 200 OK' + CRLF + CRLF + '[]')
   assert.equal(without.pollInterval, null, '没有这个头时是 null（不是 0）')
 
-  // 间隔下限：min(配置, GitHub 要求) 取大者 —— 用纯函数验证逻辑本身
-  const { nextDelayMs } = await import('../lib/watch.js')
+  // 间隔下限：min(配置, GitHub 要求) 取大者。
+  // 审核 T23：这里以前是**测试自己算 Math.max** —— effectiveIntervalMs 一次没被调用，
+  // 写反、写成 Math.min、忘了乘 1000，测试全绿。现在调真函数。
+  const { nextDelayMs, effectiveIntervalMs } = await import('../lib/watch.js')
   const entry = { consecutiveFailures: 1, minIntervalSec: 90 }
   const base = 60000
-  const floor = Math.max(base, entry.minIntervalSec * 1000)
-  assert.equal(floor, 90000, '下限应当是 90 秒')
-  assert.ok(nextDelayMs(entry, floor) >= floor, '退避只在更大的方向上生效')
+  assert.equal(effectiveIntervalMs(entry, base), 90000, '下限应当是 90 秒（且乘了 1000）')
+  assert.equal(effectiveIntervalMs({ minIntervalSec: 10 }, 300000), 300000, '自己更大时用自己的')
+  assert.ok(nextDelayMs(entry, effectiveIntervalMs(entry, base)) >= 90000, '退避只在更大的方向上生效')
 })
 
 test('github 工具失败时带「下一步」与 kind（不再只贴原始 stderr）', async () => {

@@ -1603,3 +1603,17 @@ test('失败的唤醒也要进 history（客户能看到「叫过但没叫醒」
   assert.match(res.history[0].reason, /session not live/)
   assert.deepEqual(res.lastBatch, [7])
 })
+
+test('实际间隔 = 自己配置与 x-poll-interval 取大者（T23：以前测试在算自己的算术）', async () => {
+  const { effectiveIntervalMs } = await import('../lib/watch.js')
+  // 没有下限：用自己的
+  assert.equal(effectiveIntervalMs({ minIntervalSec: 0 }, 60000), 60000)
+  // 下限更大：用下限（**且乘 1000** —— 忘了乘就是 60 毫秒，轮询会变成疯转）
+  assert.equal(effectiveIntervalMs({ minIntervalSec: 120 }, 60000), 120000)
+  // 自己更大：用自己
+  assert.equal(effectiveIntervalMs({ minIntervalSec: 10 }, 300000), 300000)
+  // 坏值不该产出 NaN / 负数
+  assert.equal(effectiveIntervalMs({ minIntervalSec: 'abc' }, 60000), 60000)
+  assert.equal(effectiveIntervalMs(null, 60000), 60000)
+  assert.ok(effectiveIntervalMs({ minIntervalSec: -99 }, 60000) > 0)
+})

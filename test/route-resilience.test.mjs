@@ -104,11 +104,15 @@ test('离线模式：设了 DSH_SUPERAGENT_OFFLINE 就不再真的调用 gh', as
   const before = process.env.DSH_SUPERAGENT_OFFLINE
   process.env.DSH_SUPERAGENT_OFFLINE = '1'
   try {
-    const { formatGhCall, classifyGhError } = await import('../lib/gh-format.js')
-    // 这里只能验证"分类链路仍然正常"，真正的网络短路在 lib/index.js 的 run() 里，
-    // 由 preflight 用 DSH_SUPERAGENT_OFFLINE=1 跑整套用例来证明（1.6 秒 vs 101 秒）。
-    assert.equal(classifyGhError('gh: HTTP 401 Bad credentials').kind, 'auth')
-    assert.ok(formatGhCall({ code: 0, text: 'ok', classify: classifyGhError }).includes('[exit code: 0]'))
+    const { isOfflineMode } = await import('../lib/gh-format.js')
+    // 审核 T23：以前这里只测了两个**跟离线无关**的纯函数（删掉离线短路照样绿）。
+    // 现在离线判定本身是纯函数，真值表可以直接断言 —— 包括「0 / false 不该算离线」这个坑。
+    assert.equal(isOfflineMode({ DSH_SUPERAGENT_OFFLINE: "1" }), true)
+    assert.equal(isOfflineMode({ DSH_SUPERAGENT_OFFLINE: "true" }), true)
+    assert.equal(isOfflineMode({ DSH_SUPERAGENT_OFFLINE: " ON " }), true, "大小写与空格都要认")
+    assert.equal(isOfflineMode({ DSH_SUPERAGENT_OFFLINE: "0" }), false, "0 不是离线")
+    assert.equal(isOfflineMode({ DSH_SUPERAGENT_OFFLINE: "false" }), false, "false 不是离线")
+    assert.equal(isOfflineMode({}), false, "没设不是离线")
   } finally {
     if (before === undefined) delete process.env.DSH_SUPERAGENT_OFFLINE
     else process.env.DSH_SUPERAGENT_OFFLINE = before
