@@ -411,7 +411,9 @@ const record = (name, detected, detail) => {
   const path = join(root, 'lib', 'index.js')
   const original = readFileSync(path, 'utf8')
   try {
-    writeFileSync(path, original.replace('export function apply(ctx) {', "export function apply(ctx) {" + String.fromCharCode(10) + "  throw new Error('注入的挂载失败')"))
+    const injected = original.replace(/export function apply\(ctx[^)]*\) \{/, (signature) => signature + String.fromCharCode(10) + "  throw new Error('注入的挂载失败')")
+    if (injected === original) throw new Error('apply 签名已变化，反向注入没有落点')
+    writeFileSync(path, injected)
     const res = run(['scripts/smoke-mount.mjs', '--json'])
     record('离线挂载冒烟（注入 apply 抛错）', res.code !== 0)
   } finally {
