@@ -35,7 +35,7 @@ const DEST = dirFlag >= 0 ? args[dirFlag + 1] : DEFAULT_PROFILE
 /** 运行时要用的文件（不含 docs / test / scripts 这些开发件）。 */
 const TARGETS = [
   'client.js', 'package.json', 'cordis.patch.yml', 'README.md', 'CHANGELOG.md', 'LICENSE',
-  'lib/index.js', 'lib/watch.js', 'lib/gh-format.js', 'lib/gitee.js', 'lib/redact.js', 'lib/body.js',
+  'lib/index.js', 'lib/watch.js', 'lib/gh-format.js', 'lib/gitee.js', 'lib/redact.js', 'lib/body.js', 'lib/state-migration.js',
 ]
 
 if (!existsSync(DEST)) {

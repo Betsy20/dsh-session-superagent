@@ -323,16 +323,17 @@ Panel（只读领域状态 + 写配置）  Prompts / Policy / Deployment / Migra
 
 ### P1：能明显降低维护成本
 
-3. **显式状态迁移表**：为 `watchers.json` 增加 `schemaVersion`，把分散的兼容归一逐步收成迁移函数。
+3. **显式状态迁移表（0.9.262 已落地）**：`lib/state-migration.js` 负责 v0→v1；未来版本回退 `.bak`；`package.json.files` 有全量 lib 门禁。
 4. **记录视图合并**：把官方 records/threads/tickets 的审计信息并入「判定」和单条追溯，不新增平级 Tab。
-5. **提示词分段常量**：完成标准、投递方式、回写规则从长模板中抽成可测试段落；不引入 orchestrator/worker 多角色。
+5. **提示词分段常量（0.9.262 已落地）**：`buildWakeSections()` 输出稳定 `{id,lines}`，7 个场景逐字对拍兼容；不引入 orchestrator/worker 多角色。
+6. **精简 SETUP runbook（0.9.262 已落地）**：根目录 `SETUP.md`，只读探测、一次一问、计划确认后执行、密钥不进聊天；仍保留一条安装命令。
 
 ### 不吸收（写清理由）
 
 - 飞书与通用 Source kind 抽象：当前没有对应用户诉求；
 - 完整 Policy/Mandate/Decision 版本链：会把「谁提的」一个过滤器扩大成规则系统；
 - Ticket/Assignment/Executor 多实例与 handoff：团队执行拓扑，不是单人会话；
-- 独立安装向导：当前一条命令已能装好，增加访谈反而提高门槛。
+- 独立 profile / tmux / 多角色安装流程：保留一条命令；只吸收轻量 `SETUP.md` 剧本，不增加独立服务。
 
 ## 五、分报告
 

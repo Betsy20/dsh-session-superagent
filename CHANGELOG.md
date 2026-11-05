@@ -2,6 +2,53 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.262] - 2026-11-05 —— 状态可迁移、唤醒可分段、安装可复述
+
+继续吸收官方工程纪律，不引入多角色或独立 Runtime。
+
+### ① `watchers.json` 增加显式 `schemaVersion`
+
+新增 `lib/state-migration.js`：
+
+- v0（没有版本号的历史文件）→ v1，只补版本与必需容器，已有字段全部保留；
+- `readState()` **先迁移、再 normalize**；
+- 未来版本或非法版本拒绝按旧代码读取，自动退回 `.bak`，并把迁移后的备份写回主文件；
+- `writeState()` 始终落当前版本。
+
+同时补了两道清单：`sync-profile.mjs` 与 `package.json.files`。
+并新增永久门禁：`lib/` 下任何 `.js` 没进 npm files，测试直接失败——本机硬链接能跑、发布包缺模块这类问题不能再漏。
+
+### ② 唤醒消息变成稳定 sections
+
+`buildWakeSections()` 返回有序 `{ id, lines }`：
+`header / facts / selection? / overflow? / isolation? / goal? / identity? / access? / criteria? / next`。
+
+`formatWatchText()` 只消费 sections。没有引入提示词编辑器或多角色。
+goal 与标题中的换行、伪 `【完成标准】`、伪「接下来」都不能跳出所属段落。
+
+旧新实现对拍 **7/7 IDENTICAL**，包括空 facts 的历史空行与合并场景。
+
+### ③ 精简 `SETUP.md`
+
+根目录新增 109 行安装剧本：
+
+- 先只读探测，一次只问一个短问题；
+- 收齐仓库、会话、过滤、隔离、goal 后给完整计划；
+- 明确确认后才安装和写配置；
+- 密钥只在操作者终端或面板凭证字段，不进入聊天；
+- 验收覆盖 `watch_start / watch_status / watch_doctor`、面板、首轮唤醒与 `watch_ack`；
+- 保留当前 profile 和一条安装命令，不复制官方 tmux/独立 profile。
+
+并修正剧本中的 Gitee 默认标签为 `主理鱼-已处理`（半角冒号不被 Gitee 接受）。
+
+### 证据
+
+```
+npm test → 442/442（新增：迁移 4 + 打包清单 2 + wake sections 7）
+wake-samples → 7 个旧场景逐字兼容
+npm pack --dry-run → 22 个文件，lib/state-migration.js 与 SETUP.md 均已包含
+```
+
 ## [0.9.261] - 2026-11-05 —— 完整解构官方结构树，并落地 Delivery + Outbox
 
 ### 完整解构，不只列功能清单
