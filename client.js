@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.216'
+    const CLIENT_VERSION = '0.9.217'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1146,10 +1146,17 @@ window.__ModuleLoader__.load({
 
       const act = (watcher, action) => run(async () => {
         await call('/watch', { method: 'POST', body: JSON.stringify({ action, id: watcherId(watcher) }) })
-      }, action === 'delete' ? '已删除 ' + watcher.repo : action === 'poll' ? '已触发一次轮询：' + watcher.repo : null)
+      }, action === 'delete' ? '已删除 ' + watcher.repo
+        : action === 'poll' ? '已触发一次轮询：' + watcher.repo
+        // 审核 T24 W6：暂停/恢复成功以前什么都不说，客户不确定点没点上。
+        : action === 'pause' ? '已暂停：' + watcher.repo
+        : action === 'resume' ? '已恢复：' + watcher.repo
+        : null)
 
-      const actBulk = (action) => run(async () => {
-        for (const watcher of watchers) {
+      // 审核 T24 W1：title 写「这一屏」，实现却遍历全部 watchers —— 筛到 1 条点「全部暂停」会发出 2 条 POST。
+      // 让按钮对**看见的那些**生效（与它的文案同口径）。
+      const actBulk = (action, list = watchers) => run(async () => {
+        for (const watcher of list) {
           if (action === 'pause' && !watcher.enabled) continue
           if (action === 'resume' && watcher.enabled) continue
           await call('/watch', { method: 'POST', body: JSON.stringify({ action, id: watcherId(watcher) }) })
@@ -1219,9 +1226,8 @@ window.__ModuleLoader__.load({
       const dormant = byState.dormant
       // 可暂停的守 = 还在 enabled 的那些。actBulk('pause') 正是按这个条件跳过的，
       // 按钮的可用状态必须跟它同口径 —— 不同口径就会出现「可点、但一条都没动」。
-      const pausable = watchers.filter((w) => w.enabled).length
-      // 可恢复 = 已暂停的那些（actBulk 的 resume 分支跳过 enabled 的守）
-      const resumable = watchers.length - pausable
+      // 可暂停 = **当前这一屏**里还在轮询的（与 actBulk 的入参同口径）
+      const countPausable = (list) => list.filter((w) => w.enabled).length
 
       const stateTag = (watcher) => {
         const state = orbitStateOf(watcher)
@@ -1483,6 +1489,10 @@ window.__ModuleLoader__.load({
         && (!problemsOnly || hasProblem(watcher))
         && (!deferFilter || watcher.deferReason === deferFilter))
 
+      // T24 W1：「全部暂停/全部恢复」对**这一屏**生效，可用性也按这一屏算（同口径）。
+      const pausable = countPausable(visible)
+      const resumable = visible.length - pausable
+
       const filterSummary = (() => {
         // 筛选汇总：叠加时用一行说清「应用了哪几个」，而不是每条各占一行。
         // 只有一个筛选时仍然是一句「只看 X 的守（N 条）：清除」。
@@ -1544,7 +1554,9 @@ window.__ModuleLoader__.load({
           : null,
         // 排序：会丢消息的（失败/没回音）排前面；静态提示（仓库归档、只读）排后面
         (() => { problems.sort((a, b) => ((a.rank ?? 9) - (b.rank ?? 9)) || String(a.text).localeCompare(String(b.text))); return problems.length > 0 })()
-          ? h(Section, { key: 'problems', title: '需要关注', count: problems.length },
+          // 审核 T24 W4：这里的 count 是**条目数**（一条守可能贡献多条），而「只看有问题的 (N)」是**守的条数**。
+        // 两个数字口径不同是对的，但要说清，否则客户会以为算错了。
+        ? h(Section, { key: 'problems', title: '需要关注', count: problems.length, subtitle: '共 ' + problems.length + ' 条问题，涉及 ' + watchers.filter(hasProblem).length + ' 条守' },
             // 审核 T24 M4：以前只渲染 item.text，构造好的 item.action（「看建议规则」）没人消费 ——
             // 于是那个按钮永不出现，而 AGENTS.md 建议弹层唯一的入口就是它。
             h('ul', { className: 'dt-plain-list' }, problems.map((item) => h('li', { key: item.key, className: 'dt-danger' },
@@ -1846,7 +1858,19 @@ window.__ModuleLoader__.load({
             ? h('div', null,
                 h('code', { className: 'dt-code' }, update.command),
                 h('div', { className: 'dt-actions' },
-                  h(Btn, { size: 'sm', onClick: () => { try { navigator.clipboard.writeText(update.command) } catch {} } }, '复制命令')))
+                  h(Btn, {
+                    size: 'sm',
+                    // 审核 T24 W2：以前点了零反馈，writeText 的 rejection 也没人接 —— 客户不知道复制没成。
+                    // 对照旁边「复制诊断信息」：await + notify 才是正例。
+                    onClick: async () => {
+                      try {
+                        await navigator.clipboard.writeText(update.command)
+                        notify('升级命令已复制', 'info')
+                      } catch (error) {
+                        notify('复制失败（浏览器可能禁止了剪贴板）：' + String((error && error.message) || error), 'error')
+                      }
+                    },
+                  }, '复制命令')))
             : null,
           h('div', { className: 'dt-actions' },
             h(Btn, { size: 'sm', variant: 'ghost', onClick: () => checkUpdate(true), disabled: checking }, checking ? '检查中…' : '重新检查')),
@@ -2100,9 +2124,9 @@ window.__ModuleLoader__.load({
               disabled: pausable === 0,
               title: pausable === 0
                 ? '没有可暂停的主理鱼：当前 ' + watchers.length + ' 条守都已停用 —— 要一起恢复请点「全部恢复」'
-                : '暂停这一屏所有在轮询的主理鱼',
+                : '暂停这一屏显示的 主理鱼' + (visible.length !== watchers.length ? '（已筛选：' + visible.length + '/' + watchers.length + '）' : '') + '，共 ' + pausable + ' 条可暂停',
               'aria-label': pausable === 0 ? '全部暂停（不可用：没有在轮询的主理鱼）' : '全部暂停',
-              onClick: () => actBulk('pause'),
+              onClick: () => actBulk('pause', visible),
             }, '全部暂停') : null,
             // 与「全部暂停」同口径：没有可恢复的守时置灰并说明（actBulk 对 enabled 的守直接 continue）
             watchers.length > 0 ? h(Btn, {
@@ -2110,9 +2134,9 @@ window.__ModuleLoader__.load({
               disabled: resumable === 0,
               title: resumable === 0
                 ? '没有可恢复的主理鱼：当前 ' + watchers.length + ' 条守都在轮询 —— 要一起停下请点「全部暂停」'
-                : '恢复这一屏所有已暂停的主理鱼',
+                : '恢复这一屏显示的已暂停主理鱼' + (visible.length !== watchers.length ? '（已筛选：' + visible.length + '/' + watchers.length + '）' : '') + '，共 ' + resumable + ' 条可恢复',
               'aria-label': resumable === 0 ? '全部恢复（不可用：没有已暂停的主理鱼）' : '全部恢复',
-              onClick: () => actBulk('resume'),
+              onClick: () => actBulk('resume', visible),
             }, '全部恢复') : null)),
         h(SegTabs, {
           items: [
