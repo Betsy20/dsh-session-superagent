@@ -1647,3 +1647,15 @@ test('超长标题不会把行撑过 120 字符（T31 M1：175 字符的行会�
   assert.equal(over.length, 0, '有行超过 120 字符：' + over.map((l) => [...l].length).join(','))
   assert.match(text, /…/, '超长标题应当带省略号，而不是硬切')
 })
+
+test('activeHours 格式写错要拒绝，不能静默变成全天有效（T32：回执照打 [activeHours=9-23]）', async () => {
+  const { validateActiveHours } = await import('../lib/watch.js')
+  assert.equal(validateActiveHours('09:00-23:00').ok, true)
+  assert.equal(validateActiveHours('').ok, true, '空 = 不限时段')
+  assert.equal(validateActiveHours(null).ok, true)
+  for (const bad of ['9-23', '09:00~23:00', '9:00-25:00', '25:00-26:00', 'ab:cd-ef:gh']) {
+    const res = validateActiveHours(bad)
+    assert.equal(res.ok, false, bad + ' 应当被拒绝')
+    assert.ok(res.reason && res.reason.includes('HH:MM'), bad + ' 要说明正确格式')
+  }
+})

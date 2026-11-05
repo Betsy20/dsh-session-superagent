@@ -2,6 +2,40 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.235] - 2026-11-05 —— 时段写错会静默变成「全天有效」
+
+### ① `activeHours` 格式不对时静默失效
+
+`inActiveHours('9-23')` 的正则不匹配 → **直接 `return true`**（全天有效），
+而 `watch_start` 的回执照样打 `[activeHours=9-23]`。
+
+客户以为设了时段（晚上别叫我），实际**一直在叫**。这种错最难发现 —— 因为「看起来生效了」。
+
+现在创建时先校验，不合法就拒绝并说清正确格式：
+
+```
+watch_start({repo:'o/r', activeHours:'9-23'})
+→ [error: activeHours 格式要写成 HH:MM-HH:MM（例如 09:00-23:00），收到的是「9-23」]
+```
+
+`9:00-25:00` 这类越界也拦，并说明「时要在 00-23」。
+
+### ② `watch_start` 的描述只说 GitHub
+
+实际支持 `gitee:` 前缀、gitee.com URL、以及用空格或逗号分隔的多个仓库。
+描述里没写 = **模型永远不会用**。已补。
+
+### ③ 文档里的 `batchLimit` 默认值写错了
+
+`docs/competitive-analysis.md` 说默认 3，代码是 **5**（`DEFAULT_BATCH_LIMIT`）。已对齐。
+
+### 证据
+
+```
+npm test → 378/378（新增：activeHours 格式校验 7 组输入）
+check-docs → 5 项 PASS
+```
+
 ## [0.9.234] - 2026-11-05 —— 多会话下报的是别人的额度；自称只读却写了文件
 
 ### ① `watch_status` 的 `session` 段取的是「第一条守的会话」

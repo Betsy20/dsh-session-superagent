@@ -38,7 +38,7 @@
 - Renovate：`prConcurrentLimit`（并发 PR 上限）、`prHourlyLimit`（**每小时** PR 上限，per-repo）、`branchConcurrentLimit`、`groupName`（多个升级合成一个 PR）。
 - Claude Code Action：`--max-turns` + workflow 超时 + concurrency 控制，官方文档专门有一节 *Manage costs*。
 - **我们的差距**：只有「agent 空闲才叫醒」这一道闸；一波 20 条动态会连续唤醒 20 次。
-- **落地**：`maxWakesPerHour`（默认 6）、单次唤醒最多带 `batchLimit`（默认 3）条、其余顺延到下一轮（digest 思路）。
+- **落地**：`maxWakesPerHour`（默认 6）、单次唤醒最多带 `batchLimit`（默认 5，记于 `DEFAULT_BATCH_LIMIT`）条、其余顺延到下一轮（digest 思路）。
 
 ### 4. 交互模式 ≠ 自动模式
 
