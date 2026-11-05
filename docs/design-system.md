@@ -3,6 +3,14 @@
 「主理鱼」面板的样式来自官方插件，`client.js` 里的 `PORTED_CSS` 就是那份设计系统（约 40 KB、208 个类）。
 这份速查的目的只有一个：**以后加页面/改样式时，别再自己发明一套**。
 
+## 0. 唯一官方主库（先读再改 UI）
+
+- DSH 结构树与素材：`D:/DeepSeek Harness/home/dsh-ui-official/`，入口说明 `D:/DeepSeek Harness/home/DSH-UI-official.md`。
+- superagent 控件与 CSS：`docs/official-decomp/04-panel-tree.md`、`docs/ui-decomp/02-superagent-assets.md`。
+- 主理鱼逐页差距：`docs/ui-decomp/03-gap-map.md`。
+
+顺序固定：**先查官方结构树/素材 → 再改 client.js → 最后补测试与实施回写**。主库已有 SVG、模板或结构就直接复用；只有官方确无同物时才 derived，并记录来源。不要重复拆 asar，也不要从截图猜层级。
+
 > 全部数字都是从 `PORTED_CSS` 里机械抽出来的，不是手抄。
 > 想重新生成：`node -e` 里读 `client.js` 的 `PORTED_CSS`，抽 `.dt-*`、`var(--dsw-*)`、`@keyframes`。
 

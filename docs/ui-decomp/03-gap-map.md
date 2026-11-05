@@ -10,6 +10,12 @@
 
 全量测试 **448/448**；差距地图其余大项转入派单表 L84，不在本批宣称完成。
 
+## 实施回写（0.9.265）
+
+ConfirmButton 已统一为「触发 → Modal → 取消/确认」，主面板与卫星环同组件；Modal 补 description/footer、onClose ref 与 busy 防重入。判定日志按日期分组为 `Section + ul.dt-list`，每条使用 DecisionLine 的 `li.dt-row.dt-link.dt-ticket`；Trace/运行事件继续保持 Timeline，不混用结构。
+
+子代理定向 9/9 + 主线独立验收 2/2，全量 **459/459**，UI 体检 **11/11=100**；浅色不达标修正后 **15 组 ≤ 基线 16**。真实浏览器焦点走查仍列入未验项。
+
 ## 0. 基线、口径与复用边界
 
 | 来源 | 本次核对基线 | 用法 |

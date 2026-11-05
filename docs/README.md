@@ -13,7 +13,7 @@
 | [为什么做这个产品](为什么做这个产品.md) | **动任何功能之前先读**：谁在痛、三条不变量（不打断 / 不留手尾 / 不失控）、明确不做什么 |
 | [对比-官方原型](对比-官方原型.md) | 想知道和官方 `dsh-superagent-prototype` 的功能差距、哪些该抄哪些不该 |
 | [official-decomp/](official-decomp/01-structure-tree.md) | **完整官方结构树**：运行时/事件源/面板/提示词运维逐文件解构，以及已落地与待吸收清单 |
-| [ui-decomp/](ui-decomp/03-gap-map.md) | **UI 复用主任务**：DSH 主库素材、superagent 控件、主理鱼逐页差距与已实施回写 |
+| [ui-decomp/](ui-decomp/03-gap-map.md) | **UI 复用主任务**：DSH 主库素材、superagent 控件、逐页差距、宿主原语 smoke 与实施回写 |
 | [competitive-analysis](competitive-analysis.md) | 想知道和 Sweep / CodeRabbit 这类工具的差别 |
 | [deepseek-papers](deepseek-papers.md) | 想知道设计取舍背后的研究依据 |
 | [真机验证清单](真机验证清单.md) | 重启后三条命令 + 三个动作，5 分钟确认新代码在跑 |

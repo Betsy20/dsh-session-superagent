@@ -2,6 +2,42 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.265] - 2026-11-05 —— 确认统一走 Modal，判定日志改 DecisionLine
+
+### ConfirmButton：一次触发，一次确认
+
+主面板与卫星环共用同一动线：
+
+```text
+点「删除」→ Modal（说明 + 取消/确认）→ 确认后才发请求
+```
+
+- 取消、Escape、背板关闭都不执行；
+- `busyRef + busy` 双锁防重复；
+- 成功才关闭，刷新失败不会把删除成功误报为失败；
+- Modal 补 `description / footer / className`，`onClose` 放 ref，轮询重渲染不重置焦点 effect；
+- 不再叠加原生确认框。
+
+### 判定日志按官方 DecisionLine 渲染
+
+每天独立 `Section + ul.dt-list`，每条记录是 `li.dt-row.dt-link.dt-ticket`：
+状态、仓库、编号、原因和 `<time datetime>` 各归其位。
+日期标题不再与事件混作同类 `li`；Trace 与运行时事件仍保持 `ol.dt-timeline`，不混用结构。
+
+### 证据
+
+```
+test/ui-l84-records-confirm.test.mjs → 9/9
+test/ui-l84-acceptance.test.mjs（主线独立验收）→ 2/2
+npm test → 459/459
+scripts/ui-audit.mjs → 11/11，100 分
+```
+
+真实浏览器的 Tab/Escape/焦点归还仍列入走查，不用测试桩冒充肉眼验收。
+
+补充：`docs/ui-decomp/04-host-primitives-smoke.md` 实测 290 个宿主 exports、8/8 调用 smoke，
+给下一批 Toast/Tooltip/Orbit 迁移划定边界；DecisionLine 的浅色文字对比度修正后为 15 组 ≤ 基线 16。
+
 ## [0.9.264] - 2026-11-05 —— UI 直接复用官方结构与素材，不再手画一套
 
 ### 官方 UI 解构与逐页差距
