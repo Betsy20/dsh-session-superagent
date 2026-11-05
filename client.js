@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.212'
+    const CLIENT_VERSION = '0.9.213'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1077,6 +1077,9 @@ window.__ModuleLoader__.load({
           const text = String((error && error.message) || error)
           setNotice({ ok: false, text })
           notify(text, 'error')
+          // 审核 T22 B3：失败后不回读 —— 批量操作「一半成功一半失败」时 UI 停在旧状态，
+          // 客户看到的是「全都失败了」。回读一次，让已经成功的那些如实显示。
+          try { await load() } catch { /* 回读失败不影响错误提示本身 */ }
         } finally {
           busyRef.current = false
         }

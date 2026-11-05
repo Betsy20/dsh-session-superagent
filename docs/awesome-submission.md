@@ -1,4 +1,6 @@
-# awesome-dsh-plugin 收录材料（待提交）
+# awesome-dsh-plugin 收录材料（已合并）
+
+**状态：已合并** —— PR #11266，mergedAt 2026-11-03T17:15:19Z。下面留作记录。
 
 提交目标：`awesome-dsh-plugin/awesome-dsh-plugin`（社区列表，21.8k★）
 提交方式：PR，只加一个文件 `data/plugins/MYCF711__dsh-session-superagent.yml`
