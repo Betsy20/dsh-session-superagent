@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.251'
+    const CLIENT_VERSION = '0.9.252'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1107,6 +1107,8 @@ window.__ModuleLoader__.load({
               filters: {
                 labels: String(draft.labels || '').split(',').map((v) => v.trim()).filter(Boolean),
                 onlyAssigned: !!draft.onlyAssigned,
+                // 必须带上：filters 是**整块**发出去的，漏了它会把作者名单清空
+                allowAuthors: String(draft.allowAuthors || '').split(',').map((v) => v.trim().replace(/^@/, '')).filter(Boolean),
               },
               activeHours: draft.activeHours || '',
               goal: draft.goal || '',
@@ -1132,6 +1134,7 @@ window.__ModuleLoader__.load({
             const CONTROL_TO_FIELD = {
               labels: "filters",
               onlyAssigned: "filters",
+              allowAuthors: "filters",
               priorityReopened: "priority",
               priorityComments: "priority",
               priorityLabels: "priority",
@@ -1280,6 +1283,7 @@ window.__ModuleLoader__.load({
                   // [object Object]；保存时后端只收 string，于是静默无效而 Toast 说「已保存」。
                   goal: watcher.note || (typeof watcher.goal === 'string' ? watcher.goal : (watcher.goal && watcher.goal.objective) || ''),
                   onlyAssigned: !!(watcher.filters && watcher.filters.onlyAssigned),
+                  allowAuthors: (watcher.filters && watcher.filters.allowAuthors ? watcher.filters.allowAuthors : []).join(', '),
                   // 下面这些以前没填 —— 打开一条隔离执行的守再直接保存，会把 isolated 写回 false
                   observe: !!watcher.observe,
                   isolated: !!watcher.isolated,
@@ -1384,6 +1388,8 @@ window.__ModuleLoader__.load({
             field('间隔（秒）', h(Input, { value: draft.intervalSec, onChange: (e) => setField({ ...draft, intervalSec: e.target.value }) }), '多长时间检查一次这个仓库，最小 30 秒'),
             field('只处理这些标签', h(Input, { value: draft.labels, placeholder: '逗号分隔，留空 = 全部', onChange: (e) => setField({ ...draft, labels: e.target.value }) })),
             field('活跃时段', h(HoursField, { value: draft.activeHours, onChange: (next) => setField({ ...draft, activeHours: next }) }), '只在这个时间段内唤醒；窗口外只攒条目，不打扰'),
+            // 官方原型的 Policy 第一件事是「谁可以给你派活」。单人场景也要：别人随手提的 issue 不该叫醒你。
+            field('只理这些人提的', h(Input, { value: draft.allowAuthors || '', placeholder: 'GitHub 登录名，逗号分隔，留空 = 谁都算', onChange: (e) => setField({ ...draft, allowAuthors: e.target.value }) }), '不在名单里的人提的 issue/PR 不会叫醒你（Gitee 也可以填）'),
             field('目标/规则', h(Input, { value: draft.goal || '', placeholder: '可选，会附在唤醒消息里', onChange: (e) => setField({ ...draft, goal: e.target.value }) })),
             h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.onlyAssigned, onChange: (v) => setField({ ...draft, onlyAssigned: v }), label: '只看已指派' }), '只处理已指派给人的条目'),
             field('单次最多唤醒条数', h(Input, { value: draft.batchLimit || '', placeholder: String(DEFAULTS.batchLimit || 5) + '（1-20）', onChange: (e) => setField({ ...draft, batchLimit: e.target.value }) })),

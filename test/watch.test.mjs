@@ -1685,3 +1685,15 @@ test('lastReported 必须是有界的（T36 M1：以前只增不减，20 守跑 
   assert.ok(count <= 200, '条数要有上限，实际 ' + count)
   assert.ok(JSON.stringify(state.lastReported).length < 8000, '体积要小，实际 ' + JSON.stringify(state.lastReported).length)
 })
+
+test('只理名单里的人（官方原型的 Policy 最小版：谁可以给你派活）', async () => {
+  const { filterReason, normalizeFilters } = await import('../lib/watch.js')
+  const by = (login, allow) => filterReason({ number: 1, state: 'open', user: { login }, labels: [], assignees: [] }, { allowAuthors: allow })
+  assert.equal(by('alice', []), null, '空名单 = 谁都算（保持老行为）')
+  assert.equal(by('alice', ['alice']), null, '名单里有她')
+  assert.equal(by('Alice', ['alice']), null, '大小写不敏感')
+  assert.equal(by('alice', ['@alice']), null, '允许带 @ 前缀')
+  assert.match(String(by('bob', ['alice'])), /作者不在名单/, '不在名单要说明原因（能被 /state 和 trace 看到）')
+  // normalizeFilters 要去掉 @，否则面板存下来的值匹配不上
+  assert.deepEqual(normalizeFilters({ allowAuthors: ['@Alice', ' bob '] }).allowAuthors, ['Alice', 'bob'])
+})

@@ -46,6 +46,7 @@
       "params": [
         "ackLabel",
         "activeHours",
+        "allowAuthors",
         "assignee",
         "batchLimit",
         "format",

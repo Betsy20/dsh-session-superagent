@@ -1663,3 +1663,24 @@ test('弹层按锚点定位，并在窗口边缘夹住（T38：这 5 个 if 从�
   const leftEdge = leftOf({ x: 3, y: 500 }, 1200)
   assert.ok(leftEdge >= 8, '贴左边时 left 不能小于 8，实际 ' + leftEdge)
 })
+
+test('面板能设「只理这些人提的」，且不会把已有名单清空（T：官方 Policy 的最小版）', async () => {
+  const { loadClient, walk, watcher } = await import('./fixtures/panel-harness.mjs')
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = {
+    loading: false, error: null,
+    body: {
+      credentials: { token: 'none', sshKeyPath: 'none', ghConfigDir: 'none', giteeToken: 'none' },
+      gh: { ok: true, version: '2.0' }, defaults: {},
+      watchers: [watcher('a/b', { filters: { labels: ['bug'], onlyAssigned: false, allowAuthors: ['alice'] } })],
+    },
+  }
+  const queue = (draft) => [snap, 'overview', null, draft, '', '', false, [], 'a/b#session-a/b', draft, '', false, null, false, 'source', null, null, false, null, '', '']
+  // 打开编辑器时要把已有名单填进输入框（否则一保存就被清空 —— filters 是整块发出去的）
+  const filled = { repo: '', intervalSec: '60', goal: '', labels: 'bug', onlyAssigned: false, activeHours: '', isolated: false, workdir: '', allowAuthors: 'alice' }
+  const nodes = walk(render(desk, queue(filled)))
+  const texts = nodes.filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(texts.includes('只理这些人提的'), '表单要有这个字段')
+  assert.ok(nodes.some((n) => n.type === 'input' && String(n.props.value) === 'alice'), '已有名单要显示在输入框里')
+})

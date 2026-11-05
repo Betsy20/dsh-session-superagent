@@ -16,6 +16,9 @@ const SOURCE = readFileSync(fileURLToPath(new URL('../../client.js', import.meta
  */
 export function loadClient(options = {}) {
   let mod = null
+  // setTimeout 的登记表（用例调 flushTimers() 才真的执行）+ 微任务队列
+  const timers = []
+  const micro = []
   const sandbox = {
     window: {
       __ModuleLoader__: { load(m) { mod = m } },
@@ -34,6 +37,12 @@ export function loadClient(options = {}) {
     fetch: options.fetch || (() => Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve('{}') })),
     setInterval: () => 0,
     clearInterval: () => {},
+    // 审核 T38 第 5 条：沙箱里没有 setTimeout —— 点「保存凭证」实测
+    // `ReferenceError: setTimeout is not defined`，于是**所有 Toast 反馈文案零覆盖**。
+    // 这里给一个「记录但不自动跑」的版本：用例自己调用 flushTimers() 决定什么时候到点。
+    setTimeout: (fn, ms) => { const id = timers.length + 1; timers.push({ id, fn, ms }); return id },
+    clearTimeout: (id) => { const i = timers.findIndex((t) => t.id === id); if (i >= 0) timers.splice(i, 1) },
+    queueMicrotask: (fn) => { micro.push(fn) },
     console,
   }
   vm.createContext(sandbox)
