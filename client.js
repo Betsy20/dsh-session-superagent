@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.263'
+    const CLIENT_VERSION = '0.9.264'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -181,15 +181,24 @@ window.__ModuleLoader__.load({
     // ── 官方 GUI 原语（移植自 dsh-superagent 的 src/client/controls.tsx + widgets.tsx）──
     // 类名沿用官方 `dt-*`，样式由上面的 PORTED_CSS 提供，所以视觉与官方一致。
     const ICON_PATHS = {
-      'chevron-left': 'M15 5l-7 7 7 7',
-      'chevron-right': 'M9 5l7 7-7 7',
-      'chevron-down': 'M5 9l7 7 7-7',
-      search: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4-4',
+      // 以下 16×16 path 直接复用 home/dsh-ui-official/assets（官方 0.2.1-rc.5），不是照截图重画。
+      'chevron-left': 'M10 4L6.70711 7.29289C6.31658 7.68342 6.31658 8.31658 6.70711 8.70711L10 12',
+      'chevron-right': 'M6 12L9.29289 8.70711C9.68342 8.31658 9.68342 7.68342 9.29289 7.29289L6 4',
+      'chevron-down': 'M4 6L7.29289 9.29289C7.68342 9.68342 8.31658 9.68342 8.70711 9.29289L12 6',
+      // derived：主库没有 chevron-up，按官方 chevron-down 做垂直镜像，仍是 16×16。
+      'chevron-up': 'M4 10L7.29289 6.70711C7.68342 6.31658 8.31658 6.31658 8.70711 6.70711L12 10',
+      search: [
+        'M6.58727 11.8586C9.55061 11.8586 11.9529 9.45637 11.9529 6.49304C11.9529 3.5297 9.55061 1.12744 6.58727 1.12744C3.62394 1.12744 1.22168 3.5297 1.22168 6.49304C1.22168 9.45637 3.62394 11.8586 6.58727 11.8586Z',
+        'M10.2991 10.3933L14.7783 14.8725',
+      ],
       question: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01',
-      plus: 'M12 5v14M5 12h14',
+      plus: ['M8 2V14', 'M2 8H14'],
       trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',
       refresh: 'M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5',
-      clock: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2',
+      clock: [
+        'M8 14C11.3137 14 14 11.3137 14 8C14 4.68629 11.3137 2 8 2C4.68629 2 2 4.68629 2 8C2 11.3137 4.68629 14 8 14Z',
+        'M8 4.31V8.46L11 10.08',
+      ],
       history: 'M3.5 12a8.5 8.5 0 1 0 2.5-6M3.5 4v4h4M12 8v4l3 2',
       shield: 'M12 3l7 3v6c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6z',
       decision: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM8.5 12.5l2.5 2.5 4.5-5',
@@ -198,8 +207,11 @@ window.__ModuleLoader__.load({
       hash: 'M10 4L8 20M16 4l-2 16M5 9h15M4 15h15',
       filter: 'M4 5h16l-6 7.5V18l-4 2v-7.5z',
       user: 'M12 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM4 20c1.5-3.5 4.5-5 8-5s6.5 1.5 8 5',
-      close: 'M6 6l12 12M18 6L6 18',
-      settings: 'M4 7h10M18 7h2M4 17h4M12 17h8M16 5v4M10 15v4',
+      close: ['M2.5 2.5L13.5 13.5', 'M13.5 2.5L2.5 13.5'],
+      settings: [
+        'M8 9.75012C8.9665 9.75012 9.75 8.96662 9.75 8.00012C9.75 7.03362 8.9665 6.25012 8 6.25012C7.0335 6.25012 6.25 7.03362 6.25 8.00012C6.25 8.96662 7.0335 9.75012 8 9.75012Z',
+        'M13.0107 7.79377C12.9505 7.89401 12.9205 7.94413 12.9205 7.99951C12.9205 8.0549 12.9505 8.10502 13.0106 8.20528L13.9849 9.83006C14.045 9.93029 14.0751 9.9804 14.0751 10.0358C14.0751 10.0911 14.045 10.1413 13.9849 10.2415L13.0037 11.8777C12.9468 11.9726 12.9184 12.0201 12.8725 12.0461C12.8267 12.072 12.7713 12.072 12.6607 12.072H10.6704C10.5598 12.072 10.5045 12.072 10.4586 12.098C10.4128 12.1239 10.3843 12.1714 10.3274 12.2662L9.33825 13.9142C9.28133 14.009 9.25287 14.0564 9.20703 14.0823C9.16118 14.1083 9.10588 14.1083 8.99529 14.1083H7.00486C6.89426 14.1083 6.83896 14.1083 6.79312 14.0823C6.74727 14.0564 6.71881 14.009 6.6619 13.9142L5.67273 12.2662C5.61581 12.1714 5.58735 12.1239 5.54151 12.098C5.49566 12.072 5.44036 12.072 5.32977 12.072H3.33945C3.2288 12.072 3.17347 12.072 3.12761 12.0461C3.08176 12.0201 3.0533 11.9726 2.9964 11.8777L2.0152 10.2415C1.9551 10.1413 1.92505 10.0911 1.92505 10.0358C1.92505 9.9804 1.9551 9.93029 2.0152 9.83006L2.98951 8.20528C3.04963 8.10502 3.07969 8.0549 3.07969 7.99951C3.07968 7.94413 3.04961 7.89401 2.98946 7.79377L2.01529 6.17011C1.95514 6.06987 1.92507 6.01975 1.92507 5.96437C1.92506 5.90899 1.95512 5.85886 2.01524 5.7586L2.9964 4.1224C3.0533 4.0275 3.08176 3.98005 3.12761 3.95408C3.17347 3.92811 3.2288 3.92811 3.33945 3.92811H5.32977C5.44036 3.92811 5.49566 3.92811 5.54151 3.90216C5.58735 3.87621 5.61581 3.82879 5.67273 3.73397L6.6619 2.08599C6.71881 1.99116 6.74727 1.94375 6.79312 1.9178C6.83896 1.89185 6.89426 1.89185 7.00486 1.89185H8.99529C9.10588 1.89185 9.16118 1.89185 9.20703 1.9178C9.25287 1.94375 9.28133 1.99116 9.33825 2.08599L10.3274 3.73397C10.3843 3.82879 10.4128 3.87621 10.4586 3.90216C10.5045 3.92811 10.5598 3.92811 10.6704 3.92811H12.6607C12.7713 3.92811 12.8267 3.92811 12.8725 3.95408C12.9184 3.98005 12.9468 4.0275 13.0037 4.1224L13.9849 5.7586C14.045 5.85886 14.0751 5.90899 14.0751 5.96437C14.0751 6.01975 14.045 6.06987 13.9849 6.17011L13.0107 7.79377Z',
+      ],
       external: 'M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5',
       session: 'M4 5h16v14H4zM8 10l3 2-3 2M13 15h3',
       stop: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM9.5 9.5h5v5h-5z',
@@ -212,12 +224,17 @@ window.__ModuleLoader__.load({
       queue: 'M4 6h16M4 12h16M4 18h10',
     }
 
+    // 直接复用的官方图标都是 16×16；其余 derived 图标仍是 24×24，不能混用 viewBox。
+    const OFFICIAL_16 = new Set(['chevron-left', 'chevron-right', 'chevron-down', 'chevron-up', 'search', 'plus', 'clock', 'close', 'settings'])
+
     function Icon({ name, size = 16 }) {
+      const value = ICON_PATHS[name] || ICON_PATHS.question
+      const paths = Array.isArray(value) ? value : [value]
       return h('svg', {
-        width: size, height: size, viewBox: '0 0 24 24', fill: 'none',
+        width: size, height: size, viewBox: OFFICIAL_16.has(name) ? '0 0 16 16' : '0 0 24 24', fill: 'none',
         stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round',
         'aria-hidden': 'true',
-      }, h('path', { d: ICON_PATHS[name] || ICON_PATHS.question }))
+      }, paths.map((d, index) => h('path', { key: index, d })))
     }
 
     const cx = (...names) => names.filter(Boolean).join(' ')
@@ -803,12 +820,7 @@ window.__ModuleLoader__.load({
       const bottom = anchor ? Math.max(8, (window.innerHeight || 800) - anchor.y + 8) : 64
 
       const act = async (w, action) => {
-        if (action === 'delete') {
-          const ok = typeof window !== 'undefined' && typeof window.confirm === 'function'
-            ? window.confirm('删除主理鱼 ' + (w.repo || '') + '？')
-            : true
-          if (!ok) return
-        }
+        // 删除只走 ConfirmBtn 的二段确认；不要再叠一层原生确认框（同一动作问两次）。
         // 审核 M4：两层空 catch 让写操作遇 409/404/503/断网时**完全静默** ——
         // 界面不变、无提示，客户以为按钮坏了。失败必须说出来。
         try {
@@ -982,9 +994,14 @@ window.__ModuleLoader__.load({
         for (const item of trace.absorbed || []) events.push({ at: item.at, label: '被冷却期吸收' })
         for (const item of trace.wakes || []) events.push({ at: item.at, label: item.ok ? '唤醒成功' : '唤醒失败：' + (item.reason || '未知') })
         events.sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')))
-        return h('li', { className: 'dt-event', key: String(trace.repo) + '#' + trace.number },
-          h('div', { className: 'dt-event-head' }, '#' + trace.number + ' @ ' + (trace.repo || '?') + '：' + trace.verdict),
-          events.map((event, index) => h('div', { className: 'dt-event-foot', key: index }, event.label + ' · ' + event.at)))
+        // 官方 Thread/ConfigHistory 是「一个事件一个 li」，不是一整个 trace 里塞一叠 foot。
+        return [
+          h('li', { className: 'dt-event', key: 'head' },
+            h('div', { className: 'dt-event-head' }, '#' + trace.number + ' @ ' + (trace.repo || '?') + '：' + trace.verdict)),
+          ...events.map((event, index) => h('li', { className: 'dt-event', key: index },
+            h('div', { className: 'dt-event-text' }, event.label),
+            h('div', { className: 'dt-event-foot' }, event.at))),
+        ]
       }))
     }
 
@@ -1017,6 +1034,17 @@ window.__ModuleLoader__.load({
       const [goalDraft, setGoalDraft] = useState('')
       const [goalTouched, setGoalTouched] = useState(false)
       const [toastView, notify] = useToast()
+      // 三处复制共用同一个成功/失败出口：禁止剪贴板时不能假报「已复制」。
+      const copyText = async (text, successMessage) => {
+        try {
+          await navigator.clipboard.writeText(text)
+          notify(successMessage, 'info')
+          return true
+        } catch (error) {
+          notify('复制失败：' + String((error && error.message) || error || '请手动选中文本'), 'error')
+          return false
+        }
+      }
       const [editing, setEditing] = useState(null)
       const [draft, setDraft] = useState({})
       // 审核 M2：记下「这次编辑真的改过哪些字段」—— 保存时只发改过的，
@@ -1049,6 +1077,11 @@ window.__ModuleLoader__.load({
       const [giteeToken, setGiteeToken] = useState('')
       // 判定页内联追溯结果（官方 Thread 详情最小吸收）：不再只塞进一条 Toast。
       const [traceResult, setTraceResult] = useState(null)
+      // 去设置页时必须同时定位分区；只切 Tab 会把人留在上次看的分区（官方 settingsRoute(group) 的最小等价）。
+      const openSettings = (section) => {
+        setSettingsSection(section)
+        setTab('settings')
+      }
       // 建议规则弹层：给"叫醒了没回音"一个下一步动作（只提供可复制的规则，不替客户写仓库文件）
 
       // 「我现在手上有没有能渲染的数据」。判断依据必须是**当前 snap**，不是"以前拿到过一次" ——
@@ -1397,12 +1430,12 @@ window.__ModuleLoader__.load({
             const parts = splitErrorText(watcher.lastError)
             // 错误光说「为什么」不够，要能点一下就到「下一步」（服务端已给 kind）
             const FIX = {
-              auth: { label: '去填 token', onClick: () => setTab('settings') },
+              auth: { label: '去填 token', onClick: () => openSettings('creds') },
               moved: { label: '改仓库地址', onClick: () => setTab('trigger') },
               notfound: { label: '改仓库地址', onClick: () => setTab('trigger') },
-              permission: { label: '去填 token', onClick: () => setTab('settings') },
+              permission: { label: '去填 token', onClick: () => openSettings('creds') },
               // 本地解析错误：重试没用，只能让人把这段贴出来
-              'local-parse': { label: '看诊断', onClick: () => setTab('settings') },
+              'local-parse': { label: '看诊断', onClick: () => openSettings('diagnose') },
               network: { label: '立刻重试', onClick: () => act(watcher, 'poll') },
               ratelimit: { label: '立刻重试', onClick: () => act(watcher, 'poll') },
               gateway: { label: '立刻重试', onClick: () => act(watcher, 'poll') },
@@ -1815,19 +1848,19 @@ window.__ModuleLoader__.load({
       },
         watchers.length === 0
           ? h(Hint, null, '还没有守。添加一条之后，这里会记录每次唤醒、攒着、限流、回收。')
-          : h('div', { className: 'dt-rows' }, watchers.flatMap((watcher) => (watcher.events || []).slice().reverse().map((event, index) => h('div', {
+          : h('ol', { className: 'dt-timeline' }, watchers.flatMap((watcher) => (watcher.events || []).slice().reverse().map((event, index) => h('li', {
             key: watcher.repo + '-ev' + index,
-            className: 'dt-row',
+            className: 'dt-event',
           },
-            h('div', { className: 'dt-row-main' },
-              h('div', { className: 'dt-row-title' },
-                h(Tag, { tone: event.kind === 'wake' ? 'success' : event.kind === 'wake-failed' ? 'danger' : 'outline' },
-                  event.kind + (Number(event.count) > 1 ? ' ×' + event.count : '')),
-                (Number(event.count) > 1 && event.since)
-                  ? h('span', { className: 'dt-row-meta' }, '持续 ' + durationText(event.since, event.at))
-                  : null,
-                h('span', { className: 'dt-row-meta' }, ageText(event.at))),
-              h('div', { className: 'dt-hint' }, watcher.repo + ' · ' + event.text)))))))
+            h('div', { className: 'dt-event-head' },
+              h(Tag, { tone: event.kind === 'wake' ? 'success' : event.kind === 'wake-failed' ? 'danger' : 'outline' },
+                event.kind + (Number(event.count) > 1 ? ' ×' + event.count : '')),
+              (Number(event.count) > 1 && event.since)
+                ? h('span', { className: 'dt-row-meta' }, '持续 ' + durationText(event.since, event.at))
+                : null,
+              h('span', { className: 'dt-row-meta' }, ageText(event.at))),
+            h('div', { className: 'dt-event-text' }, watcher.repo + ' · ' + event.text),
+            h('div', { className: 'dt-event-foot' }, event.at))))))
 
       // 按仓库汇总：守多个仓库时先看哪个健康，再看明细（渐进披露）
       const problemCount = watchers.filter(hasProblem).length
@@ -1957,7 +1990,7 @@ window.__ModuleLoader__.load({
           h(KeyValues, { rows: [
             ['当前版本', (update && update.current) || CLIENT_VERSION],
             ['npm 最新', !update ? '检测中…' : update.error ? '检测失败 · ' + update.error : (update.latest || '未知')],
-            ['状态', !update ? '…' : update.hasUpdate ? '有新版本，可以升级' : '已是最新'],
+            ['状态', !update ? '…' : update.error ? '检查失败' : update.hasUpdate ? '有新版本，可以升级' : '已是最新'],
           ] }),
           update && update.hasUpdate
             ? h('div', null,
@@ -1967,14 +2000,7 @@ window.__ModuleLoader__.load({
                     size: 'sm',
                     // 审核 T24 W2：以前点了零反馈，writeText 的 rejection 也没人接 —— 客户不知道复制没成。
                     // 对照旁边「复制诊断信息」：await + notify 才是正例。
-                    onClick: async () => {
-                      try {
-                        await navigator.clipboard.writeText(update.command)
-                        notify('升级命令已复制', 'info')
-                      } catch (error) {
-                        notify('复制失败（浏览器可能禁止了剪贴板）：' + String((error && error.message) || error), 'error')
-                      }
-                    },
+                    onClick: () => copyText(update.command, '升级命令已复制'),
                   }, '复制命令')))
             : null,
           h('div', { className: 'dt-actions' },
@@ -1989,8 +2015,7 @@ window.__ModuleLoader__.load({
                 try {
                   const payload = await call('/diagnose')
                   const text = String((payload && payload.text) || '')
-                  try { await navigator.clipboard.writeText(text) } catch {}
-                  notify('诊断信息已复制（' + text.split(String.fromCharCode(10)).length + ' 行）', 'info')
+                  await copyText(text, '诊断信息已复制（' + text.split(String.fromCharCode(10)).length + ' 行）')
                 } catch (error) {
                   notify('生成诊断失败：' + String((error && error.message) || error), 'error')
                 }
@@ -2056,13 +2081,8 @@ window.__ModuleLoader__.load({
       }, [])
 
       useEffect(() => {
-        let alive = true
-        try {
-          Promise.resolve(call('/update'))
-            .then((value) => { if (alive) setUpdate(value) })
-            .catch(() => {})
-        } catch { /* 宿主早期渲染时 fetch 可能还不存在，忽略即可 */ }
-        return () => { alive = false }
+        // 初始检查与手动「重新检查」共用一条错误路径：失败要显示「检查失败」，不能吞掉后永远检测中。
+        checkUpdate(false)
       }, [])
 
 
@@ -2260,7 +2280,7 @@ window.__ModuleLoader__.load({
         update && update.hasUpdate
           ? h('div', { className: 'dt-banner dt-banner-actions' },
               h('span', { className: 'dt-banner-label' }, '有新版本 ' + update.latest + '（当前 ' + update.current + '）'),
-              h('a', { className: 'dt-btn dt-btn-sm dt-btn-outline', href: '#', onClick: (e) => { e.preventDefault(); setTab('settings') } }, '看升级命令'))
+              h('button', { className: 'dt-btn dt-btn-sm dt-btn-outline', type: 'button', onClick: () => openSettings('update') }, '看升级命令'))
           : null,
         toastView,
         snap.error
@@ -2287,14 +2307,7 @@ window.__ModuleLoader__.load({
             h(Btn, {
               size: 'sm',
               variant: 'primary',
-              onClick: async () => {
-                try {
-                  await navigator.clipboard.writeText(AGENTS_SNIPPET)
-                  notify('规则已复制，粘贴到 AGENTS.md 末尾即可', 'info')
-                } catch {
-                  notify('复制失败：请手动选中上面的文本', 'error')
-                }
-              },
+              onClick: () => copyText(AGENTS_SNIPPET, '规则已复制，粘贴到 AGENTS.md 末尾即可'),
             }, '复制这段规则'),
             h(Btn, { size: 'sm', variant: 'ghost', onClick: () => setGlossary(false) }, '关闭'))) : null,
         h(Modal, { open: glossary === true, title: '主理鱼术语表', onClose: () => setGlossary(false) },

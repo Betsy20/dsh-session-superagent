@@ -2,6 +2,41 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.264] - 2026-11-05 —— UI 直接复用官方结构与素材，不再手画一套
+
+### 官方 UI 解构与逐页差距
+
+新增 `docs/ui-decomp/` 三份文档：
+
+- `01-dsh-ui-tree.md`：DSH 宿主组件、token、主题、素材与挂载边界（449 行）；
+- `02-superagent-assets.md`：superagent 可直接复用的控件、CSS 与 TraceTimeline 映射（301 行）；
+- `03-gap-map.md`：主理鱼全部页面、二三级界面、弹层与空错态逐项差距（199 行）。
+
+唯一素材基线是 `$DSH_HOME/dsh-ui-official/`，不重复拆 asar、不凭截图造结构。
+
+### 直接复用官方 SVG 图元
+
+搜索、加号、时钟、关闭、设置、左右/上下箭头改用官方 16×16 path：
+保留独立 path 和正确 viewBox，不把两条图元合并成一条，也不拿 24×24 坐标系缩放。
+主库没有的上箭头明确标 derived；刷新/暂停等保留原有 derived 图标。
+
+### 时间线与确认动线
+
+- Trace 每个时间戳一个 `li.dt-event`，正文使用官方 `dt-event-text`；
+- 运行时事件从 `div.dt-rows` 改为 `ol.dt-timeline`；
+- 删除只走 ConfirmBtn 二段确认，不再叠原生确认框；
+- 设置按钮直达对应分区（凭证 / 诊断 / 更新），不再只切 Tab；
+- 更新检查失败显示「检查失败」，不再误报「已是最新」；
+- 诊断复制失败不再假报「已复制」。
+
+### 证据
+
+```
+npm test → 448/448（新增：官方 SVG/坐标系、时间线结构、设置路由、更新错误态）
+```
+
+剩余大项（WatcherForm、ConfirmButton+Modal、DecisionLine、弹层定位原语）登记 L84，未宣称全部完成。
+
 ## [0.9.263] - 2026-11-05 —— 官方 Thread 详情并入「判定」，不再只发 Toast
 
 ### `/trace` 同时返回结构化数据

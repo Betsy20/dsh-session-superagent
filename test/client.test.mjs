@@ -635,7 +635,10 @@ test('判定页要能看见时间线（"为什么没叫醒我"要有据可查）
     ] },
   }
   // 时间线在「判定」页：切 tab 再渲染
-  const text = walk(render(desk, deskQueue(snap, null, {}, 'judge'))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  const nodes = walk(render(desk, deskQueue(snap, null, {}, 'judge')))
+  const text = nodes.filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(nodes.some((n) => n.type === 'ol' && n.props.className === 'dt-timeline'), '运行时事件必须用官方 ol.dt-timeline')
+  assert.ok(nodes.filter((n) => n.type === 'li' && n.props.className === 'dt-event').length >= 2, '每个运行时事件必须是独立 li.dt-event')
   assert.ok(text.includes('运行时事件'), '要有运行时事件区块：' + text.slice(0, 160))
   assert.ok(text.includes('cap-session'), '要显示事件类型')
   assert.ok(text.includes('已被唤醒 12 次'), '要显示人话内容')
@@ -1433,6 +1436,7 @@ test('状态栏圆环单独挂载也要注入样式表（否则弹层是无样�
   const seg = src.slice(start, start + 2500)
   assert.ok(seg.includes('ensurePortedCss'), 'StatusOrbit 的挂载副作用里必须调 ensurePortedCss')
   assert.ok(seg.includes('ensurePortedCss(true)'), '弹层打开时要强制重建样式表（兜住建站后被清掉的情况）')
+  assert.ok(!src.slice(src.indexOf('const act = async', start), src.indexOf('const act = async', start) + 500).includes('window.confirm'), '删除只走 ConfirmBtn 二段确认，不能再叠 window.confirm')
   // 更根本的一道：模块 apply() 里就要注入一次，任何槽位都能用上样式表
   const applyAt = src.indexOf('apply(ctx) {')
   assert.ok(applyAt > 0, '找不到 apply')
@@ -1846,8 +1850,51 @@ test('追溯结果进入判定页内联时间线，不再只发一条 Toast（�
   assert.ok(stateCalls().some((call) => call.next && Array.isArray(call.next.traces)), '点击后必须把结构化 payload 写入状态')
 
   queue[queue.length - 1] = payload
-  const text = walk(render(desk, queue)).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  const traced = walk(render(desk, queue))
+  const text = traced.filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.equal(traced.filter((n) => n.type === 'li' && n.props.className === 'dt-event').length, 5, '1 个标题 + 4 个事件，每个都必须是独立 li.dt-event')
+  assert.equal(traced.filter((n) => n.props && n.props.className === 'dt-event-text').length, 4, '事件正文使用官方 dt-event-text')
   for (const expected of ['#42 @ a/b：被过滤', '被过滤：机器人', '被冷却期吸收', '唤醒成功']) {
     assert.ok(text.includes(expected), '内联时间线缺：' + expected)
   }
+})
+
+test('通用图标直接复用 DSH 官方 16×16 path，derived 图标仍保持 24×24', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = {
+    loading: false, error: null,
+    body: { credentials: {}, gh: { ok: true }, defaults: {}, watchers: [watcher('a/b')] },
+  }
+  const emptySnap = { ...snap, body: { ...snap.body, watchers: [] } }
+  const emptyNodes = walk(render(desk, deskQueue(emptySnap)))
+  assert.ok(emptyNodes.some((n) => n.type === 'path' && n.props.d === 'M8 2V14'), '加号必须使用官方 composer/plus-medium path')
+  assert.ok(emptyNodes.some((n) => n.type === 'path' && n.props.d === 'M2 8H14'), '官方加号的第二条 path 也不能丢')
+  assert.ok(emptyNodes.some((n) => n.type === 'svg' && n.props.viewBox === '0 0 16 16'), '官方素材必须用 16×16 viewBox')
+  const nodes = walk(render(desk, deskQueue(snap)))
+  assert.ok(nodes.some((n) => n.type === 'svg' && n.props.viewBox === '0 0 24 24'), '官方没有的 derived 图标仍用 24×24，不能混坐标系')
+})
+
+test('升级横幅直达「版本与更新」分区，不只切到设置页（官方 settingsRoute 最小等价）', async () => {
+  const { registrations, render, stateCalls } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = { loading: false, error: null, body: { credentials: {}, gh: { ok: true }, defaults: {}, watchers: [watcher('a/b')] } }
+  const queue = deskQueue(snap, null, {}, 'overview', '', false, { current: '1.0.0', latest: '1.0.1', hasUpdate: true, command: 'dsh plugin update' })
+  const nodes = walk(render(desk, queue))
+  const button = nodes.find((n) => n.type === 'button' && String((n.props.children || []).join('')).includes('看升级命令'))
+  assert.ok(button, '有更新时必须出现升级入口')
+  await button.props.onClick()
+  assert.ok(stateCalls().some((call) => call.next === 'update'), '必须定位 settingsSection=update')
+  assert.ok(stateCalls().some((call) => call.next === 'settings'), '同时切到设置页')
+})
+
+test('更新检查失败显示「检查失败」，不能误报「已是最新」', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = { loading: false, error: null, body: { credentials: {}, gh: { ok: true }, defaults: {}, watchers: [watcher('a/b')] } }
+  const queue = deskQueue(snap, null, {}, 'settings', '', false, { current: '1.0.0', latest: null, hasUpdate: false, error: 'network down' })
+  queue[14] = 'update'
+  const text = walk(render(desk, queue)).filter((n) => n.type === '#text').map((n) => n.text).join(' | ')
+  assert.ok(text.includes('检查失败'), text)
+  assert.ok(!text.includes('已是最新'), '失败不能显示成最新：' + text)
 })
