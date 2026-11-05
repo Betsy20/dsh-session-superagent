@@ -445,7 +445,7 @@ test('有新版本时面板顶部给一条横幅，点进去看升级命令', ()
   const nodes = walk(render(desk, deskQueue(snapshot, null, {}, 'overview', '', false, update)))
   const text = nodes.filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
   assert.ok(text.includes('有新版本 0.9.0'), '横幅要写明新版本：' + text.slice(0, 200))
-  assert.ok(text.includes('看升级命令'), '要有入口')
+  assert.ok(text.includes('去更新'), '要有入口')
 
   // 没有新版本时不该出现横幅
   const quiet = walk(render(desk, deskQueue(snapshot, null, {}, 'overview', '', false, { current: '0.8.38', latest: '0.8.38', hasUpdate: false })))
@@ -1881,7 +1881,7 @@ test('升级横幅直达「版本与更新」分区，不只切到设置页（�
   const snap = { loading: false, error: null, body: { credentials: {}, gh: { ok: true }, defaults: {}, watchers: [watcher('a/b')] } }
   const queue = deskQueue(snap, null, {}, 'overview', '', false, { current: '1.0.0', latest: '1.0.1', hasUpdate: true, command: 'dsh plugin update' })
   const nodes = walk(render(desk, queue))
-  const button = nodes.find((n) => n.type === 'button' && String((n.props.children || []).join('')).includes('看升级命令'))
+  const button = nodes.find((n) => n.type === 'button' && String((n.props.children || []).join('')).includes('去更新'))
   assert.ok(button, '有更新时必须出现升级入口')
   await button.props.onClick()
   assert.ok(stateCalls().some((call) => call.next === 'update'), '必须定位 settingsSection=update')

@@ -315,6 +315,8 @@ test('成功显示 installed/running/needsReload 与 GET 新状态，不把安�
 
   const receiptCall = one(client.stateCalls().filter((call) => call.index === hooks.result), '缺安装回执 state')
   assert.deepEqual({ ...receiptCall.next }, RECEIPT)
+  assert.equal(client.stateCalls().some((call) => call.index === hooks.result && call.next === null), false,
+    '安装后的强制刷新必须保留刚写入的回执')
   const updateCall = client.stateCalls().filter((call) => call.index === 12).at(-1)
   assert.deepEqual({ ...updateCall.next }, refreshed)
   const toastCall = client.stateCalls().filter((call) => call.index === 7 && call.next?.tone === 'success').at(-1)
@@ -341,6 +343,28 @@ test('成功显示 installed/running/needsReload 与 GET 新状态，不把安�
   assert.ok(noReloadText.includes('false · 当前无需重载'))
   assert.ok(noReloadText.includes('runningVersion') && noReloadText.includes('0.9.271'))
   assert.ok(!noReloadText.includes('已运行新版'), '界面不凭版本相等额外推断运行状态')
+})
+
+test('手动重新检查清掉旧安装回执；顶部入口直接叫「去更新」', async () => {
+  const client = loadClient({
+    primitives: HOST,
+    fetch: async () => response(UPDATE),
+  })
+  const base = updateQueue()
+  const resultIndex = hookIndexes(base).result
+  base[resultIndex] = RECEIPT
+  const nodes = nodesOf(client, base)
+  client.resetStateCalls()
+  await control(nodes, '重新检查').props.onClick()
+  assert.ok(client.stateCalls().some((call) => call.index === resultIndex && call.next === null),
+    '手动检查必须清掉旧回执，不能遮住新的 hasUpdate 状态')
+
+  const overview = updateQueue()
+  overview[1] = 'overview'
+  const banner = control(nodesOf(client, overview), '去更新')
+  banner.props.onClick()
+  assert.ok(client.stateCalls().some((call) => call.index === 14 && call.next === 'update'))
+  assert.ok(client.stateCalls().some((call) => call.index === 1 && call.next === 'settings'))
 })
 
 test('失败保留当前版本与命令回退，Modal 不假装成功，错误进入 Section 与 Toast', async () => {

@@ -379,7 +379,7 @@ window.__ModuleLoader__.load({
     }
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.272'
+    const CLIENT_VERSION = '0.9.273'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -2838,7 +2838,8 @@ window.__ModuleLoader__.load({
           }, item.title))),
         h('div', { className: 'dt-settings-body' }, settingsBody))
 
-      const checkUpdate = useCallback(async (force) => {
+      const checkUpdate = useCallback(async (force, preserveResult = false) => {
+        if (!preserveResult) setUpdateResult(null)
         setChecking(true)
         try {
           const value = await call('/update' + (force ? '?refresh=1' : ''))
@@ -2877,7 +2878,7 @@ window.__ModuleLoader__.load({
             + '，runningVersion ' + receipt.runningVersion
             + (receipt.needsReload ? '，需要重载才生效' : ''), 'success')
           // 安装只改副本；重新检查由 GET 完成，不触发重启，也不推断 runningVersion 已变化。
-          await checkUpdate(true)
+          await checkUpdate(true, true)
           return true
         } catch (error) {
           const text = '安装更新失败：' + String((error && error.message) || error)
@@ -3054,7 +3055,7 @@ window.__ModuleLoader__.load({
         update && update.hasUpdate
           ? h('div', { className: 'dt-banner dt-banner-actions' },
               h('span', { className: 'dt-banner-label' }, '有新版本 ' + update.latest + '（当前 ' + update.current + '）'),
-              h('button', { className: 'dt-btn dt-btn-sm dt-btn-outline', type: 'button', onClick: () => openSettings('update') }, '看升级命令'))
+              h('button', { className: 'dt-btn dt-btn-sm dt-btn-outline', type: 'button', onClick: () => openSettings('update') }, '去更新'))
           : null,
         toastView,
         snap.error
