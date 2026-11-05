@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.215'
+    const CLIENT_VERSION = '0.9.216'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1118,8 +1118,24 @@ window.__ModuleLoader__.load({
               maxWakesPerHour: Number(draft.maxWakesPerHour) || undefined,
               sessionMaxWakes: Number(draft.sessionMaxWakes) || undefined,
             }
-            const out = { repo: full.repo, sessionId: full.sessionId }
+            // 审核 T24 M1：touchedRef 里是**控件名**（labels / onlyAssigned / priorityReopened…），
+            // 而 full 的键是**字段名**（filters / priority）—— 两套名字对不上，这几个控件就永远发不出去，
+            // 而 Toast 照样说「已保存」。这里显式做一次「控件名 → 字段名」的映射。
+            const CONTROL_TO_FIELD = {
+              labels: "filters",
+              onlyAssigned: "filters",
+              priorityReopened: "priority",
+              priorityComments: "priority",
+              priorityLabels: "priority",
+              priorityUnassigned: "priority",
+              priorityStale: "priority",
+            }
+            const wanted = new Set()
             for (const key of touchedRef.current) {
+              wanted.add(CONTROL_TO_FIELD[key] || key)
+            }
+            const out = { repo: full.repo, sessionId: full.sessionId }
+            for (const key of wanted) {
               if (Object.prototype.hasOwnProperty.call(full, key)) out[key] = full[key]
             }
             return out
@@ -1172,13 +1188,21 @@ window.__ModuleLoader__.load({
         const payload = {}
         if (token.trim()) payload.token = token.trim()
         if (giteeToken.trim()) payload.giteeToken = giteeToken.trim()
+        // 审核 T24 M3：这里以前无条件带 "ghConfigDir" —— ghDir 初值恒为空串且从不回填服务端值，
+        // 于是「只改 token」也会发 ghConfigDir:""，服务端把它当「显式清空」，
+        // 已绑定的 gh 账号目录被静默解绑（评论改回宿主账号）。
+        // 现在只有**填了东西**才发；要解绑请用旁边的「清除」按钮（它显式发空串）。
         if (ghDir.trim()) payload.ghConfigDir = ghDir.trim()
-        else if (ghDir === '') payload.ghConfigDir = ''   // 显式清空 = 回到宿主账号
         await call('/credentials', { method: 'POST', body: JSON.stringify(payload) })
         setToken('')
         setGhDir('')
         setGiteeToken('')
       }, '凭证已保存')
+
+      /** 显式解绑 gh 账号目录（T24 M3：不能在「只改 token」时顺带清掉）。 */
+      const clearGhDir = () => run(async () => {
+        await call('/credentials', { method: 'POST', body: JSON.stringify({ ghConfigDir: '' }) })
+      }, '已解绑 gh 账号目录（评论改回宿主账号）')
 
       const saveGoal = () => run(async () => {
         await call('/goal', { method: 'POST', body: JSON.stringify({ sessionId, objective: goalDraft }) })
@@ -1467,7 +1491,7 @@ window.__ModuleLoader__.load({
           if (stateFilter) chips.push({ label: STATE_TEXT[stateFilter], clear: () => setStateFilter(null) })
           if (needle) chips.push({ label: '搜索「' + needle + '」', clear: () => setSearch('') })
           if (problemsOnly) chips.push({ label: '有问题', clear: () => setProblemsOnly(false) })
-          if (deferFilter) chips.push({ label: '暂停原因「' + (DEFER_LABELS[deferFilter] || deferFilter) + '」', clear: () => setDeferFilter(null) })
+          if (deferFilter) chips.push({ label: '暂停原因「' + (DEFER_LABELS[deferFilter] || deferFilter) + '」', clear: () => setReasonFilter(null) })
           if (chips.length === 0) return null
           return h('div', { className: 'dt-row-meta', key: 'filter-summary' },
             (() => {
@@ -1481,7 +1505,7 @@ window.__ModuleLoader__.load({
             chips.length > 1
               ? h(Pill, {
                 key: '__all', onClick: () => {
-                  setBadgeFilter(null); setStateFilter(null); setSearch(''); setProblemsOnly(false); setDeferFilter(null)
+                  setBadgeFilter(null); setStateFilter(null); setSearch(''); setProblemsOnly(false); setReasonFilter(null)
                 },
               }, '全部清除')
               : null)
@@ -1521,7 +1545,11 @@ window.__ModuleLoader__.load({
         // 排序：会丢消息的（失败/没回音）排前面；静态提示（仓库归档、只读）排后面
         (() => { problems.sort((a, b) => ((a.rank ?? 9) - (b.rank ?? 9)) || String(a.text).localeCompare(String(b.text))); return problems.length > 0 })()
           ? h(Section, { key: 'problems', title: '需要关注', count: problems.length },
-            h('ul', { className: 'dt-plain-list' }, problems.map((item) => h('li', { key: item.key, className: 'dt-danger' }, item.text))))
+            // 审核 T24 M4：以前只渲染 item.text，构造好的 item.action（「看建议规则」）没人消费 ——
+            // 于是那个按钮永不出现，而 AGENTS.md 建议弹层唯一的入口就是它。
+            h('ul', { className: 'dt-plain-list' }, problems.map((item) => h('li', { key: item.key, className: 'dt-danger' },
+              item.text,
+              item.action ? h(Btn, { variant: 'link', size: 'sm', 'aria-label': item.action.label, onClick: item.action.onClick }, item.action.label) : null))))
           : null,
         // 中间态：已经有守、但一次都没唤醒过 —— 这不是"没配置"，是"在等"
         (watchers.length > 0 && watchers.every((w) => !w.lastWake))
@@ -1802,6 +1830,10 @@ window.__ModuleLoader__.load({
           field('Token', h(Input, { type: 'password', value: token, placeholder: 'ghp_… / github_pat_…（留空不改）', onChange: (e) => setToken(e.target.value) })),
           field('Gitee 令牌', h(Input, { type: 'password', value: giteeToken, placeholder: '私人令牌（留空不改）；只盯 GitHub 可以不管' , onChange: (e) => setGiteeToken(e.target.value) })),
           field('gh 账号目录', h(Input, { value: ghDir, placeholder: '绝对路径（留空 = 用宿主账号）', onChange: (e) => setGhDir(e.target.value) })),
+          // 解绑要**显式**：以前只改 token 时会顺带把已绑定的目录清掉，客户不知道评论为什么换回了宿主账号。
+          credentials.ghConfigDir === 'configured'
+            ? h('div', { className: 'dt-actions' }, h(Btn, { variant: 'ghost', size: 'sm', onClick: clearGhDir }, '解绑 gh 账号目录'))
+            : null,
           h('div', { className: 'dt-actions' }, h(Btn, { variant: 'primary', onClick: saveCredentials }, '保存凭证')),
           h(Hint, null, '不填也能用：插件直接复用已登录的 gh CLI。填了 gh 账号目录，插件就用那个目录里的账号发言（git push 仍用会话自己的身份，唤醒消息里会提醒会话）。')),
         h(Section, { key: 'update', title: '版本与更新' },

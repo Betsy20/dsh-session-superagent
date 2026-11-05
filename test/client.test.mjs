@@ -1498,3 +1498,27 @@ test('保存编辑只发改过的字段（M2：全量 PUT 会把别处刚改的�
   assert.ok(src.includes('for (const key of touchedRef.current)'), '保存没有按 touchedRef 过滤')
   assert.ok(!/body: JSON\.stringify\(\{\s*\r?\n\s*repo: watcher\.repo/.test(src), '保存体又变回全量 PUT 了')
 })
+
+test('行内编辑保存必须真的带上 filters / priority（T24 M1：控件名与字段名对不上，改了发不出去）', async () => {
+  const { readFileSync } = await import('node:fs')
+  const src = readFileSync(new URL('../client.js', import.meta.url), 'utf8')
+  // 控件名 → 字段名的映射必须存在（否则 labels/onlyAssigned/priority* 永远发不出去）
+  assert.ok(src.includes('CONTROL_TO_FIELD'), '缺少「控件名 → 字段名」映射')
+  for (const control of ['labels:', 'onlyAssigned:', 'priorityReopened:', 'priorityStale:']) {
+    assert.ok(src.includes(control), '映射里缺 ' + control)
+  }
+  assert.ok(src.includes('wanted.add(CONTROL_TO_FIELD[key] || key)'), '映射没被用上')
+})
+
+test('没有 setDeferFilter 这种未定义的 setter（T24 M2：点了直接 ReferenceError）', async () => {
+  const { readFileSync } = await import('node:fs')
+  const src = readFileSync(new URL('../client.js', import.meta.url), 'utf8')
+  assert.ok(!src.includes('setDeferFilter('), '还残留 setDeferFilter —— 组件里没有这个 setter')
+})
+
+test('「看建议规则」这个 action 必须被渲染（T24 M4：没人消费 = 按钮永不出现）', async () => {
+  const { readFileSync } = await import('node:fs')
+  const src = readFileSync(new URL('../client.js', import.meta.url), 'utf8')
+  assert.ok(src.includes('item.action ?'), 'item.action 没有被消费')
+  assert.ok(src.includes('setGlossary('), '建议规则弹层的入口丢了')
+})
