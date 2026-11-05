@@ -2,6 +2,39 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.266] - 2026-11-05 —— 新增/编辑共用 WatcherForm，宿主原语适配层就位
+
+### 共用表单，不再两套字段
+
+新增 `WatcherForm / Field / Fields / SaveBar` 与统一 schema：
+
+- `div.dt-field + label[htmlFor]` 对应唯一 input id，label 内不嵌交互按钮；
+- 高级限额、优先级、隔离保留策略进入 Disclosure，默认收起；
+- 数字字段显式 `type=number / min / max`，optional 空值保持空；
+- 干净无 SaveBar，修改出现，放弃恢复完整打开快照，保存中禁用；
+- 保存仍走 `/watch`，只提交 touched 字段，不改 API。
+
+新增 11 条定向用例 + 8 条独立验收；独立验收还修复了跨 VM realm 的 style 原型误判，未放宽断言。
+
+### DSH 原语薄适配层
+
+新增 `ui-host-primitives.js`：
+
+- `createHostUi()`：Modal / Toast / Tooltip 的真实 props 适配；
+- Toast 必须 `key=item.id`，`onDone` 只回传 id，旧回调不能清新通知；
+- `dismissToast()` 纯函数 id guard，无第二套 timer；
+- Tooltip 固定 `top / portal / openOnClick / gap=8`，缺原语显式报错，不自造第三套。
+
+该模块已随包导出，下一批再接入现有调用面；浏览器焦点、计时、scroll-close 仍明确未验。
+
+### 证据
+
+```
+npm test → 486/486（WatcherForm 11 + 独立验收 8 + 宿主适配 8，另含原有全部用例）
+scripts/ui-audit.mjs → 11/11，100 分
+浅色对比度 → 15 组 ≤ 基线 16；深色 → 12 组 ≤ 基线 13
+```
+
 ## [0.9.265] - 2026-11-05 —— 确认统一走 Modal，判定日志改 DecisionLine
 
 ### ConfirmButton：一次触发，一次确认
