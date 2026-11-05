@@ -13,7 +13,9 @@ import { fileURLToPath } from 'node:url'
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const LIMIT = 120
 
-const out = execFileSync('node', [join(root, 'scripts', 'first-run.mjs')], { encoding: 'utf8' })
+const wakeOut = execFileSync('node', [join(root, 'scripts', 'wake-samples.mjs')], { encoding: 'utf8' })
+// 两份都量：first-run 是「首次演练」的短消息，wake-samples 是 7 种**真实**场景
+const out = execFileSync('node', [join(root, 'scripts', 'first-run.mjs')], { encoding: 'utf8' }) + String.fromCharCode(10) + wakeOut
 const lines = out.split(String.fromCharCode(10)).map((text) => ({ text, chars: [...text].length }))
 const over = lines.filter((line) => line.chars > LIMIT)
 

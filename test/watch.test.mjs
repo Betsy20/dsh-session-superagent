@@ -1638,3 +1638,12 @@ test('「取前 N 条」说的是优先级，不是「最近更新」（T31 M3�
   assert.ok(!text.includes('最近更新'), '不该再写「按最近更新」—— 实际按 priorityScore 排')
   assert.match(text, /按优先级取前 3 条/)
 })
+
+test('超长标题不会把行撑过 120 字符（T31 M1：175 字符的行会让聊天窗口一堵墙）', async () => {
+  const { formatWatchText } = await import('../lib/watch.js')
+  const huge = '【超长标题】' + '很长的说明文字'.repeat(30)
+  const text = formatWatchText('o/r', [{ number: 55, title: huge, state: 'open', html_url: 'https://example.invalid/55' }], {})
+  const over = text.split(String.fromCharCode(10)).filter((line) => [...line].length > 120)
+  assert.equal(over.length, 0, '有行超过 120 字符：' + over.map((l) => [...l].length).join(','))
+  assert.match(text, /…/, '超长标题应当带省略号，而不是硬切')
+})
