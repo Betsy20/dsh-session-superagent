@@ -153,6 +153,9 @@ export function createOrbitPopover({ React, primitives } = {}) {
     if (!portalTarget) {
       throw new Error('OrbitPopover portal target 不可用；不会退化为非 portal surface')
     }
+    // DSH 只 clamp 坐标，不会替你缩宽；368px 在 320/360px 视口会把 left 挤成负数。
+    const viewportWidth = typeof window !== 'undefined' && Number.isFinite(window.innerWidth) ? window.innerWidth : width + 16
+    const effectiveWidth = Math.min(width, Math.max(1, viewportWidth - 16))
 
     const surface = h(MenuSurface, {
       ref: panelRef,
@@ -165,7 +168,7 @@ export function createOrbitPopover({ React, primitives } = {}) {
         position: 'fixed',
         left: position ? position.left : 0,
         top: position ? position.top : 0,
-        width,
+        width: effectiveWidth,
         zIndex,
         // useAnchoredPosition 首帧尚未测量时不在 0,0 闪现；不自行计算另一套坐标。
         visibility: position ? 'visible' : 'hidden',

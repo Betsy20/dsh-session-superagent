@@ -36,6 +36,10 @@ Tooltip scroll-close 在独立模块与主面板同步保留 trigger 焦点，�
 
 真实 Chromium 验收 27/27；Orbit 修复 visible 后聚焦、outside/confirm 不抢焦点、Escape 回焦与 confirm reason 桥接。新增 cloneElement 防线；适配器同源审计 84 项。全量 **544/544**。未验真实 DSH WebView 的宿主 slot、读屏与 watcher 请求。
 
+## 实施回写（0.9.271）
+
+设置页可直接安装更新（受守卫 POST、固定 argv、并发/超时与 needsReload）；真实 Chromium 39/39，Toast/Modal/响应式/双主题全过。Orbit 窄屏先缩到视口减 16 再 clamp，320/360 均零溢出。全量 **570/570**。
+
 ## 0. 基线、口径与复用边界
 
 | 来源 | 本次核对基线 | 用法 |

@@ -293,7 +293,7 @@ const editingHooks = (dirty = false) => {
   return hooks
 }
 const deskHooks = ({ snap = snapshot, tab = 'overview', notice = null, glossary = false, update = null, settingsSection = 'source' } = {}) => [
-  snap, tab, notice, blankForm, '', '', false, [], null, {}, '', glossary, update, false, settingsSection, null, null, false, null, '', '',   // 0.9.175 追加的 ghDir（gh 账号配置目录）
+  snap, tab, notice, blankForm, '', '', false, [], null, {}, '', glossary, update, false, settingsSection, null, null, false, null, '', '', null,  // 末尾：ghDir / traceResult / updateResult
 ]
 
 const ONLY_NAME = (process.argv.find((a) => a.startsWith('--only=')) || '').slice('--only='.length)

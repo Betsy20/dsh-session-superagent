@@ -2,6 +2,37 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.271] - 2026-11-06 —— 界面内安装更新 + Toast/响应式真实验收 39/39
+
+### 设置页可以直接安装更新
+
+「版本与更新」不再只给复制命令：hasUpdate 时显示官方 primary「安装更新」，
+经 DSH Modal 确认后 POST `/session-superagent/update`，busy 防重复，成功/失败均有反馈。
+保留复制命令作手动回退，不自动重启。
+
+后端使用受 `guardWrite` 保护的固定 argv：`dsh plugin --profile <profile> add dsh-session-superagent@<version>`。
+严格 semver、execFile/spawn（shell:false）、CLI 解析、并发锁、超时、输出截断与非零处理均已覆盖。
+响应明确区分 installedVersion/runningVersion/needsReload，安装成功不冒充运行中代码已切换。
+
+### Toast / Modal / 响应式 / 双主题真实验收
+
+新增独立 Chromium 验收：Toast 6/6、Modal 9/9、响应式 11/11、双主题 9/9，
+连同环境 4/4，总计 **39/39**。Toast 3 秒 hold + 1 秒 fade、连续通知 id guard、
+Modal 焦点圈/Escape/焦点归还、真实 resize 与官方主题 DOM/token 均通过。
+
+真实浏览器发现固定 368px 在 320/360px 视口左溢出；现在先缩到 `视口 - 16px`
+再交给 DSH clamp，实测 360→344px、320→304px，均零溢出。
+
+### 证据
+
+```
+更新路由 19/19；更新 UI 5/5；窄屏回归 2/2
+真实 Chromium 156.0.8078.74 → 39/39
+npm test → 570/570
+```
+
+真实认证 DSH WebView 的会话 slot、物理读屏、touch 与真实 watcher 请求仍列入走查。
+
 ## [0.9.270] - 2026-11-05 —— 真实 Chromium 验收 27/27，Orbit 焦点链修复
 
 独立 `ui-host-primitives.js` 的 Tooltip 需要 `React.cloneElement` 合并 trigger ref。

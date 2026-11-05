@@ -613,7 +613,7 @@ function auditOrbit(orbitSource, clientSource, audit) {
     audit.parity('orbit.role', canonical(property(a.surface.props, 'role')), canonical(property(b.surface.props, 'role')), "'dialog'")
     for (const [key, expected] of [
       ['position', "'fixed'"], ['left', 'position?position.left:0'], ['top', 'position?position.top:0'],
-      ['width', 'width'], ['zIndex', 'zIndex'], ['visibility', "position?'visible':'hidden'"],
+      ['width', 'effectiveWidth'], ['zIndex', 'zIndex'], ['visibility', "position?'visible':'hidden'"],
     ]) {
       audit.parity(`orbit.surface.${key}`, canonical(property(a.style, key)), canonical(property(b.style, key)), expected)
     }

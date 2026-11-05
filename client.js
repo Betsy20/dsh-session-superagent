@@ -317,6 +317,9 @@ window.__ModuleLoader__.load({
         if (!portalTarget) {
           throw new Error('OrbitPopover portal target 不可用；不会退化为非 portal surface')
         }
+        // 与独立适配器一致：先缩到视口内，再交给 DSH 计算坐标。
+        const viewportWidth = typeof window !== 'undefined' && Number.isFinite(window.innerWidth) ? window.innerWidth : width + 16
+        const effectiveWidth = Math.min(width, Math.max(1, viewportWidth - 16))
 
         const surface = hostH(MenuSurface, {
           ref: panelRef,
@@ -329,7 +332,7 @@ window.__ModuleLoader__.load({
             position: 'fixed',
             left: position ? position.left : 0,
             top: position ? position.top : 0,
-            width,
+            width: effectiveWidth,
             zIndex,
             visibility: position ? 'visible' : 'hidden',
           },
@@ -342,10 +345,13 @@ window.__ModuleLoader__.load({
 
     // 老宿主没有这个映射时 require 会抛错；可选探测失败必须完整保留本地实现。
     let hostUi = null
+    let hostButton = null
     let hostTooltip = null
     let hostOrbit = null
     try {
       const primitives = require('@deepseek-ai/dsh-client-ui-primitives')
+      // Button 独立探测：老宿主缺 Modal/Toast 时仍可复用官方按钮；缺 Button 则由 UpdateButton 回退 Btn。
+      hostButton = primitives.Button || null
       if (primitives && primitives.Modal && primitives.Toast && primitives.IconWarningOutlineMedium) {
         hostUi = createHostUi({ React, primitives })
         // Tooltip 独立探测：缺少它只回退 InfoTip，不把已接入的 Modal/Toast 一起降级。
@@ -353,6 +359,7 @@ window.__ModuleLoader__.load({
       }
     } catch {
       hostUi = null
+      hostButton = null
       hostTooltip = null
     }
 
@@ -372,7 +379,7 @@ window.__ModuleLoader__.load({
     }
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.270'
+    const CLIENT_VERSION = '0.9.271'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -609,6 +616,9 @@ window.__ModuleLoader__.load({
         icon !== undefined ? h('span', { className: 'dt-btn-icon' }, icon) : null,
         children)
     }
+
+    // 安装动作优先用 DSH Button；老宿主缺该导出时完整保留同源 Btn 的尺寸、variant 与交互。
+    const UpdateButton = hostButton || Btn
 
     function Tag({ tone = 'outline', title, children }) {
       return h('span', { className: 'dt-tag', 'data-tone': tone, title }, children)
@@ -1126,7 +1136,7 @@ window.__ModuleLoader__.load({
     const PanelModal = hostUi ? hostUi.Modal : Modal
 
     /** 确认层与触发器分离：DSH orbit 关闭后，同一个本地 Modal 仍能由 StatusOrbit 持有。 */
-    function ConfirmDialog({ open, label, confirmLabel = '确定执行', title = confirmLabel, message, onConfirm, onClose, modalContext = 'panel' }) {
+    function ConfirmDialog({ open, label, confirmLabel = '确定执行', title = confirmLabel, message, onConfirm, onClose, modalContext = 'panel', ButtonComponent = Btn, danger = true }) {
       const [busy, setBusy] = useState(false)
       const busyRef = useRef(false)
       const confirm = async () => {
@@ -1152,10 +1162,10 @@ window.__ModuleLoader__.load({
         onClose,
         children: null,
         footer: h(React.Fragment, null,
-          h(Btn, { variant: 'ghost', onClick: onClose }, '取消'),
-          h(Btn, {
+          h(ButtonComponent, { variant: 'ghost', onClick: onClose }, '取消'),
+          h(ButtonComponent, {
             variant: 'primary',
-            className: cx('dt-danger', busy && 'dt-btn-busy'),
+            className: cx(danger && 'dt-danger', busy && 'dt-btn-busy'),
             disabled: busy,
             'aria-label': confirmLabel,
             'aria-busy': busy ? 'true' : undefined,
@@ -1165,11 +1175,11 @@ window.__ModuleLoader__.load({
     }
 
     /** 官方 ConfirmButton 动线：触发按钮只开 Modal，取消不执行，确认期间 busy 防重复。 */
-    function ConfirmButton({ label, confirmLabel = '确定执行', title = confirmLabel, message, onConfirm, variant = 'ghost', icon, size, modalContext = 'panel' }) {
+    function ConfirmButton({ label, confirmLabel = '确定执行', title = confirmLabel, message, onConfirm, variant = 'ghost', icon, size, modalContext = 'panel', ButtonComponent = Btn, danger = true }) {
       const [open, setOpen] = useState(false)
       const close = useCallback(() => setOpen(false), [])
       return h(React.Fragment, null,
-        h(Btn, {
+        h(ButtonComponent, {
           variant,
           size,
           icon,
@@ -1177,7 +1187,7 @@ window.__ModuleLoader__.load({
           'aria-haspopup': 'dialog',
           onClick: () => setOpen(true),
         }, label),
-        h(ConfirmDialog, { open, label, confirmLabel, title, message, onConfirm, onClose: close, modalContext }))
+        h(ConfirmDialog, { open, label, confirmLabel, title, message, onConfirm, onClose: close, modalContext, ButtonComponent, danger }))
     }
 
     const watcherId = (w) => (w && w.id) || String((w && w.repo) || '') + '#' + String((w && w.sessionId) || '')
@@ -1796,6 +1806,8 @@ window.__ModuleLoader__.load({
       const [giteeToken, setGiteeToken] = useState('')
       // 判定页内联追溯结果（官方 Thread 详情最小吸收）：不再只塞进一条 Toast。
       const [traceResult, setTraceResult] = useState(null)
+      // 安装回执与版本检查分开：POST 失败不能冲掉当前版本和命令回退。
+      const [updateResult, setUpdateResult] = useState(null)
       // 去设置页时必须同时定位分区；只切 Tab 会把人留在上次看的分区（官方 settingsRoute(group) 的最小等价）。
       const openSettings = (section) => {
         setSettingsSection(section)
@@ -2732,12 +2744,28 @@ window.__ModuleLoader__.load({
           h(KeyValues, { rows: [
             ['当前版本', (update && update.current) || CLIENT_VERSION],
             ['npm 最新', !update ? '检测中…' : update.error ? '检测失败 · ' + update.error : (update.latest || '未知')],
-            ['状态', !update ? '…' : update.error ? '检查失败' : update.hasUpdate ? '有新版本，可以升级' : '已是最新'],
+            ['状态', updateResult
+              ? (updateResult.needsReload ? '安装完成，需要重载才生效' : '安装完成')
+              : !update ? '…' : update.error ? '检查失败' : update.hasUpdate ? '有新版本，可以升级' : '已是最新'],
+            updateResult ? ['安装副本（installedVersion）', updateResult.installedVersion] : null,
+            updateResult ? ['运行版本（runningVersion）', updateResult.runningVersion] : null,
+            updateResult ? ['重载要求（needsReload）', updateResult.needsReload ? 'true · 需要重载才生效' : 'false · 当前无需重载'] : null,
           ] }),
           update && update.hasUpdate
             ? h('div', null,
                 h('code', { className: 'dt-code' }, update.command),
                 h('div', { className: 'dt-actions' },
+                  h(ConfirmButton, {
+                    label: '安装更新',
+                    confirmLabel: '确认安装',
+                    title: '安装更新',
+                    message: '将安装 ' + update.latest + '（当前 ' + (update.current || CLIENT_VERSION) + '）。这会修改安装副本；安装完成后需要重载宿主才生效，不会自动重启。',
+                    variant: 'primary',
+                    size: 'sm',
+                    ButtonComponent: UpdateButton,
+                    danger: false,
+                    onConfirm: installUpdate,
+                  }),
                   h(Btn, {
                     size: 'sm',
                     // 审核 T24 W2：以前点了零反馈，writeText 的 rejection 也没人接 —— 客户不知道复制没成。
@@ -2747,7 +2775,7 @@ window.__ModuleLoader__.load({
             : null,
           h('div', { className: 'dt-actions' },
             h(Btn, { size: 'sm', variant: 'ghost', onClick: () => checkUpdate(true), disabled: checking }, checking ? '检查中…' : '重新检查')),
-          h(Hint, null, '升级要改 profile，装完需要重载一次宿主才会用上新版本 —— 所以这里只给命令，不替你执行。'),
+          h(Hint, null, '安装会修改当前安装副本，不会自动重启；安装成功后需要重载宿主才生效。复制命令保留作手动回退。'),
           h(Hint, null, '反馈问题时把下面这份诊断贴给对方：里面有版本、挂载状态和每条守的最近错误（凭证已脱敏）。'),
           h('div', { className: 'dt-actions' },
             h(Btn, {
@@ -2815,12 +2843,49 @@ window.__ModuleLoader__.load({
         try {
           const value = await call('/update' + (force ? '?refresh=1' : ''))
           setUpdate(value)
+          return true
         } catch (error) {
           setUpdate({ current: CLIENT_VERSION, latest: null, hasUpdate: false, error: String(error && error.message || error) })
+          return false
         } finally {
           setChecking(false)
         }
       }, [])
+
+      async function installUpdate() {
+        const version = update && update.latest
+        if (!version) {
+          const text = '安装更新失败：缺少目标版本，请先重新检查'
+          setNotice({ ok: false, text })
+          notify(text, 'error')
+          return false
+        }
+        setNotice(null)
+        try {
+          const result = await call('/update', {
+            method: 'POST',
+            body: JSON.stringify({ version }),
+          })
+          if (!result || result.ok === false) throw new Error((result && result.error) || '服务端没有返回安装结果')
+          const receipt = {
+            installedVersion: String(result.installedVersion || '未知'),
+            runningVersion: String(result.runningVersion || '未知'),
+            needsReload: result.needsReload === true,
+          }
+          setUpdateResult(receipt)
+          notify('安装完成：installedVersion ' + receipt.installedVersion
+            + '，runningVersion ' + receipt.runningVersion
+            + (receipt.needsReload ? '，需要重载才生效' : ''), 'success')
+          // 安装只改副本；重新检查由 GET 完成，不触发重启，也不推断 runningVersion 已变化。
+          await checkUpdate(true)
+          return true
+        } catch (error) {
+          const text = '安装更新失败：' + String((error && error.message) || error)
+          setNotice({ ok: false, text })
+          notify(text, 'error')
+          return false
+        }
+      }
 
       useEffect(() => {
         // 初始检查与手动「重新检查」共用一条错误路径：失败要显示「检查失败」，不能吞掉后永远检测中。

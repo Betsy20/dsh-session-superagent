@@ -1849,7 +1849,7 @@ test('追溯结果进入判定页内联时间线，不再只发一条 Toast（�
   await button.props.onClick()
   assert.ok(stateCalls().some((call) => call.next && Array.isArray(call.next.traces)), '点击后必须把结构化 payload 写入状态')
 
-  queue[queue.length - 1] = payload
+  queue[queue.length - 2] = payload
   const traced = walk(render(desk, queue))
   const text = traced.filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
   assert.equal(traced.filter((n) => n.type === 'li' && n.props.className === 'dt-event').length, 5, '1 个标题 + 4 个事件，每个都必须是独立 li.dt-event')

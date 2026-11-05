@@ -565,3 +565,11 @@ test('DSH 删除完成只发一次 delete，确认关闭后焦点仍回圆环而
   assert.equal(localModals(done.nodes).length, 0)
   assert.equal(done.nodes.some((node) => node.type === PORTAL), false)
 })
+
+test('DSH 窄视口 width=368 缩到视口减 16，不产生左溢出', () => {
+  const client = loadClient()
+  client.window.innerWidth = 320
+  const opened = client.renderOrbit({ watchers: [watcher()], open: true })
+  const surface = one(opened.nodes.filter((node) => node.type === MENU_SURFACE), '缺窄屏 surface')
+  assert.equal(surface.props.style.width, 304)
+})

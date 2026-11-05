@@ -541,3 +541,23 @@ test('自定义 onRequestConfirm 收到 restoreFocus=orbit，orbit 仍先关闭�
   latest.value.onConfirmClose()
   assert.equal(ring.calls.length, 1)
 })
+
+test('窄视口先把 width 限制为视口减 16，再交给 DSH clamp 坐标', () => {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'window')
+  try {
+    Object.defineProperty(globalThis, 'window', { configurable: true, writable: true, value: { innerWidth: 320 } })
+    const fakeDom = fakeDocument()
+    const { ui } = harness()
+    const portal = ui.OrbitPopover({
+      open: true,
+      anchorRef: { current: focusable('orbit') },
+      onClose() {},
+      width: 368,
+      portalTarget: fakeDom.body,
+    })
+    assert.equal(surfaceOf(portal).props.style.width, 304)
+  } finally {
+    if (previous) Object.defineProperty(globalThis, 'window', previous)
+    else delete globalThis.window
+  }
+})
