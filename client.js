@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.237'
+    const CLIENT_VERSION = '0.9.238'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -680,6 +680,9 @@ window.__ModuleLoader__.load({
 
     /** Dock entry: the machine-wide ring plus its click-through detail list. */
     /** 把错误拆成「现象」和「建议」：服务端存的是 short +（hint），建议在末尾的括号里。 */
+    // 唤醒失败 vs 轮询失败：前者轮询是成功的，说成「轮询失败」会让客户去查网络
+    function isWakeFailure(text) { return /^wake:/.test(String(text || '')) }
+
     function splitErrorText(text) {
       const value = String(text || '')
       const match = /（[^（）]*）\s*$/.exec(value)
@@ -1457,7 +1460,10 @@ window.__ModuleLoader__.load({
           problems.push({
             key: 'e-' + watcher.repo,
             rank: 1, kind: 'error',
-            text: watcher.repo + ' 轮询失败：' + parts.main.slice(0, 120) + (parts.main.length > 120 ? '…' : '') + ' ' + parts.hint,
+            // 审核 T33 M3：以前一律写「轮询失败」—— 而唤醒失败时轮询是**成功的**，归错了类。
+            // `wake:` 前缀由 lib/watch.js 的 planWakeSettlement 打上。
+            text: watcher.repo + (isWakeFailure(watcher.lastError) ? ' 唤醒失败：' : ' 轮询失败：')
+              + parts.main.replace(/^wake:\s*/, '').slice(0, 120) + (parts.main.length > 120 ? '…' : '') + ' ' + parts.hint,
           })
         }
         // 暂停原因不在「需要关注」里重复：卡片里已经有一行加粗警告色的「暂停唤醒：…」（见 pauseNote），

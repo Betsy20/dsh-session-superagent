@@ -1659,3 +1659,11 @@ test('activeHours 格式写错要拒绝，不能静默变成全天有效（T32�
     assert.ok(res.reason && res.reason.includes('HH:MM'), bad + ' 要说明正确格式')
   }
 })
+
+test('唤醒失败的原因要客户能看懂（T33 M3：以前是 session not live 这种英文内部话）', async () => {
+  const { decideWake } = await import('../lib/watch.js')
+  const busy = decideWake('running').reason
+  assert.match(busy, /[\u4e00-\u9fa5]/, '要有中文说明：' + busy)
+  assert.match(busy, /顺延|等/, '要说下一步：' + busy)
+  assert.match(busy, /busy/, '排查用的英文状态值要保留：' + busy)
+})
