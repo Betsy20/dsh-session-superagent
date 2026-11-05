@@ -2,6 +2,48 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.210] - 2026-11-05 —— 知识库一致性审计：8 篇「还没做的」早就做完了
+
+### ① 知识库条目过期（T21 报的 8 条「必须改」）
+
+`docs/kb/` 有 182 篇，**从来没有被整体复查过**。门禁只查「索引篇数对不对得上」这类结构问题，
+于是出现了这种情况：条目里写着「还没做的：xxx」，而 xxx 在后续版本里已经做掉了 —— **没人回头删**。
+
+| 条目 | 它说 | 代码实际 |
+|---|---|---|
+| `github-conditional-requests` | `x-poll-interval` 还没读 | 已读（`gh-format.js:225`） |
+| `measure-before-trimming` | `/state` 没有 ETag/304 | 有（`index.js:1772`） |
+| `triage-signal-table` | `stale` 权重 0 | `weight: 2` + `score += 2` |
+| `show-saturation` | `capped` 靠匹配文案 | 用原因码 |
+| `repo-permissions` / `repo-structure` | 还没有能力徽章 | `client.js:1258` 已渲染 |
+| `archived-repo` | 徽章只读不可点 | 可点筛选 |
+| `pr-blocked-state` | 没取 CI 状态 | 已取 |
+
+**这不是文档小毛病**：一个「还没做」会让下一个接手的人重做一遍已经做过的事。
+
+### ② 数字漂移 17 行
+
+最严重的几处：`why-not-split-index` 说 index.js **1795 行**（实际 2877）；
+对比度基线 **34/32**（实际 16/13）；单行长度 **102**（实际 108）；`preflight`「第 N 项」**20 处全部失效**
+（脚本不打印序号，插入即错位）。
+
+### ③ 顺带清掉两处代码粗糙
+
+- `lib/index.js` 里一个**从没用过**的 `const limit`（死代码）；
+- 紧邻的 `splitBatch(..., || 3, ...)` 兜底值与创建时的 `batchLimit=5` **口径分裂** —— 统一成 5。
+
+### ④ CI 红了一条：GBK 用例在无 ICU 的 Node 上会挂
+
+`new TextDecoder('gbk')` 在 small-icu 构建里**不支持**（CI 的 Linux Node 就是）。
+`decodeBody` 的回退分支按设计会退回 UTF-8，于是那条断言在 CI 上必红。
+现在按环境跳过（`skip` 带原因），本机（有 gbk）仍然真跑。
+
+### 证据
+
+```
+node --test → 363/363
+```
+
 ## [0.9.209] - 2026-11-05 —— 把「最会丢消息」的那段抽成纯函数并钉上测试
 
 ### ① 那段代码恰好是 171 行、0 覆盖里最危险的 40 行
