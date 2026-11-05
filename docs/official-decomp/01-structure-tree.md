@@ -324,7 +324,7 @@ Panel（只读领域状态 + 写配置）  Prompts / Policy / Deployment / Migra
 ### P1：能明显降低维护成本
 
 3. **显式状态迁移表（0.9.262 已落地）**：`lib/state-migration.js` 负责 v0→v1；未来版本回退 `.bak`；`package.json.files` 有全量 lib 门禁。
-4. **记录视图合并**：把官方 records/threads/tickets 的审计信息并入「判定」和单条追溯，不新增平级 Tab。
+4. **记录视图合并（0.9.263 已落地）**：`/trace` 同时返回结构化 `traces`；判定页内联渲染 seen/filtered/absorbed/wake 时间线，不再只发 Toast；不新增平级 Tab。
 5. **提示词分段常量（0.9.262 已落地）**：`buildWakeSections()` 输出稳定 `{id,lines}`，7 个场景逐字对拍兼容；不引入 orchestrator/worker 多角色。
 6. **精简 SETUP runbook（0.9.262 已落地）**：根目录 `SETUP.md`，只读探测、一次一问、计划确认后执行、密钥不进聊天；仍保留一条安装命令。
 

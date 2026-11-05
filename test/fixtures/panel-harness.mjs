@@ -181,7 +181,8 @@ export const deskQueue = (snapshot, editing = null, draft = {}, tab = 'overview'
   // 末尾依次是：update / checking、settingsSection / reasonFilter / badgeFilter、problemsOnly，
   // 以及 0.9.157 追加的 stateFilter（统计条筛选）—— 顺序必须跟组件里的 useState 一致
   // 以及 0.9.175 追加的 ghDir（gh 账号配置目录输入框）—— 只能在末尾追加
-  [snapshot, tab, null, deskForm, '', '', false, [], editing, draft, search, glossary, update, false, 'source', null, null, false, null, '', '']
+  // 0.9.263 追加 traceResult（判定页内联追溯）—— 仍然只能在末尾追加
+  [snapshot, tab, null, deskForm, '', '', false, [], editing, draft, search, glossary, update, false, 'source', null, null, false, null, '', '', null]
 
 export const watcher = (repo, extra = {}) => ({
   repo,

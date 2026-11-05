@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.262'
+    const CLIENT_VERSION = '0.9.263'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -968,6 +968,26 @@ window.__ModuleLoader__.load({
       return [view, notify]
     }
 
+    /** 判定页内联追溯时间线：结构化 traces 优先，旧服务端只有 text 时降级。 */
+    function TraceTimeline({ payload }) {
+      if (payload.loading) return h('p', { className: 'dt-hint' }, '正在追溯 #' + payload.number + '…')
+      if (payload.error) return h('p', { className: 'dt-error' }, '追溯失败：' + payload.error)
+      const traces = Array.isArray(payload.traces) ? payload.traces : []
+      if (traces.length === 0) return h('p', { className: 'dt-hint' }, payload.text || '没有结果')
+      return h('ol', { className: 'dt-timeline' }, traces.map((trace) => {
+        const events = []
+        if (trace.seen) events.push({ at: trace.seen, label: '首次看到' })
+        if (trace.reported) events.push({ at: trace.reported, label: '上次上报' })
+        for (const item of trace.filtered || []) events.push({ at: item.at, label: '被过滤：' + (item.reason || '未知') })
+        for (const item of trace.absorbed || []) events.push({ at: item.at, label: '被冷却期吸收' })
+        for (const item of trace.wakes || []) events.push({ at: item.at, label: item.ok ? '唤醒成功' : '唤醒失败：' + (item.reason || '未知') })
+        events.sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')))
+        return h('li', { className: 'dt-event', key: String(trace.repo) + '#' + trace.number },
+          h('div', { className: 'dt-event-head' }, '#' + trace.number + ' @ ' + (trace.repo || '?') + '：' + trace.verdict),
+          events.map((event, index) => h('div', { className: 'dt-event-foot', key: index }, event.label + ' · ' + event.at)))
+      }))
+    }
+
     function ZhuliPanel(props) {
       const sessionId = props && props.sessionId
       /** 暂停原因码 → 人话（服务端 deferReason 是唯一来源）。 */
@@ -1027,6 +1047,8 @@ window.__ModuleLoader__.load({
       const [ghDir, setGhDir] = useState('')
       // Gitee 私人令牌（和 GitHub token 分开存；留空 = 公开仓库也能读）
       const [giteeToken, setGiteeToken] = useState('')
+      // 判定页内联追溯结果（官方 Thread 详情最小吸收）：不再只塞进一条 Toast。
+      const [traceResult, setTraceResult] = useState(null)
       // 建议规则弹层：给"叫醒了没回音"一个下一步动作（只提供可复制的规则，不替客户写仓库文件）
 
       // 「我现在手上有没有能渲染的数据」。判断依据必须是**当前 snap**，不是"以前拿到过一次" ——
@@ -1685,17 +1707,19 @@ window.__ModuleLoader__.load({
                   className: 'dt-textlink',
                   type: 'button',
                   onClick: async () => {
+                    setTraceResult({ loading: true, number: asNumber })
                     try {
                       const query = '/trace?number=' + encodeURIComponent(asNumber) + (onlyRepo ? '&repo=' + encodeURIComponent(onlyRepo) : '')
                       const payload = await call(query)
-                      notify(String((payload && payload.text) || '没有结果').split(String.fromCharCode(10)).join(' · '), 'info')
+                      setTraceResult(payload || { text: '没有结果', traces: [] })
                     } catch (error) {
-                      notify('追溯失败：' + String((error && error.message) || error), 'error')
+                      setTraceResult({ error: String((error && error.message) || error), number: asNumber })
                     }
                   },
                 }, '追溯 #' + asNumber),
                 h('span', { className: 'dt-row-meta' }, onlyRepo ? '（在 ' + onlyRepo + ' 里查）' : '（在所有守里查）'))
-              : null)
+              : null,
+            traceResult ? h(TraceTimeline, { payload: traceResult }) : null)
         })(),
         (() => {
           const counts = new Map()

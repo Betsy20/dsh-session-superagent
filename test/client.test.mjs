@@ -1814,3 +1814,40 @@ test('列表显示作者白名单与 ack 标签，编辑器也能改标签（T40
   assert.ok(textOf(editor).includes('已处理标签'), '编辑器要有 ack 标签字段')
   assert.ok(editor.some((n) => n.type === 'input' && n.props.value === 'team:done'), '编辑器要显示当前自定义标签')
 })
+
+test('追溯结果进入判定页内联时间线，不再只发一条 Toast（官方 Thread 详情最小吸收）', async () => {
+  const payload = {
+    ok: true,
+    text: '#42 @ a/b：被过滤',
+    traces: [{
+      number: '42', repo: 'a/b', verdict: '被过滤',
+      seen: '2026-11-05T10:00:00Z', reported: null,
+      filtered: [{ at: '2026-11-05T10:01:00Z', reason: '机器人' }],
+      absorbed: [{ at: '2026-11-05T10:02:00Z' }],
+      wakes: [{ at: '2026-11-05T10:03:00Z', ok: true }],
+    }],
+  }
+  const { registrations, render, stateCalls } = loadClient({
+    fetch: async () => ({ ok: true, status: 200, text: async () => JSON.stringify(payload) }),
+  })
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = {
+    loading: false, error: null,
+    body: {
+      credentials: { token: 'none', sshKeyPath: 'none', ghConfigDir: 'none', giteeToken: 'none' },
+      gh: { ok: true, version: '2.0' }, defaults: {}, watchers: [watcher('a/b')],
+    },
+  }
+  const queue = deskQueue(snap, null, {}, 'judge', '42')
+  const nodes = walk(render(desk, queue))
+  const button = nodes.find((n) => n.type === 'button' && String((n.props.children || []).join('')).includes('追溯 #42'))
+  assert.ok(button, '搜索编号后要有追溯按钮')
+  await button.props.onClick()
+  assert.ok(stateCalls().some((call) => call.next && Array.isArray(call.next.traces)), '点击后必须把结构化 payload 写入状态')
+
+  queue[queue.length - 1] = payload
+  const text = walk(render(desk, queue)).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  for (const expected of ['#42 @ a/b：被过滤', '被过滤：机器人', '被冷却期吸收', '唤醒成功']) {
+    assert.ok(text.includes(expected), '内联时间线缺：' + expected)
+  }
+})
