@@ -41,6 +41,7 @@ const REQUIRED = [
   'lib/index.js', 'lib/watch.js', 'lib/gh-format.js', 'lib/gitee.js', 'lib/redact.js', 'lib/body.js',
   'client.js', 'cordis.patch.yml', 'package.json', 'README.md', 'LICENSE',
   'CHANGELOG.md',
+  'bin/check.mjs',
 ]
 // 从 npm notice 行里取文件名（最后一段），再逐条比对
 const listed = out.split(String.fromCharCode(10))

@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-superagent",
-  "version": "0.9.242",
+  "version": "0.9.243",
   "description": "Session-level superagent for DeepSeek Harness: watch a GitHub repository and wake a session when something needs doing. Credentials never reach the model.",
   "type": "module",
   "main": "lib/index.js",
@@ -22,7 +22,8 @@
     "README.md",
     "CHANGELOG.md",
     "LICENSE",
-    "client.js"
+    "client.js",
+    "bin/check.mjs"
   ],
   "engines": {
     "node": ">=22.19.0",
@@ -79,5 +80,8 @@
   "homepage": "https://github.com/MYCF711/dsh-session-superagent#readme",
   "bugs": {
     "url": "https://github.com/MYCF711/dsh-session-superagent/issues"
+  },
+  "bin": {
+    "dsh-zhuli": "bin/check.mjs"
   }
 }

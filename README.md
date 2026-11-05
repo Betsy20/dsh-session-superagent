@@ -3,7 +3,7 @@
 <img src="assets/icon-180.png" width="88" height="88" alt="">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.9.242-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
+[![Version](https://img.shields.io/badge/version-0.9.243-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
 [![npm](https://img.shields.io/npm/v/dsh-session-superagent.svg)](https://www.npmjs.com/package/dsh-session-superagent)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-plugin-orange.svg)](https://github.com/topics/dsh-plugin)
 [![awesome](https://img.shields.io/badge/awesome-dsh--plugin-%E2%9C%93-success.svg)](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
@@ -146,7 +146,7 @@ Gitee 私有仓库要在「设置 → 凭证」填私人令牌；公开仓库不
 ## 开发
 
 ```sh
-npm test             # 381 项单测（带离线开关；裸 node --test 会真去 spawn gh，两分半）
+npm test             # 382 项单测（带离线开关；裸 node --test 会真去 spawn gh，两分半）
 ```
 
 ### 工具输出：文本给人和 agent，JSON 给程序
@@ -206,7 +206,7 @@ dsh plugin --profile <profile> add dsh-session-superagent@latest
 
 
 ```bash
-npm test                    # 381 项单测（带离线开关，约 1.6 秒）
+npm test                    # 382 项单测（带离线开关，约 1.6 秒）
 node scripts/ui-audit.mjs   # 11 项 UI 指标（写死颜色 / 自造 token / 官方结构采用 …）
 node scripts/preflight.mjs  # 40 项门禁（含上面两条，外加 profile 一致性、路由面、包内容）
 node scripts/render-preview.mjs preview.html   # 双主题静态预览，直接浏览器打开
@@ -235,6 +235,29 @@ node scripts/render-preview.mjs preview.html   # 双主题静态预览，直接�
 | 想知道客户现场到底什么状态 | 我们看不到他机器上的状态文件 | 让客户点 设置 → 版本与更新 → 复制诊断信息（已脱敏，含版本/挂载/每条守的最近错误） |
 
 `pnpm run preflight` 一条命令可自查：单测、语法、profile 一致性、版本一致、路由面、包内容、冒烟。
+
+## 装好了吗？跑一条命令就能确认
+
+```bash
+npx dsh-session-superagent
+```
+
+（全局装过的话直接 `dsh-zhuli`。）
+
+它会检查五件事，并告诉你该怎么办：
+
+| 检查 | 不通过时它会说 |
+|---|---|
+| 安装副本完整（5 个必需文件） | 缺哪几份 → 重装一次 |
+| 版本号 | 读不出来 = 副本损坏，重装 |
+| 状态目录与 `watchers.json` | 还没配过 / JSON 坏了（先备份再删掉重配） |
+| 凭证文件 | 存在与否、**权限**（不会打印内容） |
+| 宿主端口（默认 65466） | 连不上只是提醒；宿主在但没挂插件 → 没装进 profile |
+
+加 `--port 12345` 指定别的端口。退出码 0 = 通过，1 = 有问题。
+
+> 这条命令**不需要宿主加载插件** —— 它只看安装副本、状态目录和端口。
+> 面板里的 `watch_doctor` 也能自查，但那个只有插件**已经挂载**时才存在。
 
 ## 卸载与回滚
 

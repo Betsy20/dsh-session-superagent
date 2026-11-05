@@ -203,3 +203,13 @@ test('宿主缺 tools 服务时 apply 不抛（升级到 0.2.2-rc.1 这类变动
     console.error = err
   }
 })
+
+test('包里必须有一条客户能跑的自检命令（T35：watch_doctor 是模型工具，拿它证明装好了是循环论证）', async () => {
+  const { readFileSync } = await import('node:fs')
+  const { existsSync } = await import('node:fs')
+  const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+  assert.ok(pkg.bin && Object.keys(pkg.bin).length > 0, 'package.json 要有 bin')
+  const target = Object.values(pkg.bin)[0]
+  assert.ok(existsSync(new URL('../' + target, import.meta.url)), 'bin 指向的文件要真实存在：' + target)
+  assert.ok((pkg.files || []).includes(target), 'bin 文件必须在 files 里（否则打不进包）：' + target)
+})
