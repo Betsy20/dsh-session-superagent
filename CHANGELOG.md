@@ -2,6 +2,48 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.247] - 2026-11-05 —— 状态文件里一个坏值，整块面板全灭
+
+T37 造了 8 种「旧/坏状态文件」喂给当前代码。**三种旧版本形状全部正常兜底**，
+但两种**坏形状**会让面板直接死掉。
+
+### M1 · `watchers` 里有 `null` → `/state` 与 `/diagnose` 抛异常
+
+```
+watchers 的值 = ["null","object"]
+GET /state   → HTTP THREW: Cannot read properties of null (reading 'id')
+GET /diagnose → HTTP THREW: Cannot read properties of null (reading 'repo')
+watch_status → OK（它有 filter(Boolean)）
+```
+
+**同一个坏文件，一个入口活着、两个入口死了。** 修法就是给那两个补上 `filter(Boolean)` ——
+说明这不是「设计问题」，是**漏了一处**。
+
+面板完全打不开的时候，客户连「哪条守坏了」都看不到。
+
+### M2 · `history` / `filteredLog` / `events` 是数字 → `/state` 500，且该守**永久退避**
+
+`(w.history ?? []).slice(...)` —— `?? []` 只挡 `null`/`undefined`，挡不住 `42`。
+轮询路径里 `for (const event of entry.history || [])` 对 `42` 直接抛 `not iterable`，
+于是这条守每轮都失败、退避到 30 分钟，**再也不会正常唤醒**。
+
+这与 0.9.195（`477b99d`，标题就叫「坏 wakeTimes 崩面板」）修 `pruneWakeTimes` 是**同一个坑** ——
+当时只修了一处，这几处漏了。
+
+全部改成 `Array.isArray(...) ? ... : []`。
+
+### 新用例（一次抓出我漏掉的第四处）
+
+用例同时造「一个 `null` 守」+「三个字段类型坏掉的守」，然后真跑 `/state` 与 `/diagnose`。
+
+**第一次跑就抓到我漏了 `history`** —— 我手改了三处，测试找出第四处。
+
+### 证据
+
+```
+npm test → 386/386（新增：坏状态文件不能让面板崩）
+```
+
 ## [0.9.246] - 2026-11-05 —— npm 上也渲染 README，但图和三份文档不在包里
 
 T35 W1：`files` 是白名单，只发 12 个文件。而 **npm 页面会把 README 完整渲染出来** ——

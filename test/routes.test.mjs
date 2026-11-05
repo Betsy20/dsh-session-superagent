@@ -1494,3 +1494,36 @@ test('编号带 # 时不能报「没给」（T33 M1：假报错会让这条 issu
     assert.match(out, /# 号|去掉/, name + ' 要说清是写法问题：' + out)
   }
 })
+
+test('状态文件里有一个 null 守时，/state 与 /diagnose 不能整个崩（T37 M1：一个坏值 = 面板全灭）', async () => {
+  const tools = []
+  const localRoutes = new Map()
+  const dir = tempDir('zhuli-nullentry-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: (route) => { localRoutes.set(route.path, route); return () => {} } },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-null' }) },
+    get: () => null, on() {}, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?nullentry=' + Date.now())
+  mod.apply(ctx)
+  // 手写一份「有 null 值 + 字段类型坏掉」的状态文件
+  writeFileSync(join(dir, 'watchers.json'), JSON.stringify({
+    watchers: {
+      'a/b#s': { id: 'a/b#s', repo: 'a/b', sessionId: 's', intervalSec: 60, enabled: true },
+      broken: null,
+      'c/d#s': { id: 'c/d#s', repo: 'c/d', sessionId: 's', intervalSec: 60, enabled: true, filteredLog: 42, events: 'x', history: 7 },
+    },
+  }, null, 2))
+
+  for (const [path, label] of [['/session-superagent/state', '/state'], ['/session-superagent/diagnose', '/diagnose']]) {
+    const route = localRoutes.get(path)
+    const res = makeRes()
+    await route.handler(makeReq('GET', path, undefined, {}), res)
+    const text = res.chunks.join('')
+    assert.ok(!/Cannot read properties of null/.test(text), label + ' 不该抛 null 异常：' + text.slice(0, 200))
+    assert.ok(res.statusCode === undefined || res.statusCode < 500, label + ' 不该 5xx：' + String(res.statusCode))
+  }
+})

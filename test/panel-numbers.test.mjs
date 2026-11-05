@@ -27,7 +27,8 @@ test('面板「最小 30 秒」= 服务端的间隔下限', () => {
 
 test('面板「最近 5 次唤醒」= /state 里 filteredLog 的切片', () => {
   const shown = num(/判定日志（最近 (\d+) 次唤醒）/, client, '判定日志条数')
-  const code = num(/filteredLog: \(w\.filteredLog \?\? \[\]\)\.slice\(-(\d+)\)/, index, 'filteredLog 切片')
+  // 正则放宽：切片前面多了 Array.isArray 守卫（T37 M2），别再死死匹配实现细节
+  const code = num(/filteredLog:.*?slice\(-(\d+)\)/, index, 'filteredLog 切片')
   assert.equal(shown, code, '面板写 ' + shown + '，服务端切片 ' + code)
 })
 
