@@ -59,7 +59,11 @@ test('真实凭证形状：25 种里新增的 16 种都要脱掉（审核 M2/M3�
     ['Gitee 32 位', j('gitee 私人令牌 ', '0123456789abcdef0123456789abcdef')],
   ]
   for (const [name, input] of cases) {
-    assert.ok(redact(input).includes('***'), name + ' 没被脱掉：' + redact(input))
+    // 审核 T23：只断言「出现 ***」太弱 —— 部分脱敏 / 残留一段密钥都能过。
+    // 真正的判据是「脱完不该再有任何凭证形状」。
+    const out = redact(input)
+    assert.equal(hasSecret(out), false, name + ' 脱敏后仍有凭证形状：' + out)
+    assert.ok(out.includes('***'), name + ' 应该被替换成 ***：' + out)
   }
 })
 

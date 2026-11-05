@@ -1168,13 +1168,16 @@ test('默认值提示从 /state 的 defaults 读，不是写死的 12/3/6', () =
   })
   const text = (defaults, tab) => walk(render(desk, deskQueue(base(defaults), null, {}, tab))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
 
-  // 术语表里那句「单条守每小时最多 X 次」是最容易被写死的地方
-  const custom = text({ sessionMaxWakes: 30, maxWakesPerHour: 4, isolateKeepDays: 7 }, 'settings')
-  const all = custom + ' ' + text({ sessionMaxWakes: 30, maxWakesPerHour: 4, isolateKeepDays: 7 }, 'trigger')
-  assert.ok(all.length > 0, '面板要有内容')
-  const dflt = text({}, 'settings')
-  // 至少验证：面板不会因为 defaults 缺省而崩，且触发页占位符跟着 defaults 走
-  assert.ok(!/undefined/.test(all), '默认值不能渲染成 undefined：' + all.slice(0, 200))
+  // 审核 T23：这条以前只断言 all.length > 0 —— 名字说「从 defaults 读」，实际什么都没验。
+  // 占位符是**属性**不是文本，得单独收集。
+  const attrs = (defaults, tab) => walk(render(desk, deskQueue(base(defaults), null, {}, tab)))
+    .map((n) => (n.props && typeof n.props.placeholder === 'string' ? n.props.placeholder : ''))
+    .filter(Boolean).join(' | ')
+  const customPlaceholders = attrs({ sessionMaxWakes: 30, maxWakesPerHour: 4, isolateKeepDays: 7 }, 'trigger')
+  const defaultPlaceholders = attrs({}, 'trigger')
+  assert.ok(customPlaceholders.includes('4（1-60）'), '每小时上限的占位符要跟 defaults 走，实际：' + customPlaceholders)
+  assert.ok(defaultPlaceholders.includes('6（1-60）'), '没有 defaults 时才回落到 6，实际：' + defaultPlaceholders)
+  assert.ok(!/undefined/.test(customPlaceholders + defaultPlaceholders), '占位符不能渲染成 undefined')
 })
 
 test('比例条不为 0 的类别画线段（避免 1px 脏点），并保持总段数正确', () => {

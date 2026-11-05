@@ -2,6 +2,45 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.214] - 2026-11-05 —— 覆盖率高 ≠ 测试有效：5 条「其实测不出东西」的断言
+
+### ① 先说结论
+
+`lib/watch.js` 98% 行覆盖、364 个测试全绿 —— T23 的断言强度审计说明**这不代表它们真在守东西**：
+
+- 断言数 < 2 的用例 **43 个**；
+- `assert.ok` 是「只看真假不看内容」的 **33 个**，其中 6 个往后不再对该值做任何内容断言；
+- 0 个 `assert.ok(true)` / 两边同表达式（这点是好的）。
+
+### ② 修掉的 5 条（每条都先确认「它现在测不出什么」）
+
+| 位置 | 以前 | 现在 |
+|---|---|---|
+| `watch.test.mjs` 事件上限 | `assert.ok(length <= 22)` —— **恒真**（实际最多 7 条） | 断言真实上限 8 以内且不为空 |
+| `watch.test.mjs` cap 兜底 | `assert.equal(typeof x, 'number')` —— 返回任意数字都过 | 断言 **`cap=0` 与 `cap=6` 结果相同** |
+| `redact.test.mjs` | `assert.ok(redact(input).includes('***'))` —— 部分脱敏/残留一段密钥都能过 | 断言 **`hasSecret(脱敏后) === false`** |
+| `gate-lock.test.mjs` | `assert.ok(existsSync(lockPath))` —— 那个目录是**测试自己**刚 mkdir 的 | 断言 `owner.json` 里的 pid **换成了当前进程** |
+| `client.test.mjs` defaults | 只断言 `all.length > 0`，名字却说「从 defaults 读」 | 收集 **placeholder 属性**，断言自定义 defaults 真的渲染进去了 |
+
+### ③ 顺带修的产品 bug（T23 记录、我改掉）
+
+`client.js` 有两处把「每小时最多唤醒次数 / 单次最多条数」的占位符**写死**成 `'6（1-60）'` / `'5（1-20）'`，
+而同页别的字段都是从 `/state` 的 `defaults` 读的 —— 这正是上面那条测试「声称要防」的回归。
+现在统一走 `String(DEFAULTS.x || 默认值)`。
+
+### 证据
+
+```
+node --test → 364/364
+ui-audit → 11/11（100 分）
+```
+
+### 未修（登记）
+
+`routes.test.mjs` 有一条在**算测试自己的 `Math.max`**（`effectiveIntervalMs()` 一次没被调用）；
+`route-resilience.test.mjs` 有一条说「设了 OFFLINE 就不调 gh」但只测了两个纯函数。
+这两条要先把内部函数挂进 `__test` 导出才能真断言，改动面比断言本身大，单独立项。
+
 ## [0.9.213] - 2026-11-05 —— 失败后不回读、awesome 早已合并、走查清单合成一份
 
 ### ① 面板失败后不回读（T22 B3 的另一半）

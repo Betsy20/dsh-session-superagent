@@ -868,6 +868,8 @@ test('被每小时上限挡住时，要算得出"还有多久有名额"', () => 
   // 过期的不算（超过 1 小时的自动剔除）
   assert.equal(nextWaketimeAt([now - 70 * 60_000], 6, now), now)
   // cap 非法/0 时按 6 兜底，不崩
+  // 审核 T23：只断言 typeof 太弱 —— 返回任意数字都能过。真正的判据是「0 与默认 6 等价」。
+  assert.equal(nextWaketimeAt(times, 0, now), nextWaketimeAt(times, 6, now), 'cap=0 应按 6 兜底')
   assert.equal(typeof nextWaketimeAt(times, 0, now), 'number')
 })
 
@@ -1387,7 +1389,9 @@ test('未归类的错误要在事件流里留样本（否则永远补不上分�
 
   // 最多留 3 条：一直记会刷满事件列表
   for (let i = 0; i < 6; i += 1) watchModule.recordOtherError(entry, 'sample-' + i)
-  assert.ok(entry.events.length <= 22, '事件流本身有上限，不会无限涨：' + entry.events.length)
+  // 审核 T23：以前断言 <= 22 —— 恒真（实际最多 7 条），等于没测。断言真实上限。
+  assert.ok(entry.events.length <= 8, '事件流上限该是 8 条以内：' + entry.events.length)
+  assert.ok(entry.events.length >= 1, '刚记的几条不该被清空')
 })
 
 test('系统错误码各归其类：EACCES 是权限、EPIPE/ETIMEDOUT 是网络', () => {

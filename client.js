@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.213'
+    const CLIENT_VERSION = '0.9.214'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1346,8 +1346,8 @@ window.__ModuleLoader__.load({
             field('活跃时段', h(HoursField, { value: draft.activeHours, onChange: (next) => setField({ ...draft, activeHours: next }) }), '只在这个时间段内唤醒；窗口外只攒条目，不打扰'),
             field('目标/规则', h(Input, { value: draft.goal || '', placeholder: '可选，会附在唤醒消息里', onChange: (e) => setField({ ...draft, goal: e.target.value }) })),
             h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.onlyAssigned, onChange: (v) => setField({ ...draft, onlyAssigned: v }), label: '只看已指派' }), '只处理已指派给人的条目'),
-            field('单次最多唤醒条数', h(Input, { value: draft.batchLimit || '', placeholder: '5（1-20）', onChange: (e) => setField({ ...draft, batchLimit: e.target.value }) })),
-            field('每小时最多唤醒次数', h(Input, { value: draft.maxWakesPerHour || '', placeholder: '6（1-60）', onChange: (e) => setField({ ...draft, maxWakesPerHour: e.target.value }) })),
+            field('单次最多唤醒条数', h(Input, { value: draft.batchLimit || '', placeholder: String(DEFAULTS.batchLimit || 5) + '（1-20）', onChange: (e) => setField({ ...draft, batchLimit: e.target.value }) })),
+            field('每小时最多唤醒次数', h(Input, { value: draft.maxWakesPerHour || '', placeholder: String(DEFAULTS.maxWakesPerHour || 6) + '（1-60）', onChange: (e) => setField({ ...draft, maxWakesPerHour: e.target.value }) })),
             field('这条会话每小时最多被唤醒', h(Input, { value: draft.sessionMaxWakes || '', placeholder: String(DEFAULTS.sessionMaxWakes || 12) + '（1-60）', onChange: (e) => setField({ ...draft, sessionMaxWakes: e.target.value }) }), '跨所有守累计：守 5 个仓库时，光有单守上限挡不住叠加'),
             field('优先级（在「单次最多唤醒条数」内先挑谁）', h('div', { className: 'dt-actions' },
               h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: draft.priorityReopened !== false, onChange: (v) => setField({ ...draft, priorityReopened: v }), label: '重开优先' }), '被重开的排最前'),
@@ -1746,8 +1746,8 @@ window.__ModuleLoader__.load({
         h('div', { className: 'dt-form' },
           field('仓库', h(Input, { value: form.repo, placeholder: 'owner/name，或 gitee:owner/name', onChange: (e) => setForm({ ...form, repo: e.target.value }) })),
           field('间隔（秒）', h(Input, { value: form.intervalSec, onChange: (e) => setForm({ ...form, intervalSec: e.target.value }) })),
-          field('单次最多唤醒条数', h(Input, { value: form.batchLimit || '', placeholder: '5（1-20）', onChange: (e) => setForm({ ...form, batchLimit: e.target.value }) })),
-          field('每小时最多唤醒次数', h(Input, { value: form.maxWakesPerHour || '', placeholder: '6（1-60）', onChange: (e) => setForm({ ...form, maxWakesPerHour: e.target.value }) })),
+          field('单次最多唤醒条数', h(Input, { value: form.batchLimit || '', placeholder: String(DEFAULTS.batchLimit || 5) + '（1-20）', onChange: (e) => setForm({ ...form, batchLimit: e.target.value }) })),
+          field('每小时最多唤醒次数', h(Input, { value: form.maxWakesPerHour || '', placeholder: String(DEFAULTS.maxWakesPerHour || 6) + '（1-60）', onChange: (e) => setForm({ ...form, maxWakesPerHour: e.target.value }) })),
           field('只处理这些标签', h(Input, { value: form.labels, placeholder: '逗号分隔，留空 = 全部', onChange: (e) => setForm({ ...form, labels: e.target.value }) })),
           field('活跃时段', h(HoursField, { value: form.activeHours, onChange: (next) => setForm({ ...form, activeHours: next }) }), '只在这个时间段内唤醒；不填 = 全天'),
           field('目标/规则', h(Input, { value: form.goal || '', placeholder: '可选，会附在唤醒消息里', onChange: (e) => setForm({ ...form, goal: e.target.value }) })),

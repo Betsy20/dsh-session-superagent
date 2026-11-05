@@ -36,7 +36,11 @@ test('陈旧锁（持有者进程已死）能被自动清理', () => {
     name: 'stale', pid: 999999, at: new Date(Date.now() - 3600_000).toISOString(),
   }))
   const release = acquireGate('unit-stale', { quiet: true, timeoutMs: 3000, lockPath })
-  assert.ok(existsSync(lockPath), '应该已经拿到锁')
+  // 审核 T23：以前只断言 existsSync —— 那个目录是**测试自己**刚 mkdir 的，恒真。
+  // 真正的判据是「owner.json 换成了当前进程」。
+  const owner = JSON.parse(readFileSync(join(lockPath, 'owner.json'), 'utf8'))
+  assert.equal(Number(owner.pid), process.pid, '陈旧锁应该被本进程接管')
+  assert.equal(owner.name, 'unit-stale')
   release()
 })
 
