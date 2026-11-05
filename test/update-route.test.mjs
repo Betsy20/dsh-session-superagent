@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -113,6 +114,8 @@ test('GET 保持只读；其它方法 405，均不启动 runner', async () => {
   assert.equal(get.json().hasUpdate, false)
   const put = await route.call('PUT', { version: '0.9.271' })
   assert.equal(put.statusCode, 405)
+  assert.equal(put.headers.Allow, 'GET, POST')
+  assert.deepEqual(put.json(), { error: 'method not allowed' })
   assert.equal(runs, 0)
 })
 
@@ -380,6 +383,38 @@ test('非零退出码返回 500 与真实 exitCode，不声称已安装或已加
   assert.equal(res.json().needsReload, false)
 })
 
+test('非零退出同样失效缓存，后续 GET 读取部分改盘后的 installed 与 latest', async () => {
+  delete process.env.DSH_SUPERAGENT_UPDATE_OFFLINE
+  let installed = '0.9.273'
+  let latest = '0.9.274'
+  let registryCalls = 0
+  globalThis.fetch = async () => {
+    registryCalls += 1
+    return { ok: true, json: async () => ({ version: latest, dist: {} }) }
+  }
+  const route = await setup({
+    installedVersionReader: () => installed,
+    runner: async () => {
+      installed = '0.9.271'
+      latest = '0.9.275'
+      return { code: 17, stdout: 'partial write', stderr: 'registry denied' }
+    },
+  })
+  const before = await route.call('GET', undefined, {}, '?refresh=1')
+  assert.equal(before.json().installedVersion, '0.9.273')
+  assert.equal(before.json().latest, '0.9.274')
+  assert.equal(registryCalls, 1)
+
+  const failed = await route.call('POST', { version: '0.9.274' })
+  assert.equal(failed.statusCode, 500)
+  assert.equal(failed.json().exitCode, 17)
+  const after = await route.call('GET', undefined, {}, '?refresh=1')
+  assert.equal(registryCalls, 2, '非零 settle 必须绕过 force 节流并重新查询')
+  assert.equal(after.json().installedVersion, '0.9.271')
+  assert.equal(after.json().latest, '0.9.275')
+  assert.equal(after.json().hasUpdate, true)
+})
+
 test('超时返回 504；迟到完成会被接收并释放并发闸', async () => {
   const late = deferred()
   const started = deferred()
@@ -400,6 +435,63 @@ test('超时返回 504；迟到完成会被接收并释放并发闸', async () =
   const next = await setup({ runner: async () => ({ code: 0, stdout: '', stderr: '' }) })
   const retry = await next.call('POST', { version: '0.9.271' })
   assert.equal(retry.statusCode, 200)
+})
+
+test('外层 504 不提前清缓存；迟到 settle 才失效并阻止旧 GET 晚写', async () => {
+  delete process.env.DSH_SUPERAGENT_UPDATE_OFFLINE
+  let installed = '0.9.273'
+  let latest = '0.9.274'
+  let registryCalls = 0
+  let pauseRegistry = false
+  let releaseStale
+  globalThis.fetch = async () => {
+    registryCalls += 1
+    if (pauseRegistry) {
+      pauseRegistry = false
+      return new Promise((resolve) => {
+        releaseStale = () => resolve({ ok: true, json: async () => ({ version: '0.9.274', dist: {} }) })
+      })
+    }
+    return { ok: true, json: async () => ({ version: latest, dist: {} }) }
+  }
+  const late = deferred()
+  const started = deferred()
+  const route = await setup({
+    timeoutMs: 20,
+    installedVersionReader: () => installed,
+    runner: async () => { started.resolve(); return late.promise },
+  })
+  const before = await route.call('GET')
+  assert.equal(before.json().installedVersion, '0.9.273')
+  assert.equal(registryCalls, 1)
+
+  const timedOut = await route.call('POST', { version: '0.9.274' })
+  await started.promise
+  assert.equal(timedOut.statusCode, 504)
+  const whilePending = await route.call('GET')
+  assert.equal(registryCalls, 1, 'runner 仍 pending 时旧缓存必须继续可用，不能提前失效')
+  assert.equal(whilePending.json().installedVersion, '0.9.273')
+
+  pauseRegistry = true
+  const stalePending = route.call('GET', undefined, {}, '?refresh=1')
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(registryCalls, 2)
+  assert.equal(typeof releaseStale, 'function')
+
+  installed = '0.9.272'
+  latest = '0.9.275'
+  late.resolve({ code: 'spawn_error', error: 'late partial failure', stdout: '', stderr: '' })
+  await new Promise((resolve) => setImmediate(resolve))
+  releaseStale()
+  const stale = await stalePending
+  assert.equal(stale.json().installedVersion, '0.9.273', '旧 GET 自己的响应仍保留其快照')
+  assert.equal(stale.json().latest, '0.9.274')
+
+  const fresh = await route.call('GET')
+  assert.equal(registryCalls, 3, '迟到 settle 已递增 generation，旧 GET 不得重新填充缓存')
+  assert.equal(fresh.json().installedVersion, '0.9.272')
+  assert.equal(fresh.json().latest, '0.9.275')
+  assert.equal(fresh.json().hasUpdate, true)
 })
 
 test('spawn 超时后未 close 时 runner 保持 pending，外层 504 后第二个 POST 始终 409', async () => {
@@ -513,6 +605,32 @@ test('16KiB 边界前先脱敏再按 UTF-8 截断，不泄露完整或部分动�
   assert.equal(Buffer.from(output, 'utf8').toString('utf8'), output, 'UTF-8 截断不能留下半个字符')
   assert.equal(output.endsWith('🙂'), true)
   assert.equal(res.json().stdoutTruncated, true)
+})
+
+test('normalizeFailure 与路由出口分别脱敏动态假 token，不留完整或部分秘密', async () => {
+  const cases = [
+    ['normalizeFailure：runner reject', async (token) => {
+      const error = new Error('spawn failed while echoing ' + token)
+      error.code = 'spawn_error'
+      throw error
+    }],
+    ['路由出口：runner resolve error', async (token) => ({
+      code: 'spawn_error', error: 'spawn failed while echoing ' + token, stdout: '', stderr: '',
+    })],
+  ]
+  for (const [name, behavior] of cases) {
+    const token = 'gh' + 'p_' + randomUUID().replaceAll('-', '')
+    const route = await setup({ runner: async () => behavior(token) })
+    const res = await route.call('POST', { version: '0.9.271' })
+    assert.equal(res.statusCode, 500, name)
+    assert.equal(res.json().code, 'spawn_error', name)
+    const message = res.json().error
+    assert.match(message, /\*\*\*/, name)
+    for (let length = 4; length <= token.length; length += 1) {
+      assert.equal(message.includes(token.slice(0, length)), false, name + '：不得泄露秘密前缀')
+      assert.equal(message.includes(token.slice(-length)), false, name + '：不得泄露秘密后缀')
+    }
+  }
 })
 
 test('profile 不写死 desktop：环境缺失时 503 且 runner 不执行', async () => {
