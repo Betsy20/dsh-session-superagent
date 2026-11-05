@@ -1,6 +1,6 @@
 // 路由层单测：之前 0 覆盖，全靠真机 curl 手测。
 // 用环境变量把状态目录指到临时目录，并把轮询关掉，避免打到真 GitHub。
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { assertTempStateDir, tempDir } from './fixtures/tmpdir.mjs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -1389,4 +1389,19 @@ test('凭证写入校验：sshKeyPath 必须绝对、ghConfigDir 必须绝对（
   // 清空是合法的
   const cleared = await call('POST', '/session-superagent/credentials', { token: '', sshKeyPath: '', ghConfigDir: '' })
   assert.equal(cleared.statusCode, 200)
+})
+
+test('状态路径是惰性的：同一个实例改 env 之后立刻生效（T30：以前模块加载时就定死了）', async () => {
+  const mod = await import('../lib/index.js?lazy=' + Date.now())
+  const first = tempDir('lazy-a-')
+  const second = tempDir('lazy-b-')
+  process.env.DSH_SUPERAGENT_STATE = first
+  mod.__test.writeState({ watchers: { 'a/x#s': { id: 'a/x#s', repo: 'a/x', sessionId: 's' } } })
+  // 只换 env，**不重新 import** —— 惰性实现下这应该立刻指向新目录
+  process.env.DSH_SUPERAGENT_STATE = second
+  const state = mod.__test.readState()
+  assert.equal(Object.keys(state.watchers || {}).length, 0, '换目录后不该还读到上一个目录的内容')
+  mod.__test.writeState({ watchers: { 'b/y#s': { id: 'b/y#s', repo: 'b/y', sessionId: 's' } } })
+  assert.ok(existsSync(join(second, 'watchers.json')), '应该写到新目录')
+  assert.ok(existsSync(join(first, 'watchers.json')), '老目录的文件还在（没被搬走）')
 })

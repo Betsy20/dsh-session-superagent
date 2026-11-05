@@ -2,6 +2,44 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.228] - 2026-11-05 —— 状态路径惰性化：改 env 立刻生效，不用重新 import
+
+### 上一轮试过、回退了；这一轮做成了
+
+T30 的必须修 #2：`lib/index.js` 的四个状态路径在**模块加载那一刻**定死。
+上一轮尝试惰性化时失败了 —— 因为测试侧「改 env 后从不还原」，惰性化反而让串目录更明显。
+
+这一轮先修好了测试侧（`afterEach` 还原 + `assertTempStateDir()` 守卫），再惰性化，通过了：
+
+```
+npm test                                        → 371/371
+node --test --experimental-test-isolation=none  → 371/371
+```
+
+### 改法
+
+```js
+const stateDir = () => (process.env.DSH_SUPERAGENT_STATE
+  ? String(process.env.DSH_SUPERAGENT_STATE)
+  : join(homedir(), '.dsh', 'state', 'session-superagent'))
+const stateFile = () => join(stateDir(), 'watchers.json')
+```
+
+新增一条用例钉住行为：**同一个模块实例，改完 env 之后不重新 import 也要立刻指向新目录**
+（老目录的文件不会被搬走，符合预期）。
+
+### 为什么值得费两轮
+
+「写进真实状态目录」这件事已经真实发生过一次 —— `o/parity#session-parity` 那条假守就是这么进去的，
+在你机器上一直轮询失败。惰性化把这类事故的根断掉：**路径不再是加载时的快照，而是每次现取**。
+
+### 证据
+
+```
+npm test                                        → 371/371
+node --test --experimental-test-isolation=none  → 371/371（新增 1 条惰性用例）
+```
+
 ## [0.9.227] - 2026-11-05 —— 测试把假的守写进了**真实**状态目录
 
 ### ① 已经发生过的事故（不是假设）
