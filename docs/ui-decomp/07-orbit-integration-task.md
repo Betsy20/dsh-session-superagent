@@ -25,6 +25,14 @@
 4. 若原删除按钮已卸载，宿主 Modal 的 opener isConnected 检查不会自动找回；必须由适配器显式回焦圆环。
 5. 上述路径没有真实测试前，不删除现有 `modalContext='orbit'` 的 superagent 同源 Modal。
 
+## 真实 Chromium 回写（焦点合同）
+
+- 首帧 `position=null` 时 surface 为 hidden，不得聚焦；定位可见后每次 open 只自动聚焦一次，后续 resize/scroll 不重复抢。
+- 外点可聚焦目标时保留外部焦点，不回圆环。
+- `useOrbitConfirm` 必须把 `reason='confirm'` 桥接给 OrbitPopover；仅在外层 `setOpen(false)` 会让清理无法区分 confirm。
+- confirm 清理不得覆盖 Modal 初始焦点；确认关闭后才由 `onConfirmClose` 显式回圆环。
+- Escape 是唯一由 Popover 清理自动回圆环的关闭路径。
+
 ## 验收
 
 - 原语缺失时旧路径完全可用；

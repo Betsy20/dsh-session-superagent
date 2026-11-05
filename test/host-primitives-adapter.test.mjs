@@ -363,6 +363,13 @@ test('Tooltip：children 拒绝字符串、数组和 null，缺原语时显式�
   )
 })
 
+test('Tooltip：缺 React.cloneElement 时给出可读错误，不在渲染深处崩溃', () => {
+  const { React, ui } = harness()
+  delete React.cloneElement
+  const trigger = React.createElement('button', null, '帮助')
+  assert.throws(() => ui.Tooltip({ text: '说明', children: trigger }), /React\.cloneElement/)
+})
+
 test('dismissToast：纯函数只在 id 完全相同时清空，旧回调保留新 item', () => {
   const current = { id: 'new', text: '新通知', tone: 'success' }
   assert.strictEqual(dismissToast(current, 'old'), current)

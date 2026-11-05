@@ -135,6 +135,8 @@ window.__ModuleLoader__.load({
     // createOrbitPopover({React, primitives}) 的参数、OrbitPopover/useOrbitConfirm 调用面与来源模块一致；
     // React.createPortal 由调用方用宿主 require('react-dom').createPortal 注入，不伪造 primitives.createPortal。
     const DEFAULT_ORBIT_Z_INDEX = 1100
+    // confirm 由父组件的 useOrbitConfirm 直接关闭 orbit，不经过 OrbitPopover.close；按 ref 关联原因，避免新增公开参数。
+    const orbitCloseReasons = new WeakMap()
 
     function focusIfConnected(node) {
       if (!node || typeof node.focus !== 'function') return false
@@ -168,6 +170,10 @@ window.__ModuleLoader__.load({
 
         const requestConfirm = HostReact.useCallback((detail = {}) => {
           restoreFocusRef.current = 'orbit'
+          const ref = orbitRefRef.current
+          if (ref && (typeof ref === 'object' || typeof ref === 'function')) {
+            orbitCloseReasons.set(ref, 'confirm')
+          }
           if (typeof onCloseOrbitRef.current === 'function') {
             onCloseOrbitRef.current({ reason: 'confirm' })
           }
@@ -244,10 +250,14 @@ window.__ModuleLoader__.load({
         const returnFocusRef = orbitRef || anchorRef
         const onCloseRef = HostReact.useRef(onClose)
         onCloseRef.current = onClose
+        const didFocusRef = HostReact.useRef(false)
+        const closeReasonRef = HostReact.useRef(null)
 
         const close = HostReact.useCallback((detail) => {
+          const reason = closeReason(detail)
+          closeReasonRef.current = reason.reason
           const callback = onCloseRef.current
-          if (typeof callback === 'function') callback(closeReason(detail))
+          if (typeof callback === 'function') callback(reason)
         }, [])
 
         // 与来源适配器一致：宿主 hooks 和本地 effect 都在 open 分支前无条件调用。
@@ -270,8 +280,18 @@ window.__ModuleLoader__.load({
           : (typeof document !== 'undefined' ? document : null)
 
         HostReact.useEffect(() => {
-          if (!open || !ownerDocument || typeof ownerDocument.addEventListener !== 'function') return undefined
-          focusIfConnected(panelRef.current)
+          if (!open) {
+            didFocusRef.current = false
+            closeReasonRef.current = null
+            orbitCloseReasons.delete(returnFocusRef)
+            return undefined
+          }
+          // 首帧 position=null 时 surface 是 hidden，focus() 会被浏览器拒绝；等可见后只尝试一次。
+          if (position && !didFocusRef.current) {
+            didFocusRef.current = true
+            focusIfConnected(panelRef.current)
+          }
+          if (!ownerDocument || typeof ownerDocument.addEventListener !== 'function') return undefined
           const onKeyDown = (event) => {
             if (!event || event.key !== 'Escape' || event.repeat) return
             if (typeof event.preventDefault === 'function') event.preventDefault()
@@ -281,9 +301,11 @@ window.__ModuleLoader__.load({
           ownerDocument.addEventListener('keydown', onKeyDown, true)
           return () => {
             ownerDocument.removeEventListener('keydown', onKeyDown, true)
-            focusIfConnected(returnFocusRef && returnFocusRef.current)
+            closeReasonRef.current = closeReasonRef.current || orbitCloseReasons.get(returnFocusRef) || null
+            if (closeReasonRef.current === 'escape') focusIfConnected(returnFocusRef && returnFocusRef.current)
+            closeReasonRef.current = null
           }
-        }, [open, close, ownerDocument, panelRef, returnFocusRef])
+        }, [open, position, close, ownerDocument, panelRef, returnFocusRef])
 
         if (!open) return null
         if (!anchorRef || typeof anchorRef !== 'object') {
@@ -350,7 +372,7 @@ window.__ModuleLoader__.load({
     }
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.269'
+    const CLIENT_VERSION = '0.9.270'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。

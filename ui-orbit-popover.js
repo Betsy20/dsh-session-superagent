@@ -3,6 +3,8 @@
 // 这里不包含 watcher 轮询、行数据、删除请求、确认 Modal 或另一套定位实现。
 
 const DEFAULT_ORBIT_Z_INDEX = 1100
+// confirm 由父组件的 useOrbitConfirm 直接关闭 orbit，不经过 OrbitPopover.close；按 ref 关联原因，避免新增公开参数。
+const orbitCloseReasons = new WeakMap()
 
 function focusIfConnected(node) {
   if (!node || typeof node.focus !== 'function') return false
@@ -81,11 +83,15 @@ export function createOrbitPopover({ React, primitives } = {}) {
     const returnFocusRef = orbitRef || anchorRef
     const onCloseRef = React.useRef(onClose)
     onCloseRef.current = onClose
+    const didFocusRef = React.useRef(false)
+    const closeReasonRef = React.useRef(null)
 
     // stable close：父级轮询重渲染只更新 ref，不重建外点 effect 或焦点 effect。
     const close = React.useCallback((detail) => {
+      const reason = closeReason(detail)
+      closeReasonRef.current = reason.reason
       const callback = onCloseRef.current
-      if (typeof callback === 'function') callback(closeReason(detail))
+      if (typeof callback === 'function') callback(reason)
     }, [])
 
     // 两个宿主 hooks 与本地 effect 都在 if (!open) return 之前无条件调用。
@@ -107,11 +113,20 @@ export function createOrbitPopover({ React, primitives } = {}) {
       ? portalTarget.ownerDocument
       : (typeof document !== 'undefined' ? document : null)
 
+    // effect 在 portal mount 后运行；非 Modal dialog 自身接收初始焦点，不做焦点陷阱。
     React.useEffect(() => {
-      if (!open || !ownerDocument || typeof ownerDocument.addEventListener !== 'function') return undefined
-
-      // effect 在 portal mount 后运行；非 Modal dialog 自身接收初始焦点，不做焦点陷阱。
-      focusIfConnected(panelRef.current)
+      if (!open) {
+        didFocusRef.current = false
+        closeReasonRef.current = null
+        orbitCloseReasons.delete(returnFocusRef)
+        return undefined
+      }
+      // 首帧 position=null 时 surface 是 hidden，focus() 会被浏览器拒绝；等可见后只尝试一次。
+      if (position && !didFocusRef.current) {
+        didFocusRef.current = true
+        focusIfConnected(panelRef.current)
+      }
+      if (!ownerDocument || typeof ownerDocument.addEventListener !== 'function') return undefined
       const onKeyDown = (event) => {
         if (!event || event.key !== 'Escape' || event.repeat) return
         if (typeof event.preventDefault === 'function') event.preventDefault()
@@ -121,10 +136,12 @@ export function createOrbitPopover({ React, primitives } = {}) {
       ownerDocument.addEventListener('keydown', onKeyDown, true)
       return () => {
         ownerDocument.removeEventListener('keydown', onKeyDown, true)
-        // 永远回圆环，不回面板里可能已随关闭/删除卸载的按钮。
-        focusIfConnected(returnFocusRef && returnFocusRef.current)
+        closeReasonRef.current = closeReasonRef.current || orbitCloseReasons.get(returnFocusRef) || null
+        // 外点要把焦点留给用户点击的目标；确认要让 Modal 持有焦点。只有 Escape 显式回圆环。
+        if (closeReasonRef.current === 'escape') focusIfConnected(returnFocusRef && returnFocusRef.current)
+        closeReasonRef.current = null
       }
-    }, [open, close, ownerDocument, panelRef, returnFocusRef])
+    }, [open, position, close, ownerDocument, panelRef, returnFocusRef])
 
     if (!open) return null
     if (!anchorRef || typeof anchorRef !== 'object') {
@@ -172,6 +189,10 @@ export function createOrbitPopover({ React, primitives } = {}) {
 
     const requestConfirm = React.useCallback((detail = {}) => {
       restoreFocusRef.current = 'orbit'
+      const ref = orbitRefRef.current
+      if (ref && (typeof ref === 'object' || typeof ref === 'function')) {
+        orbitCloseReasons.set(ref, 'confirm')
+      }
       if (typeof onCloseOrbitRef.current === 'function') {
         onCloseOrbitRef.current({ reason: 'confirm' })
       }

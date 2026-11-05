@@ -5,9 +5,9 @@
 ## 当前状态
 
 - Modal/Toast：主面板已接入（0.9.267），orbit 仍保留 superagent 同源确认。
-- InfoTip：已接 DSH Tooltip，scroll-close 与 fallback 测试 5/5。
-- OrbitPopover：独立适配器与确认焦点策略测试 10/10；StatusOrbit 集成在 T58。
-- 真实 WebView 的 portal、焦点、计时、读屏与双主题键鼠仍未验，不能因测试桩全绿提前删除回退路径。
+- InfoTip：已接 DSH Tooltip；真实 Chromium 的 scroll-close、ref detach/attach 与焦点归还已实测通过。
+- OrbitPopover：已接入 StatusOrbit；真实 Chromium 发现首帧 hidden 聚焦失败、outside/confirm 清理抢焦点，T64 修复中。
+- 真实 DSH WebView 的宿主 slot、计时、读屏与双主题键鼠仍未验，不能因测试桩全绿提前删除回退路径。
 
 ## 顺序与可写边界
 

@@ -71,6 +71,9 @@ export function createHostUi({ React, primitives } = {}) {
 
   function Tooltip({ text, icon = 'question', warn = false, children } = {}) {
     const HostTooltip = primitive('Tooltip')
+    if (typeof React.cloneElement !== 'function') {
+      throw new TypeError('Tooltip 需要宿主 React.cloneElement 以合并 trigger ref')
+    }
     const [remountKey, setRemountKey] = React.useState(0)
     const triggerNodeRef = React.useRef(null)
     const restoreFocusRef = React.useRef(false)

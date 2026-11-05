@@ -201,7 +201,8 @@ function loadClient(options = {}) {
         window.removeEventListener('scroll', onScroll, true)
       }
     }, [anchorOptions.open])
-    return anchorOptions.open ? (options.position || { left: 32, top: 48 }) : null
+    if (!anchorOptions.open) return null
+    return Object.hasOwn(options, 'position') ? options.position : { left: 32, top: 48 }
   }
 
   function useDismissOnOutsidePointer(panelRef, active, close, anchorRef) {
@@ -315,6 +316,7 @@ function loadClient(options = {}) {
     renderOrbit,
     commitEffects,
     setState,
+    setPosition(value) { options.position = value },
     resetStateCalls: () => { stateCalls.length = 0 },
     fetchCalls,
   }
@@ -415,7 +417,29 @@ test('DSH 空态业务宽度 252、常规 368，关闭时仍调用定位与外�
   assert.deepEqual(normal.hookLog, empty.hookLog)
 })
 
-test('DSH 外点关闭，resize/scroll/pointer/key 监听对称清理并回焦圆环，且无旧 capture mousedown', () => {
+test('DSH position null→visible 才聚焦一次，后续 position 更新不重复抢焦点', () => {
+  const client = loadClient({ position: null })
+  const hidden = client.renderOrbit({ watchers: [], open: true })
+  const ring = attach(ringOf(hidden.nodes), 'orbit-ring')
+  const panel = attach(one(hidden.nodes.filter((node) => node.type === MENU_SURFACE), '缺隐藏 surface'), 'dialog')
+  assert.equal(one(hidden.nodes.filter((node) => node.type === MENU_SURFACE), '缺隐藏 surface').props.style.visibility, 'hidden')
+  client.commitEffects()
+  assert.equal(panel.calls.length, 0, '隐藏首帧不得聚焦')
+
+  client.setPosition({ left: 32, top: 48 })
+  const visible = client.renderOrbit()
+  assert.equal(one(visible.nodes.filter((node) => node.type === MENU_SURFACE), '缺可见 surface').props.style.visibility, 'visible')
+  client.commitEffects()
+  assert.equal(panel.calls.length, 1, '定位可见后必须补做初始聚焦')
+
+  client.setPosition({ left: 96, top: 112 })
+  client.renderOrbit()
+  client.commitEffects()
+  assert.equal(panel.calls.length, 1, '后续定位更新不得重复聚焦')
+  assert.equal(ring.calls.length, 0, '定位更新清理不得抢回圆环')
+})
+
+test('DSH 外点关闭对称清理监听且不回焦圆环，外部按钮保留焦点', () => {
   const client = loadClient()
   const opened = client.renderOrbit({ watchers: [watcher()], open: true })
   const ring = attach(ringOf(opened.nodes), 'orbit-ring')
@@ -428,7 +452,9 @@ test('DSH 外点关闭，resize/scroll/pointer/key 监听对称清理并回焦�
   }
   assert.equal(client.document.registrations.some(([type, , capture]) => type === 'mousedown' && capture === true), false)
 
+  const outside = focusable('outside-button')
   client.dismissCalls.at(-1)[2](false)
+  outside.focus()
   assert.equal(client.stateCalls.at(-1).next, false)
   const closed = client.renderOrbit()
   assert.deepEqual(closed.hookLog, opened.hookLog)
@@ -438,7 +464,8 @@ test('DSH 外点关闭，resize/scroll/pointer/key 监听对称清理并回焦�
     assert.equal(target.listeners.some((item) => item.type === type), false, '关闭后仍残留 ' + type)
     assert.equal(target.removals.some(([name]) => name === type), true, '缺移除记录 ' + type)
   }
-  assert.equal(ring.calls.length, 1, '外点关闭清理必须回圆环')
+  assert.equal(outside.calls.length, 1)
+  assert.equal(ring.calls.length, 0, '外点关闭清理不得从外部按钮抢回圆环')
 })
 
 test('DSH Escape prevent/stop 后关闭，初始焦点到 dialog，清理归还圆环', () => {
@@ -465,7 +492,7 @@ test('DSH Escape prevent/stop 后关闭，初始焦点到 dialog，清理归还�
   assert.equal(client.document.listeners.some((item) => item.type === 'keydown'), false)
 })
 
-test('DSH 删除状态顺序为 orbit close → 选中 watcher → 本地 Modal；取消只回焦圆环', () => {
+test('DSH 删除先关 orbit 再开 Modal；confirm 清理不抢 Modal 焦点，取消才显式回圆环', () => {
   const client = loadClient()
   const row = watcher()
   const opened = client.renderOrbit({ watchers: [row], open: true })
@@ -482,7 +509,13 @@ test('DSH 删除状态顺序为 orbit close → 选中 watcher → 本地 Modal�
   assert.strictEqual(client.stateCalls[1].next, row, '再选中待删 watcher 以打开确认')
 
   const confirming = client.renderOrbit()
+  const modalCancel = focusable('modal-cancel')
+  modalCancel.focus()
+  client.document.activeElement = modalCancel
+  // 对齐真实 Chromium 证据：Modal 初始焦点已经到来，Orbit cleanup 随后才执行。
   client.commitEffects()
+  assert.equal(modalCancel.calls.length, 1)
+  assert.equal(ring.calls.length, 0, 'Orbit confirm 清理不得覆盖 Modal 初始焦点')
   assert.equal(confirming.nodes.some((node) => node.type === PORTAL || node.type === MENU_SURFACE), false, '确认期间 orbit 不得盖住 Modal')
   const modal = one(localModals(confirming.nodes), '缺 modalContext=orbit 的本地确认 Modal')
   assert.equal(modal.props['aria-modal'], 'true')
@@ -494,7 +527,7 @@ test('DSH 删除状态顺序为 orbit close → 选中 watcher → 本地 Modal�
   const cancelled = client.renderOrbit()
   client.commitEffects()
   assert.equal(localModals(cancelled.nodes).length, 0)
-  assert.equal(ring.calls.length >= 2, true, '取消必须显式回焦圆环')
+  assert.equal(ring.calls.length, 1, '取消只能由 onConfirmClose 显式回焦圆环一次')
 })
 
 test('DSH 删除完成只发一次 delete，确认关闭后焦点仍回圆环而非已卸载按钮', async () => {
@@ -514,15 +547,19 @@ test('DSH 删除完成只发一次 delete，确认关闭后焦点仍回圆环而
   client.document.activeElement = deletedButton
   button(opened.nodes, '删除').props.onClick()
   const confirming = client.renderOrbit()
+  const modalCancel = focusable('modal-cancel')
+  modalCancel.focus()
+  client.document.activeElement = modalCancel
   client.commitEffects()
   assert.equal(localModals(confirming.nodes).length, 1)
+  assert.equal(ring.calls.length, 0, 'confirm 清理不得抢 Modal 初始焦点')
 
   assert.equal(await button(confirming.nodes, '确认删除').props.onClick(), true)
   const writes = calls.filter(([, init]) => init?.method === 'POST')
   assert.equal(writes.length, 1)
   assert.deepEqual(JSON.parse(writes[0][1].body), { action: 'delete', id: 'a/b#s1' })
   assert.equal(deletedButton.calls.length, 0)
-  assert.equal(ring.calls.length >= 2, true, '完成后必须回焦圆环')
+  assert.equal(ring.calls.length, 1, '完成后只能由 onConfirmClose 显式回焦圆环一次')
   const done = client.renderOrbit()
   client.commitEffects()
   assert.equal(localModals(done.nodes).length, 0)

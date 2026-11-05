@@ -32,6 +32,10 @@ InfoTip 已接 DSH Tooltip（scroll-close、aria 映射与独立回退）；Stat
 
 Tooltip scroll-close 在独立模块与主面板同步保留 trigger 焦点，合并函数/对象 ref；Orbit 触发按钮删除全部 inline style，改官方 ghost 与 token。全量 **535/535**，UI 体检 **11/11=100**，浅色 16 组 ≤ 基线、深色 13 组 ≤ 基线。
 
+## 实施回写（0.9.270）
+
+真实 Chromium 验收 27/27；Orbit 修复 visible 后聚焦、outside/confirm 不抢焦点、Escape 回焦与 confirm reason 桥接。新增 cloneElement 防线；适配器同源审计 84 项。全量 **544/544**。未验真实 DSH WebView 的宿主 slot、读屏与 watcher 请求。
+
 ## 0. 基线、口径与复用边界
 
 | 来源 | 本次核对基线 | 用法 |

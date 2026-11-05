@@ -28,6 +28,7 @@ function harness({ position = { left: 32, top: 48 }, skipCreate = false } = {}) 
   let cursor = 0
   let hookLog = []
   let effects = []
+  let currentPosition = position
 
   function slot(kind, create) {
     const index = cursor
@@ -76,7 +77,7 @@ function harness({ position = { left: 32, top: 48 }, skipCreate = false } = {}) 
       anchorCalls.push(options)
       hookLog.push('primitive-anchor')
       React.useLayoutEffect(() => undefined, [options.open])
-      return options.open && position !== null ? position : null
+      return options.open && currentPosition !== null ? currentPosition : null
     },
     useDismissOnOutsidePointer(...args) {
       dismissCalls.push(args)
@@ -100,6 +101,7 @@ function harness({ position = { left: 32, top: 48 }, skipCreate = false } = {}) 
     dismissCalls,
     render,
     slots,
+    setPosition(value) { currentPosition = value },
   }
   if (!skipCreate) result.ui = createOrbitPopover({ React, primitives })
   return result
@@ -266,6 +268,7 @@ test('本地 effect 初始聚焦 surface，Escape prevent/stop 并关闭，clean
   }))
   const surface = surfaceOf(rendered.value)
   surface.ref.current = panel
+  rendered.effects.at(-2).create()
   const cleanup = rendered.effects.at(-1).create()
   assert.equal(panel.calls.length, 1, 'effect mount 后应初始聚焦 dialog')
   assert.equal(fakeDom.registrations.length, 1)
@@ -291,6 +294,131 @@ test('本地 effect 初始聚焦 surface，Escape prevent/stop 并关闭，clean
   assert.deepEqual(fakeDom.removals, [[eventName, listener, true]])
   assert.equal(ring.calls.length, 1, '关闭清理必须回焦圆环')
   assert.equal(panel.calls.length, 1, 'cleanup 不得回焦旧 surface')
+})
+
+test('position null→visible 才聚焦一次，后续定位更新不抢焦点，重新 open 才重置', () => {
+  const fakeDom = fakeDocument()
+  const { ui, render, setPosition } = harness({ position: null })
+  const ring = focusable('orbit-ring')
+  const panel = focusable('dialog')
+  const anchorRef = { current: ring }
+  const panelRef = { current: panel }
+  const props = {
+    anchorRef,
+    orbitRef: anchorRef,
+    panelRef,
+    onClose() {},
+    width: 368,
+    portalTarget: fakeDom.body,
+  }
+
+  const hidden = render(() => ui.OrbitPopover({ ...props, open: true }))
+  assert.equal(surfaceOf(hidden.value).props.style.visibility, 'hidden')
+  hidden.effects.at(-2).create()
+  const hiddenCleanup = hidden.effects.at(-1).create()
+  assert.equal(panel.calls.length, 0, 'position=null 的隐藏首帧不得聚焦')
+
+  setPosition({ left: 32, top: 48 })
+  const visible = render(() => ui.OrbitPopover({ ...props, open: true }))
+  hiddenCleanup()
+  visible.effects.at(-2).create()
+  const visibleCleanup = visible.effects.at(-1).create()
+  assert.equal(surfaceOf(visible.value).props.style.visibility, 'visible')
+  assert.equal(panel.calls.length, 1, 'position 到达后必须补做一次初始聚焦')
+
+  setPosition({ left: 64, top: 80 })
+  const moved = render(() => ui.OrbitPopover({ ...props, open: true }))
+  visibleCleanup()
+  moved.effects.at(-2).create()
+  const movedCleanup = moved.effects.at(-1).create()
+  assert.equal(panel.calls.length, 1, 'scroll/resize 导致 position 更新不得重复聚焦')
+  assert.equal(ring.calls.length, 0, '定位 effect 重跑不得回焦圆环')
+
+  movedCleanup()
+  const closed = render(() => ui.OrbitPopover({ ...props, open: false }))
+  closed.effects.at(-1).create()
+  const reopened = render(() => ui.OrbitPopover({ ...props, open: true }))
+  reopened.effects.at(-2).create()
+  const reopenedCleanup = reopened.effects.at(-1).create()
+  assert.equal(panel.calls.length, 2, '每次重新 open 应重新获得一次自动聚焦')
+  reopenedCleanup()
+})
+
+test('outside-pointer 清理不回焦圆环，也不覆盖外部按钮焦点', () => {
+  const fakeDom = fakeDocument()
+  const { ui, render, dismissCalls } = harness()
+  const ring = focusable('orbit-ring')
+  const panel = focusable('dialog')
+  const outside = focusable('outside-button')
+  const anchorRef = { current: ring }
+  const panelRef = { current: panel }
+  const closed = []
+  const rendered = render(() => ui.OrbitPopover({
+    open: true,
+    anchorRef,
+    orbitRef: anchorRef,
+    panelRef,
+    onClose: (detail) => closed.push(detail),
+    width: 368,
+    portalTarget: fakeDom.body,
+  }))
+  rendered.effects.at(-2).create()
+  const cleanup = rendered.effects.at(-1).create()
+  assert.equal(panel.calls.length, 1)
+
+  dismissCalls.at(-1)[2](false)
+  outside.focus()
+  cleanup()
+  assert.deepEqual(closed, [{ reason: 'outside-pointer' }])
+  assert.equal(outside.calls.length, 1)
+  assert.equal(ring.calls.length, 0, '外点关闭必须把焦点留给外部目标')
+})
+
+test('confirm 清理不覆盖 Modal 初始焦点，onConfirmClose 才显式回圆环', () => {
+  const fakeDom = fakeDocument()
+  const { ui, render } = harness()
+  const ring = focusable('orbit-ring')
+  const panel = focusable('dialog')
+  const modalCancel = focusable('modal-cancel')
+  const orbitRef = { current: ring }
+  const panelRef = { current: panel }
+  const closed = []
+  const renderPair = (open) => render(() => {
+    const confirm = ui.useOrbitConfirm({
+      orbitRef,
+      onCloseOrbit: (detail) => closed.push(detail),
+      onRequestConfirm() {},
+    })
+    const popover = ui.OrbitPopover({
+      open,
+      anchorRef: orbitRef,
+      orbitRef,
+      panelRef,
+      onClose() {},
+      width: 368,
+      portalTarget: fakeDom.body,
+    })
+    return { confirm, popover }
+  })
+
+  const opened = renderPair(true)
+  opened.effects.at(-2).create()
+  const cleanup = opened.effects.at(-1).create()
+  assert.equal(panel.calls.length, 1)
+  opened.value.confirm.onRequestConfirm()
+  assert.deepEqual(closed, [{ reason: 'confirm' }])
+
+  // 真实 Chromium 的提交顺序：Modal 初始焦点先到 #modal-cancel，Orbit cleanup 随后运行。
+  modalCancel.focus()
+  const confirming = renderPair(false)
+  cleanup()
+  assert.equal(modalCancel.calls.length, 1)
+  assert.equal(ring.calls.length, 0, 'confirm 清理不得从 Modal 抢回圆环')
+  confirming.effects.at(-1).create()
+
+  assert.equal(confirming.value.confirm.onConfirmClose(), true)
+  assert.equal(ring.calls.length, 1, '确认层关闭后才由 onConfirmClose 显式回圆环')
+  assert.equal(modalCancel.calls.length, 1)
 })
 
 test('首帧 position=null 只隐藏 surface，不自行 flip、center 或发明备用坐标', () => {

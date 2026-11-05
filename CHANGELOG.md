@@ -2,6 +2,37 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.270] - 2026-11-05 —— 真实 Chromium 验收 27/27，Orbit 焦点链修复
+
+独立 `ui-host-primitives.js` 的 Tooltip 需要 `React.cloneElement` 合并 trigger ref。
+老宿主缺少该能力时，现在直接给出可读错误：
+
+```text
+Tooltip 需要宿主 React.cloneElement 以合并 trigger ref
+```
+
+不再在渲染深处抛「React.cloneElement is not a function」。
+主面板已有独立 forwardRef 回退，不受这次模块防线影响。
+
+### Orbit 真实焦点链
+
+真实 Chromium 首先发现并复验修复了三个测试桩未覆盖的问题：
+首帧 hidden 聚焦失败、Orbit cleanup 覆盖 Modal autofocus、外点被强制回圆环。
+现在 visible 后每次 open 只聚焦一次；outside/confirm 不抢焦点；Escape 回圆环；
+确认关闭后才显式回圆环。独立适配器与 UMD 实现同步，confirm reason 可跨父组件关闭路径传递。
+
+### 证据
+
+```
+test/host-primitives-adapter.test.mjs → 12/12（新增缺 cloneElement 用例）
+Orbit 独立适配器 → 13/13；UMD 集成 → 8/8
+适配器同源审计 → 84 项结构化断言 + 4 条测试，含 holdMs/openOnClick 变异反例
+真实 Chromium 156.0.8078.74 → 27/27，含 Tooltip/Orbit/Modal 焦点与事件
+npm test → 544/544
+```
+
+T61/T62/T64 均已完成；真实 DSH WebView 的宿主 slot、读屏与 watcher 请求仍列入走查。
+
 ## [0.9.269] - 2026-11-05 —— Tooltip 不再丢焦点，Orbit 触发按钮去 inline 化
 
 ### Tooltip scroll-close 保留焦点
