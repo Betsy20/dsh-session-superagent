@@ -33,7 +33,8 @@ test('truncateUtf8：非法上限（0 / 负数 / NaN）原样返回，别把请�
 // 而不是让 CI（Linux + small-icu）红。
 const hasGbk = (() => { try { new TextDecoder('gbk'); return true } catch { return false } })()
 
-test('decodeBody：UTF-8 直接过，GBK 回退仍生效', { skip: hasGbk ? false : '本机 Node 不支持 gbk（small-icu）' }, () => {
+
+test('decodeBody：UTF-8 直接过，GBK 回退仍生效', { skip: !hasGbk ? '本机 Node 不支持 gbk（small-icu 构建）：decodeBody 会按设计退回 UTF-8' : false }, () => {
   assert.equal(decodeBody(Buffer.from('主工作区', 'utf8')), '主工作区')
   // GBK 的「主工作区」字节
   const gbk = Buffer.from([0xd6, 0xf7, 0xb9, 0xa4, 0xd7, 0xf7, 0xc7, 0xf8])
