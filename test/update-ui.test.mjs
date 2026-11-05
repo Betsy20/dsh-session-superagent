@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 
-import { deskQueue, walk } from './fixtures/panel-harness.mjs'
+import { deskQueue, walk, watcher } from './fixtures/panel-harness.mjs'
 
 const SOURCE = readFileSync(new URL('../client.js', import.meta.url), 'utf8')
 const PRIMITIVES_MODULE = '@deepseek-ai/dsh-client-ui-primitives'
@@ -74,18 +74,24 @@ function loadClient(options = {}) {
     console,
   }
   vm.createContext(sandbox)
-  vm.runInContext(SOURCE, sandbox)
+  // 只在定向测试显式要求时暴露真实 Btn；生产文件与分支逻辑不变，仅追加一个测试捕获点。
+  const source = options.captureBtn
+    ? SOURCE.replace('    const UpdateButton = hostButton || Btn', '    window.__BtnForTest = Btn\n    const UpdateButton = hostButton || Btn')
+    : SOURCE
+  if (options.captureBtn) assert.notEqual(source, SOURCE, '必须捕获真实 Btn，不能测试手写复制品')
+  vm.runInContext(source, sandbox)
   assert.ok(mod, 'client.js 必须调用 __ModuleLoader__.load')
 
   const React = {
     Fragment: Symbol('Fragment'),
     createElement(type, props, ...children) {
-      const { key, ...rest } = props || {}
+      const { key, ref, ...rest } = props || {}
       const node = {
         type,
         props: { ...rest, children: children.flat(Infinity).filter((child) => child !== null && child !== undefined && child !== false) },
       }
       if (key !== undefined) node.key = key
+      if (ref !== undefined) node.ref = ref
       return node
     },
     isValidElement: (value) => Boolean(value && typeof value === 'object' && 'type' in value),
@@ -143,6 +149,7 @@ function loadClient(options = {}) {
     registrations,
     render,
     timers,
+    Btn: sandbox.window.__BtnForTest,
     stateCalls: () => stateCalls,
     resetStateCalls: () => { stateCalls.length = 0 },
   }
@@ -176,8 +183,8 @@ function deskOf(client) {
   return client.registrations.find((item) => item.opts.id === 'session-superagent-desk')
 }
 
-function nodesOf(client, queue) {
-  return walk(client.render(deskOf(client), queue))
+function nodesOf(client, queue, props = {}) {
+  return walk(client.render(deskOf(client), queue, props))
 }
 
 function nodeText(node) {
@@ -224,6 +231,164 @@ function postsOf(calls) {
 function hookIndexes(base) {
   return { result: base.length, open: base.length + 1, busy: base.length + 2 }
 }
+
+test('Btn primary：直接委托 DSH Button，type/ref/key 与业务 props 原样保留，其它 variant 不迁移', () => {
+  const client = loadClient({ primitives: HOST, captureBtn: true })
+  assert.equal(typeof client.Btn, 'function')
+  const onClick = () => {}
+  const ref = { current: null }
+  const icon = { type: 'svg', props: { children: [] } }
+  const node = client.Btn({
+    variant: 'primary', size: 'sm', icon, children: '保存 goal',
+    className: 'dt-btn-busy dt-danger', type: 'submit', ref, key: 'goal-save',
+    disabled: true, 'aria-label': '保存 goal', 'aria-busy': 'true', onClick,
+  })
+  assert.equal(node.type, HOST.Button)
+  assert.equal(node.props.variant, 'primary')
+  assert.equal(node.props.size, 'sm')
+  assert.equal(node.props.type, 'submit', '显式 type=submit 必须覆盖默认 button')
+  assert.strictEqual(node.ref, ref, 'DSH forwardRef 的 ref 必须留在 element.ref')
+  assert.equal(node.key, 'goal-save')
+  assert.equal(node.props.key, undefined, 'key 不能被改写进 props')
+  assert.strictEqual(node.props.icon, icon)
+  assert.strictEqual(node.props.onClick, onClick)
+  assert.equal(node.props.disabled, true)
+  assert.equal(node.props['aria-label'], '保存 goal')
+  assert.equal(node.props['aria-busy'], 'true')
+  assert.equal(node.props.className, 'dt-btn-busy dt-danger')
+  assert.ok(!hasClass(node, 'dt-btn') && !hasClass(node, 'dt-btn-primary'), '宿主路径不得重新引入旧 primary CSS')
+  assert.deepEqual(node.props.children, ['保存 goal'], 'icon 交给宿主，不能复刻旧 span 结构')
+  assert.equal(client.Btn({ variant: 'primary', children: '保存' }).props.type, 'button')
+
+  const ghost = client.Btn({ variant: 'ghost', size: 'sm', icon, children: '取消', className: 'business' })
+  assert.equal(ghost.type, 'button')
+  assert.equal(ghost.props.type, 'button')
+  assert.ok(hasClass(ghost, 'dt-btn') && hasClass(ghost, 'dt-btn-ghost') && hasClass(ghost, 'dt-btn-sm'))
+  assert.ok(hasClass(ghost, 'business'))
+  assert.equal(ghost.props.children[0].props.className, 'dt-btn-icon')
+})
+
+test('Btn primary：老宿主缺 Button 或整个 primitives 时完整回退旧 DOM 与 props', () => {
+  for (const primitives of [undefined, {}]) {
+    const client = loadClient({ primitives, captureBtn: true })
+    const onClick = () => {}
+    const ref = { current: null }
+    const icon = { type: 'svg', props: { children: [] } }
+    const node = client.Btn({
+      variant: 'primary', size: 'sm', icon, children: '确认删除',
+      className: 'dt-btn-busy dt-danger', type: 'submit', ref, key: 'delete-confirm',
+      disabled: true, 'aria-label': '确认删除', 'aria-busy': 'true', onClick,
+    })
+    assert.equal(node.type, 'button')
+    assert.equal(node.props.type, 'submit')
+    assert.strictEqual(node.ref, ref)
+    assert.equal(node.key, 'delete-confirm')
+    assert.equal(node.props.key, undefined)
+    assert.strictEqual(node.props.onClick, onClick)
+    assert.equal(node.props.disabled, true)
+    assert.equal(node.props['aria-label'], '确认删除')
+    assert.equal(node.props['aria-busy'], 'true')
+    for (const name of ['dt-btn', 'dt-btn-primary', 'dt-btn-sm', 'dt-btn-busy', 'dt-danger']) {
+      assert.ok(hasClass(node, name), 'fallback 缺 class：' + name)
+    }
+    assert.equal(node.props.children[0].props.className, 'dt-btn-icon')
+    assert.strictEqual(node.props.children[0].props.children[0], icon)
+    assert.equal(node.props.children[1], '确认删除')
+  }
+})
+
+test('现有 8 个直接 Btn primary 场景全部委托；SaveBar 的 ghost 仍保持旧 Btn', () => {
+  const client = loadClient({ primitives: HOST })
+  const empty = snapshot()
+  let delegated = 0
+  const primary = (label, queue, props = {}) => {
+    const nodes = nodesOf(client, queue, props)
+    const node = control(nodes, label)
+    assert.equal(node.type, HOST.Button, label + ' 必须委托 DSH Button')
+    assert.equal(node.props.variant, 'primary')
+    assert.ok(!hasClass(node, 'dt-btn') && !hasClass(node, 'dt-btn-primary'), label + ' 不得带旧 primary CSS')
+    delegated += 1
+    return node
+  }
+
+  const onboarding = primary('去添加第一条', deskQueue(empty))
+  assert.equal(onboarding.props.type, 'button')
+  assert.equal(onboarding.props.size, 'md')
+  assert.ok(onboarding.props.icon)
+  assert.equal(typeof onboarding.props.onClick, 'function')
+
+  const judgeEmpty = primary('去添加第一条', deskQueue(empty, null, {}, 'judge'))
+  assert.equal(judgeEmpty.props.size, 'sm')
+
+  const blankCreate = primary('添加到当前会话', deskQueue(empty, null, {}, 'trigger'), { sessionId: 's1' })
+  assert.equal(blankCreate.props.type, 'submit')
+  assert.equal(blankCreate.props.disabled, true)
+  assert.equal(blankCreate.props['aria-label'], '添加到当前会话')
+  assert.ok(blankCreate.props.icon)
+
+  const dirty = deskQueue(empty, null, {}, 'trigger')
+  dirty[3] = { ...dirty[3], repo: 'acme/widgets' }
+  const save = primary('添加到当前会话', dirty, { sessionId: 's1' })
+  assert.equal(save.props.type, 'submit')
+  assert.equal(save.props.size, 'sm')
+  assert.equal(save.props.disabled, false)
+  const discard = control(nodesOf(client, dirty, { sessionId: 's1' }), '放弃')
+  assert.equal(discard.type, 'button', '非 primary 必须保留旧 Btn')
+  assert.ok(hasClass(discard, 'dt-btn') && hasClass(discard, 'dt-btn-ghost'))
+
+  const creds = deskQueue(empty, null, {}, 'settings')
+  creds[14] = 'creds'
+  const saveCredentials = primary('保存凭证', creds)
+  assert.equal(saveCredentials.props.type, 'button')
+  assert.equal(typeof saveCredentials.props.onClick, 'function')
+
+  const goal = deskQueue(empty, null, {}, 'settings')
+  goal[14] = 'goal'
+  const saveGoal = primary('保存 goal', goal, { sessionId: 's1' })
+  assert.equal(saveGoal.props.disabled, false)
+  assert.equal(typeof saveGoal.props.onClick, 'function')
+
+  const failed = deskQueue({ ...empty, error: 'Failed to fetch' })
+  assert.equal(typeof primary('重试', failed).props.onClick, 'function')
+
+  const rules = snapshot()
+  rules.body.watchers = [watcher('a/b', { silentWakes: 3 })]
+  const rulesQueue = deskQueue(rules)
+  rulesQueue[11] = 'rules:a/b'
+  const copyRules = primary('复制这段规则', rulesQueue)
+  assert.equal(copyRules.props.size, 'sm')
+  assert.equal(typeof copyRules.props.onClick, 'function')
+  assert.equal(delegated, 8, '必须真实渲染并验收 8 个直接 primary 场景')
+})
+
+test('共享删除确认 primary 委托后仍透传 danger/busy/disabled/aria，取消保持旧 ghost', () => {
+  const client = loadClient({ primitives: HOST })
+  const state = snapshot()
+  state.body.watchers = [watcher('a/b', { id: 'a/b#s1' })]
+  const base = deskQueue(state)
+  const opened = nodesOf(client, [...base, true, false])
+  const footer = walk(hostModal(opened).props.footer)
+  const cancel = control(footer, '取消')
+  assert.equal(cancel.type, 'button')
+  assert.ok(hasClass(cancel, 'dt-btn-ghost'))
+  const confirm = control(footer, '确认删除')
+  assert.equal(confirm.type, HOST.Button)
+  assert.equal(confirm.props.type, 'button')
+  assert.equal(confirm.props.size, 'md')
+  assert.equal(confirm.props.disabled, false)
+  assert.equal(confirm.props['aria-label'], '确认删除')
+  assert.equal(confirm.props['aria-busy'], undefined)
+  assert.equal(typeof confirm.props.onClick, 'function')
+  assert.ok(hasClass(confirm, 'dt-danger'))
+  assert.ok(!hasClass(confirm, 'dt-btn-busy'))
+
+  const busyFooter = walk(hostModal(nodesOf(client, [...base, true, true])).props.footer)
+  const busy = control(busyFooter, '确认删除')
+  assert.equal(busy.type, HOST.Button)
+  assert.equal(busy.props.disabled, true)
+  assert.equal(busy.props['aria-busy'], 'true')
+  assert.ok(hasClass(busy, 'dt-danger') && hasClass(busy, 'dt-btn-busy'))
+})
 
 test('hasUpdate 显示官方 primary 安装按钮；点击只确认，复制命令仍是真实 fallback', async () => {
   const calls = []

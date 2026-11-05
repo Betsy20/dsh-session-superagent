@@ -350,7 +350,7 @@ window.__ModuleLoader__.load({
     let hostOrbit = null
     try {
       const primitives = require('@deepseek-ai/dsh-client-ui-primitives')
-      // Button 独立探测：老宿主缺 Modal/Toast 时仍可复用官方按钮；缺 Button 则由 UpdateButton 回退 Btn。
+      // Button 独立探测：老宿主缺 Modal/Toast 时仍可复用官方按钮；缺 Button 时所有 primary 完整回退旧 Btn。
       hostButton = primitives.Button || null
       if (primitives && primitives.Modal && primitives.Toast && primitives.IconWarningOutlineMedium) {
         hostUi = createHostUi({ React, primitives })
@@ -683,13 +683,18 @@ window.__ModuleLoader__.load({
     const cx = (...names) => names.filter(Boolean).join(' ')
 
     function Btn({ variant = 'ghost', size = 'md', icon, children, className, ...rest }) {
+      if (variant === 'primary' && hostButton) {
+        // 只转发业务 className：旧 dt-btn-primary 会覆盖宿主主题，造成深色白底浅字。
+        // type 默认 button，但显式 submit 等原生 props（含 ref）必须原样交给 DSH Button；key 仍由 React 管理。
+        return h(hostButton, { type: 'button', ...rest, variant, size, icon, className }, children)
+      }
       // className 必须最后合并：之前 ...rest 直接覆盖，导致 ConfirmButton 的删除按钮丢掉全部样式
       return h('button', { type: 'button', ...rest, className: cx('dt-btn', 'dt-btn-' + variant, 'dt-btn-' + size, className) },
         icon !== undefined ? h('span', { className: 'dt-btn-icon' }, icon) : null,
         children)
     }
 
-    // 安装动作优先用 DSH Button；老宿主缺该导出时完整保留同源 Btn 的尺寸、variant 与交互。
+    // 保留安装动作现有调用面；其它 primary 也统一由 Btn 内的宿主分支委托，老宿主完整回退。
     const UpdateButton = hostButton || Btn
 
     function Tag({ tone = 'outline', title, children }) {
