@@ -8,6 +8,24 @@
 
 ---
 
+## 〇、UI 硬约束：原生 DSH 优先，最小自制
+
+本项目所有页面、二三级界面、弹层、空态、表单和状态栏 UI，**默认采用 DSH 原生 UI 结构树、官方素材与设计语言**，不重新设计一套。
+
+开工前必读：
+
+1. `D:/DeepSeek Harness/home/DSH-UI-official.md` 与 `D:/DeepSeek Harness/home/dsh-ui-official/`（唯一结构树/素材主库）；
+2. `docs/ui-decomp/01-dsh-ui-tree.md`、`docs/ui-decomp/03-gap-map.md`；
+3. superagent 同源控件需要时读 `docs/ui-decomp/02-superagent-assets.md`。
+
+执行顺序固定：**先查官方结构树和素材 → 能直接复用就直接复用 → 必须适配时只包一层 → 最后才允许最小 derived**。
+官方已有的组件、DOM 结构、图标、颜色 token、弹层行为和交互方式不得手画替代；不得用截图猜层级，不得重复拆 asar。
+只有官方确无同物时才可 derived，且必须在 `docs/ui-decomp/03-gap-map.md` 登记来源、理由、hash/版本与未验项。
+
+验收不能只看“能渲染”：真实可编辑/可点击、键盘路径、焦点归还、深浅主题和窄屏都要验。测试桩通过不等于真机交互通过。
+
+---
+
 ## 一、先定位你在哪一步
 
 别从头读到尾。先看自己在哪一格，只读那一格指的文件。
@@ -17,7 +35,7 @@
 | **刚接手**，只知道有这么一个插件 | [README](./README.md) → [MAINTENANCE](./MAINTENANCE.md) | 能说清「7 个工具各干什么」「服务端改动要重启才生效」 |
 | **查现状 / 交接** | [MAINTENANCE](./MAINTENANCE.md) 的「二、当前状态」 | `git status` + `node --test` 复跑，数字与本文件对得上 |
 | **改轮询 / 唤醒 / 水位逻辑** | [docs/01-架构.md](./docs/01-架构.md) → `lib/watch.js` → [docs/回归清单.md](./docs/回归清单.md) | `node --test` 全绿 + **至少加一条反向用例** |
-| **改面板 / 弹层 / 状态栏 UI** | [docs/design-system.md](./docs/design-system.md) → [docs/面板文案.md](./docs/面板文案.md) | `ui-audit` 100 分 + 深浅两套各一张图 + 文案快照已 `--write` |
+| **改面板 / 弹层 / 状态栏 UI** | 本文件「〇、UI 硬约束」→ DSH 官方主库 → [docs/design-system.md](./docs/design-system.md) → [docs/面板文案.md](./docs/面板文案.md) | 原生结构/素材已复用 + `ui-audit` 100 分 + 深浅两套各一张图 + 文案快照已 `--write` |
 | **改用户可见文案** | [docs/面板文案.md](./docs/面板文案.md) + `docs/kb/` 同类条目 | `render-panel-copy.mjs` / `first-run.mjs` 快照同步，preflight 绿 |
 | **加文档 / 写知识库** | [docs/kb/README.md](./docs/kb/README.md) 的四段约定 | `check-docs` 四项 PASS（含**总数与板块合计一致**） |
 | **发一个版本** | [UPDATING.md](./UPDATING.md) 全文 | 五处版本一致 + tag + Release（标题只写版本号）+ npm 已发布 |

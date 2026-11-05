@@ -20,6 +20,10 @@ ConfirmButton 已统一为「触发 → Modal → 取消/确认」，主面板�
 
 新增与行内编辑已共用 `WatcherForm`：统一 Field/Fields/Disclosure/SaveBar、数字 min/max、完整快照放弃恢复与 touched-only 保存。独立验收 8/8、定向 11/11、宿主适配层 8/8，全量 **486/486**，UI 体检 **11/11=100**；浅色 **15 组 ≤ 基线 16**、深色 **12 组 ≤ 基线 13**；窄屏 36 个 frame 无横向溢出。
 
+## 实施回写（0.9.267）
+
+修复 `.dt-open::after` 覆盖展开表单导致的“只能看不能改”：表单 z-index 提升，外壳改 `form.dt-card`；Chromium A/B 证实命中、焦点与键盘输入均恢复。主面板接入 DSH Modal/Toast，Tooltip 适配补 scroll-close；AGENTS 写入原生 DSH 优先、最小自制硬约束。全量 **500/500**，UI 体检 **11/11=100**。
+
 ## 0. 基线、口径与复用边界
 
 | 来源 | 本次核对基线 | 用法 |

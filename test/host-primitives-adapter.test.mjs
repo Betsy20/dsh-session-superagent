@@ -7,6 +7,7 @@ const ELEMENT = Symbol.for('react.element')
 
 function harness(overrides = {}) {
   const stateUpdates = []
+  const effects = []
   const React = {
     createElement(type, props, ...children) {
       const { key, ...rest } = props || {}
@@ -30,6 +31,9 @@ function harness(overrides = {}) {
     useCallback(callback) {
       return callback
     },
+    useEffect(create, deps) {
+      effects.push({ create, deps })
+    },
   }
   const primitives = {
     Modal: function HostModal() {},
@@ -40,7 +44,7 @@ function harness(overrides = {}) {
     IconInfoOutlineMedium: function InfoIcon() {},
     ...overrides,
   }
-  return { React, primitives, stateUpdates, ui: createHostUi({ React, primitives }) }
+  return { React, primitives, stateUpdates, effects, ui: createHostUi({ React, primitives }) }
 }
 
 test('Modal：open=false 返回 null；打开时只透传到 DSH Modal 并补中文 closeLabel', () => {
@@ -108,6 +112,82 @@ test('Tooltip：缺省 trigger 保留 InfoTip 的 button 与 warn 样式，图�
   assert.equal(trigger.props.className, 'dt-info dt-info-warn')
   assert.equal(trigger.props['aria-label'], '风险说明')
   assert.equal(trigger.props.children[0].type, primitives.IconQuestionOutlineMedium)
+})
+
+test('Tooltip scroll-close：capture scroll 递增 remount key，清理解绑且保留 trigger 与原 props', () => {
+  const { React, primitives, ui, stateUpdates, effects } = harness()
+  let generation
+  React.useState = (initial) => {
+    if (generation === undefined) generation = initial
+    return [generation, (next) => {
+      stateUpdates.push(next)
+      generation = typeof next === 'function' ? next(generation) : next
+    }]
+  }
+
+  const onMouseEnter = () => {}
+  const onFocus = () => {}
+  const onClick = () => {}
+  const trigger = React.createElement('button', {
+    type: 'button', className: 'custom', onMouseEnter, onFocus, onClick,
+  }, '帮助')
+  const originalTriggerProps = { ...trigger.props }
+  const originalProps = { text: '说明', warn: true, children: trigger }
+  const first = ui.Tooltip(originalProps)
+  assert.equal(first.key, 0)
+  assert.equal(effects.length, 1)
+  assert.deepEqual(effects[0].deps, [])
+
+  const registrations = []
+  const removals = []
+  const fakeWindow = {
+    addEventListener(...args) { registrations.push(args) },
+    removeEventListener(...args) { removals.push(args) },
+  }
+  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window')
+  try {
+    Object.defineProperty(globalThis, 'window', { configurable: true, writable: true, value: fakeWindow })
+    const cleanup = effects[0].create()
+    assert.equal(registrations.length, 1)
+    assert.equal(registrations[0].length, 3)
+    const [eventName, listener, capture] = registrations[0]
+    assert.equal(eventName, 'scroll')
+    assert.equal(typeof listener, 'function')
+    assert.equal(capture, true)
+
+    const scrollEvent = { type: 'scroll', target: { id: 'nested-scroller' } }
+    assert.equal(listener(scrollEvent), undefined)
+    assert.equal(typeof stateUpdates[0], 'function')
+    assert.equal(stateUpdates[0](4), 5, '必须函数式递增，不能把 scroll event 当作新 key')
+
+    const remounted = ui.Tooltip(originalProps)
+    assert.equal(first.key, 0)
+    assert.equal(remounted.key, 1)
+    assert.equal(remounted.type, primitives.Tooltip)
+    assert.equal(remounted.props.label, '说明')
+    assert.equal(remounted.props.side, 'top')
+    assert.equal(remounted.props.portal, true)
+    assert.equal(remounted.props.openOnClick, true)
+    assert.equal(remounted.props.gap, 8)
+    assert.deepEqual(remounted.props.children, [trigger])
+    assert.strictEqual(remounted.props.children[0], trigger)
+    assert.deepEqual(trigger.props, originalTriggerProps)
+    assert.strictEqual(trigger.props.onMouseEnter, onMouseEnter)
+    assert.strictEqual(trigger.props.onFocus, onFocus)
+    assert.strictEqual(trigger.props.onClick, onClick)
+    assert.equal(registrations.length, 1, '假 effect 只执行首轮；deps=[] 已另行记录')
+
+    assert.equal(typeof cleanup, 'function')
+    cleanup()
+    assert.equal(removals.length, 1)
+    assert.equal(removals[0].length, 3)
+    assert.equal(removals[0][0], 'scroll')
+    assert.strictEqual(removals[0][1], listener)
+    assert.equal(removals[0][2], true)
+  } finally {
+    if (previousWindow) Object.defineProperty(globalThis, 'window', previousWindow)
+    else delete globalThis.window
+  }
 })
 
 test('Tooltip：children 拒绝字符串、数组和 null，缺原语时显式报错而不自绘替代 Tooltip', () => {

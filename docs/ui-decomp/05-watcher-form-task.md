@@ -38,3 +38,10 @@
 - 不改 `/watch` 契约；
 - 不重写隔离、activeHours 等业务逻辑；
 - 不在本任务替换 Toast/Tooltip/StatusOrbit 定位（另属 L84b）。
+
+## 用户实拍后的补充（当前优先）
+
+- 「展开像只读」不能靠测试桩宣称已解决；必须记录真实输入、焦点与保存路径。静态预览已证明没有 `disabled/readonly`，事件链仍在 T55 复现。
+- 表单外壳按官方 DraftEditor 使用 `form.dt-card + Fields + SaveBar`，不能只给裸 `dt-form` 放在 ticket 里。几何、间距、分组和底部保存条以官方为准，不自创布局。
+- `scripts/render-preview.mjs` 已补「行内编辑」与「行内编辑（已修改）」两个场景；以后改表单必须出这两张图，不能只截总览。
+- 若官方证据不足，按项目 AGENTS 的硬约束 HIDE/留空或保留 superagent 同源实现，禁止自定义布局补位。

@@ -2,6 +2,48 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.267] - 2026-11-05 —— 修掉行内编辑透明遮挡，主面板接入 DSH Modal/Toast
+
+### 修复「展开后只能看，不能改」
+
+根因不是 `disabled`：官方 `.dt-open::after` 是整行透明点击层，展开表单被它盖住，
+点击 input 实际命中标题按钮并触发收起。
+
+Chromium 实测：
+
+```text
+修复前 elementFromPoint → button.dt-open
+修复后 elementFromPoint → input[type=number]
+```
+
+修复：`.dt-ticket-body .dt-form { position:relative; z-index:1; }`；
+WatcherForm 外壳改为官方 DraftEditor 的 `form.dt-card + Fields + SaveBar`。
+预览新增「行内编辑 / 行内编辑（已修改）」两个永久场景，并加点击层回归测试。
+
+### 主面板接入 DSH 原语
+
+- `factory(require)` 可选探测 `@deepseek-ai/dsh-client-ui-primitives`；
+- 主面板 ConfirmButton 内部使用 DSH Modal，保留 busy、成功才关闭和错误反馈；
+- orbit 的确认框暂保留 superagent 同源实现，直到 orbit 与 Modal 的焦点/层级策略验收；
+- Toast 使用 keyed DSH Toast + `holdMs=3000` + `onDone(id)` id guard；
+- 老宿主缺少原语时完整回退到原有 Modal/Toast，不影响加载。
+
+### UI 硬约束与适配层
+
+`AGENTS.md` 新增「原生 DSH 优先，最小自制」硬约束：先查官方结构树和素材，
+能直接复用就直接复用，必须适配时只包一层，官方无同物才允许最小 derived 并登记证据。
+独立 Tooltip 适配增加 capture scroll → remount key 的 scroll-close 和 effect 对称清理。
+
+### 证据
+
+```
+npm test → 500/500
+scripts/ui-audit.mjs → 11/11，100 分
+对比度 → 浅色 16 组 ≤ 基线 16；深色 13 组 ≤ 基线 13
+```
+
+真实 WebView 的连续打字、IME 与保存后刷新仍列入走查，不用测试桩冒充真机验收。
+
 ## [0.9.266] - 2026-11-05 —— 新增/编辑共用 WatcherForm，宿主原语适配层就位
 
 ### 共用表单，不再两套字段

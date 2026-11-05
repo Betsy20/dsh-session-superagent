@@ -278,6 +278,20 @@ const pausedSnapshot = {
 // snap, tab, notice, form, token, goalDraft, goalTouched, [], editing, draft, search,
 // glossary, update, checking, settingsSection
 const blankForm = { repo: '', intervalSec: '60', goal: '', labels: '', onlyAssigned: false, activeHours: '', isolated: false, workdir: '' }
+const editKey = 'MYCF711/dsh-session-superagent#s1'
+const editDraft = {
+  intervalSec: '60', labels: 'ai-fix', ignoreLabels: '', assignee: '', activeHours: '09:00-23:00',
+  goal: '把 0.8.x 的文档补齐', ackLabel: '主理鱼:已处理', onlyAssigned: false, allowAuthors: '',
+  observe: false, isolated: true, workdir: 'E:/temp/iso', batchLimit: '', maxWakesPerHour: '',
+  sessionMaxWakes: '', isolateKeepDays: '', maxIsolated: '', priorityReopened: true,
+  priorityComments: true, priorityLabels: true, priorityUnassigned: false, priorityStale: false,
+}
+const editingHooks = (dirty = false) => {
+  const hooks = deskHooks({})
+  hooks[8] = editKey
+  hooks[9] = { ...editDraft, goal: dirty ? '修改后的目标' : editDraft.goal }
+  return hooks
+}
 const deskHooks = ({ snap = snapshot, tab = 'overview', notice = null, glossary = false, update = null, settingsSection = 'source' } = {}) => [
   snap, tab, notice, blankForm, '', '', false, [], null, {}, '', glossary, update, false, settingsSection, null, null, false, null, '', '',   // 0.9.175 追加的 ghDir（gh 账号配置目录）
 ]
@@ -286,6 +300,8 @@ const ONLY_NAME = (process.argv.find((a) => a.startsWith('--only=')) || '').slic
 
 const scenarios = [
   { name: '总览', hooks: deskHooks({}) },
+  { name: '行内编辑', hooks: editingHooks(false) },
+  { name: '行内编辑（已修改）', hooks: editingHooks(true) },
   { name: '判定', hooks: deskHooks({ tab: 'judge' }) },
   { name: '触发', hooks: deskHooks({ tab: 'trigger' }) },
   { name: '设置（来源）', hooks: deskHooks({ tab: 'settings' }) },

@@ -71,6 +71,15 @@ export function createHostUi({ React, primitives } = {}) {
 
   function Tooltip({ text, icon = 'question', warn = false, children } = {}) {
     const HostTooltip = primitive('Tooltip')
+    const [remountKey, setRemountKey] = React.useState(0)
+    React.useEffect(() => {
+      if (typeof window === 'undefined') return undefined
+      const target = window
+      const closeOnScroll = () => setRemountKey((current) => current + 1)
+      // DSH Tooltip 没有受控 open 或 scroll listener；capture 可同时覆盖嵌套滚动容器。
+      target.addEventListener('scroll', closeOnScroll, true)
+      return () => target.removeEventListener('scroll', closeOnScroll, true)
+    }, [])
     // children 可替换 trigger；省略时保留 InfoTip 的 button / dt-info 调用面。
     const trigger = children === undefined
       ? h('button', {
@@ -82,7 +91,9 @@ export function createHostUi({ React, primitives } = {}) {
     if (!React.isValidElement(trigger)) {
       throw new TypeError('Tooltip children 必须是单个 React element')
     }
+    // 只以 key 重挂载宿主 Tooltip 来清掉内部 pinned 状态；不克隆 trigger、不增加 DOM 或事件层。
     return h(HostTooltip, {
+      key: remountKey,
       label: text,
       side: 'top',
       portal: true,
