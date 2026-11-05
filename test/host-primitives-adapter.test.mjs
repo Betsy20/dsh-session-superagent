@@ -10,13 +10,25 @@ function harness(overrides = {}) {
   const effects = []
   const React = {
     createElement(type, props, ...children) {
-      const { key, ...rest } = props || {}
+      const { key, ref, ...rest } = props || {}
       const node = {
         $$typeof: ELEMENT,
         type,
         props: { ...rest, children: children.flat(Infinity).filter((child) => child !== null && child !== undefined && child !== false) },
       }
       if (key !== undefined) node.key = key
+      if (ref !== undefined) node.ref = ref
+      return node
+    },
+    cloneElement(element, config, ...children) {
+      const { key = element.key, ref = element.ref, ...rest } = config || {}
+      const props = { ...element.props, ...rest }
+      if (children.length > 0) {
+        props.children = children.flat(Infinity).filter((child) => child !== null && child !== undefined && child !== false)
+      }
+      const node = { $$typeof: ELEMENT, type: element.type, props }
+      if (key !== undefined) node.key = key
+      if (ref !== undefined) node.ref = ref
       return node
     },
     isValidElement(value) {
@@ -45,6 +57,70 @@ function harness(overrides = {}) {
     ...overrides,
   }
   return { React, primitives, stateUpdates, effects, ui: createHostUi({ React, primitives }) }
+}
+
+function persistentTooltipHarness() {
+  const context = harness()
+  const refs = []
+  let generation
+  let refCursor = 0
+  context.React.useState = (initial) => {
+    if (generation === undefined) generation = initial
+    return [generation, (next) => {
+      context.stateUpdates.push(next)
+      generation = typeof next === 'function' ? next(generation) : next
+    }]
+  }
+  context.React.useRef = (initial) => {
+    const index = refCursor++
+    if (!refs[index]) refs[index] = { current: initial }
+    return refs[index]
+  }
+  context.renderTooltip = (props) => {
+    refCursor = 0
+    return context.ui.Tooltip(props)
+  }
+  return context
+}
+
+function fakeFocusable(document) {
+  const descendants = new Set()
+  return {
+    isConnected: true,
+    focusCalls: [],
+    contains(candidate) {
+      return candidate === this || descendants.has(candidate)
+    },
+    addDescendant(node) {
+      descendants.add(node)
+    },
+    focus(options) {
+      this.focusCalls.push(options)
+      document.activeElement = this
+    },
+  }
+}
+
+function withFakeDom(run) {
+  const registrations = []
+  const removals = []
+  const fakeWindow = {
+    addEventListener(...args) { registrations.push(args) },
+    removeEventListener(...args) { removals.push(args) },
+  }
+  const fakeDocument = { activeElement: null }
+  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window')
+  const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document')
+  try {
+    Object.defineProperty(globalThis, 'window', { configurable: true, writable: true, value: fakeWindow })
+    Object.defineProperty(globalThis, 'document', { configurable: true, writable: true, value: fakeDocument })
+    return run({ fakeWindow, fakeDocument, registrations, removals })
+  } finally {
+    if (previousWindow) Object.defineProperty(globalThis, 'window', previousWindow)
+    else delete globalThis.window
+    if (previousDocument) Object.defineProperty(globalThis, 'document', previousDocument)
+    else delete globalThis.document
+  }
 }
 
 test('Modal：open=false 返回 null；打开时只透传到 DSH Modal 并补中文 closeLabel', () => {
@@ -89,9 +165,16 @@ test('Toast：error 显式使用宿主 warning icon；空 item 不渲染', () =>
   assert.equal(ui.Toast({ item: null, onDone() {} }), null)
 })
 
-test('Tooltip：label 与定位参数透传，自定义 children 保持同一个 React element', () => {
+test('Tooltip：label 与定位参数透传，自定义 children 只补合并 ref，原 props 与 ref 不回归', () => {
   const { React, primitives, ui } = harness()
-  const trigger = React.createElement('button', { type: 'button', className: 'custom' }, '帮助')
+  const originalRef = { current: null }
+  const onMouseEnter = () => {}
+  const onFocus = () => {}
+  const onClick = () => {}
+  const trigger = React.createElement('button', {
+    ref: originalRef, type: 'button', className: 'custom', onMouseEnter, onFocus, onClick,
+  }, '帮助')
+  const originalTriggerProps = { ...trigger.props }
   const node = ui.Tooltip({ text: '说明', icon: React.createElement(primitives.IconInfoOutlineMedium), warn: true, children: trigger })
   assert.equal(node.type, primitives.Tooltip)
   assert.equal(node.props.label, '说明')
@@ -99,8 +182,23 @@ test('Tooltip：label 与定位参数透传，自定义 children 保持同一个
   assert.equal(node.props.portal, true)
   assert.equal(node.props.openOnClick, true)
   assert.equal(node.props.gap, 8)
-  assert.deepEqual(node.props.children, [trigger])
-  assert.equal(node.props.children[0], trigger)
+
+  const adapted = node.props.children[0]
+  assert.notStrictEqual(adapted, trigger, '适配层需要 cloneElement 注入 ref')
+  assert.equal(adapted.type, 'button')
+  assert.deepEqual(trigger.props, originalTriggerProps, 'cloneElement 不得修改原 element')
+  assert.equal(adapted.props.type, 'button')
+  assert.equal(adapted.props.className, 'custom')
+  assert.strictEqual(adapted.props.onMouseEnter, onMouseEnter)
+  assert.strictEqual(adapted.props.onFocus, onFocus)
+  assert.strictEqual(adapted.props.onClick, onClick)
+  assert.deepEqual(adapted.props.children, ['帮助'])
+  assert.equal(typeof adapted.ref, 'function')
+  const domNode = {}
+  adapted.ref(domNode)
+  assert.strictEqual(originalRef.current, domNode)
+  adapted.ref(null)
+  assert.strictEqual(originalRef.current, null)
 })
 
 test('Tooltip：缺省 trigger 保留 InfoTip 的 button 与 warn 样式，图标来自宿主', () => {
@@ -114,40 +212,34 @@ test('Tooltip：缺省 trigger 保留 InfoTip 的 button 与 warn 样式，图�
   assert.equal(trigger.props.children[0].type, primitives.IconQuestionOutlineMedium)
 })
 
-test('Tooltip scroll-close：capture scroll 递增 remount key，清理解绑且保留 trigger 与原 props', () => {
-  const { React, primitives, ui, stateUpdates, effects } = harness()
-  let generation
-  React.useState = (initial) => {
-    if (generation === undefined) generation = initial
-    return [generation, (next) => {
-      stateUpdates.push(next)
-      generation = typeof next === 'function' ? next(generation) : next
-    }]
-  }
-
+test('Tooltip scroll-close：焦点在 trigger 时 key 递增并重聚焦，ref/cleanup 对称且原 props 不回归', () => {
+  const { React, primitives, stateUpdates, effects, renderTooltip } = persistentTooltipHarness()
   const onMouseEnter = () => {}
   const onFocus = () => {}
   const onClick = () => {}
+  const originalRef = { current: null }
   const trigger = React.createElement('button', {
-    type: 'button', className: 'custom', onMouseEnter, onFocus, onClick,
+    ref: originalRef, type: 'button', className: 'custom', onMouseEnter, onFocus, onClick,
   }, '帮助')
   const originalTriggerProps = { ...trigger.props }
   const originalProps = { text: '说明', warn: true, children: trigger }
-  const first = ui.Tooltip(originalProps)
+  const first = renderTooltip(originalProps)
+  const firstTrigger = first.props.children[0]
   assert.equal(first.key, 0)
-  assert.equal(effects.length, 1)
+  assert.equal(effects.length, 2)
   assert.deepEqual(effects[0].deps, [])
+  assert.deepEqual(effects[1].deps, [0])
 
-  const registrations = []
-  const removals = []
-  const fakeWindow = {
-    addEventListener(...args) { registrations.push(args) },
-    removeEventListener(...args) { removals.push(args) },
-  }
-  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window')
-  try {
-    Object.defineProperty(globalThis, 'window', { configurable: true, writable: true, value: fakeWindow })
+  withFakeDom(({ fakeDocument, registrations, removals }) => {
+    const oldTrigger = fakeFocusable(fakeDocument)
+    const newTrigger = fakeFocusable(fakeDocument)
+    assert.equal(typeof firstTrigger.ref, 'function')
+    firstTrigger.ref(oldTrigger)
+    assert.strictEqual(originalRef.current, oldTrigger)
+
     const cleanup = effects[0].create()
+    assert.equal(effects[1].create(), undefined, '首次挂载没有待恢复焦点')
+    assert.deepEqual(oldTrigger.focusCalls, [])
     assert.equal(registrations.length, 1)
     assert.equal(registrations[0].length, 3)
     const [eventName, listener, capture] = registrations[0]
@@ -155,12 +247,14 @@ test('Tooltip scroll-close：capture scroll 递增 remount key，清理解绑且
     assert.equal(typeof listener, 'function')
     assert.equal(capture, true)
 
+    fakeDocument.activeElement = oldTrigger
     const scrollEvent = { type: 'scroll', target: { id: 'nested-scroller' } }
     assert.equal(listener(scrollEvent), undefined)
     assert.equal(typeof stateUpdates[0], 'function')
     assert.equal(stateUpdates[0](4), 5, '必须函数式递增，不能把 scroll event 当作新 key')
 
-    const remounted = ui.Tooltip(originalProps)
+    const remounted = renderTooltip(originalProps)
+    const remountedTrigger = remounted.props.children[0]
     assert.equal(first.key, 0)
     assert.equal(remounted.key, 1)
     assert.equal(remounted.type, primitives.Tooltip)
@@ -169,13 +263,21 @@ test('Tooltip scroll-close：capture scroll 递增 remount key，清理解绑且
     assert.equal(remounted.props.portal, true)
     assert.equal(remounted.props.openOnClick, true)
     assert.equal(remounted.props.gap, 8)
-    assert.deepEqual(remounted.props.children, [trigger])
-    assert.strictEqual(remounted.props.children[0], trigger)
+    assert.deepEqual(effects[3].deps, [1])
     assert.deepEqual(trigger.props, originalTriggerProps)
-    assert.strictEqual(trigger.props.onMouseEnter, onMouseEnter)
-    assert.strictEqual(trigger.props.onFocus, onFocus)
-    assert.strictEqual(trigger.props.onClick, onClick)
+    assert.strictEqual(remountedTrigger.props.onMouseEnter, onMouseEnter)
+    assert.strictEqual(remountedTrigger.props.onFocus, onFocus)
+    assert.strictEqual(remountedTrigger.props.onClick, onClick)
     assert.equal(registrations.length, 1, '假 effect 只执行首轮；deps=[] 已另行记录')
+
+    // 模拟 keyed HostTooltip 的 commit：旧 ref 对称清空，新 ref 先于 passive effect 附着。
+    firstTrigger.ref(null)
+    assert.strictEqual(originalRef.current, null)
+    remountedTrigger.ref(newTrigger)
+    assert.strictEqual(originalRef.current, newTrigger)
+    assert.equal(effects[3].create(), undefined)
+    assert.deepEqual(newTrigger.focusCalls, [{ preventScroll: true }])
+    assert.strictEqual(fakeDocument.activeElement, newTrigger)
 
     assert.equal(typeof cleanup, 'function')
     cleanup()
@@ -184,10 +286,67 @@ test('Tooltip scroll-close：capture scroll 递增 remount key，清理解绑且
     assert.equal(removals[0][0], 'scroll')
     assert.strictEqual(removals[0][1], listener)
     assert.equal(removals[0][2], true)
-  } finally {
-    if (previousWindow) Object.defineProperty(globalThis, 'window', previousWindow)
-    else delete globalThis.window
-  }
+    remountedTrigger.ref(null)
+    assert.strictEqual(originalRef.current, null)
+  })
+})
+
+test('Tooltip scroll-close：滚动前焦点在别处时不抢新 trigger 焦点', () => {
+  const { React, effects, renderTooltip } = persistentTooltipHarness()
+  const trigger = React.createElement('button', { type: 'button' }, '帮助')
+  const first = renderTooltip({ text: '说明', children: trigger })
+  const firstTrigger = first.props.children[0]
+
+  withFakeDom(({ fakeDocument, registrations }) => {
+    const oldTrigger = fakeFocusable(fakeDocument)
+    const newTrigger = fakeFocusable(fakeDocument)
+    const outside = fakeFocusable(fakeDocument)
+    firstTrigger.ref(oldTrigger)
+    const cleanup = effects[0].create()
+    effects[1].create()
+    const listener = registrations[0][1]
+    fakeDocument.activeElement = outside
+    listener({ type: 'scroll' })
+
+    const remounted = renderTooltip({ text: '说明', children: trigger })
+    const remountedTrigger = remounted.props.children[0]
+    assert.equal(remounted.key, 1)
+    firstTrigger.ref(null)
+    remountedTrigger.ref(newTrigger)
+    effects[3].create()
+    assert.deepEqual(newTrigger.focusCalls, [])
+    assert.strictEqual(fakeDocument.activeElement, outside)
+    cleanup()
+  })
+})
+
+test('Tooltip scroll-close：焦点在 trigger 内部时也归还给新 trigger', () => {
+  const { React, effects, renderTooltip } = persistentTooltipHarness()
+  const trigger = React.createElement('button', { type: 'button' }, React.createElement('span', null, '帮助'))
+  const first = renderTooltip({ text: '说明', children: trigger })
+  const firstTrigger = first.props.children[0]
+
+  withFakeDom(({ fakeDocument, registrations }) => {
+    const oldTrigger = fakeFocusable(fakeDocument)
+    const newTrigger = fakeFocusable(fakeDocument)
+    const descendant = { id: 'inside-trigger' }
+    oldTrigger.addDescendant(descendant)
+    firstTrigger.ref(oldTrigger)
+    const cleanup = effects[0].create()
+    effects[1].create()
+    const listener = registrations[0][1]
+    fakeDocument.activeElement = descendant
+    listener({ type: 'scroll' })
+
+    const remounted = renderTooltip({ text: '说明', children: trigger })
+    const remountedTrigger = remounted.props.children[0]
+    firstTrigger.ref(null)
+    remountedTrigger.ref(newTrigger)
+    effects[3].create()
+    assert.deepEqual(newTrigger.focusCalls, [{ preventScroll: true }])
+    assert.strictEqual(fakeDocument.activeElement, newTrigger)
+    cleanup()
+  })
 })
 
 test('Tooltip：children 拒绝字符串、数组和 null，缺原语时显式报错而不自绘替代 Tooltip', () => {

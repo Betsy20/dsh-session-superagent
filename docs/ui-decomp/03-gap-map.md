@@ -28,6 +28,10 @@ ConfirmButton 已统一为「触发 → Modal → 取消/确认」，主面板�
 
 InfoTip 已接 DSH Tooltip（scroll-close、aria 映射与独立回退）；StatusOrbit 已接 OrbitPopover（锚点、外点、portal、Escape），删除确认先关 orbit、独立 ConfirmDialog、回焦圆环。全量 **524/524**，UI 体检 **11/11=100**，对比度不高于基线；真实 WebView 行为仍单列未验。
 
+## 实施回写（0.9.269）
+
+Tooltip scroll-close 在独立模块与主面板同步保留 trigger 焦点，合并函数/对象 ref；Orbit 触发按钮删除全部 inline style，改官方 ghost 与 token。全量 **535/535**，UI 体检 **11/11=100**，浅色 16 组 ≤ 基线、深色 13 组 ≤ 基线。
+
 ## 0. 基线、口径与复用边界
 
 | 来源 | 本次核对基线 | 用法 |

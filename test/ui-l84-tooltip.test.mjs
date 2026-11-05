@@ -263,7 +263,8 @@ test('InfoTip({text,icon,warn})：warn/trigger 文案保留，aria-expanded 映�
   // 模拟安装版 Tooltip 的真实 clone 合同：describedby + handlers + ref 落到 trigger。
   const rawTrigger = tooltip.props.children[0]
   const hostHandlers = { onMouseEnter() {}, onFocus() {}, onClick() {}, onBlur() {} }
-  const hostRef = () => {}
+  const hostRefCalls = []
+  const hostRef = (node) => { hostRefCalls.push(node) }
   const mapped = rawTrigger.type({
     ...rawTrigger.props,
     ...hostHandlers,
@@ -273,7 +274,11 @@ test('InfoTip({text,icon,warn})：warn/trigger 文案保留，aria-expanded 映�
   assert.equal(mapped.type, 'button')
   assert.equal(mapped.props['aria-describedby'], 'dsh-tooltip-42')
   assert.equal(mapped.props['aria-expanded'], true)
-  assert.equal(mapped.props.ref, hostRef)
+  assert.notEqual(mapped.props.ref, hostRef, '适配层需要合并自己的 triggerRef，不能简单丢掉它')
+  const triggerNode = { id: 'trigger-node' }
+  mapped.props.ref(triggerNode)
+  assert.equal(rawTrigger.props.triggerRef.current, triggerNode, '适配 ref 必须收到真实节点')
+  assert.deepEqual(hostRefCalls, [triggerNode], '原 hostRef 也必须收到同一节点')
   for (const [name, handler] of Object.entries(hostHandlers)) assert.strictEqual(mapped.props[name], handler)
 })
 
@@ -282,7 +287,9 @@ test('主面板 scroll-close：capture scroll 函数式递增 key，effect 清�
   const queue = judgeQueue()
   const first = client.renderDesk(queue)
   assert.equal(hostTooltip(first.nodes).key, 0)
-  const effect = one(client.effects.filter((item) => item.component === 'HostTooltip'), '主面板缺 HostTooltip effect')
+  const hostEffects = client.effects.filter((item) => item.component === 'HostTooltip')
+  const effect = one(hostEffects.filter((item) => Array.isArray(item.deps) && item.deps.length === 0), '主面板缺 scroll effect')
+  assert.ok(hostEffects.some((item) => Array.isArray(item.deps) && item.deps.length === 1 && item.deps[0] === 0), '缺 remountKey 焦点恢复 effect')
   assert.ok(Array.isArray(effect.deps), 'HostTooltip effect 必须声明依赖数组')
   assert.equal(effect.deps.length, 0, 'scroll listener 只能在 mount/unmount 注册与清理')
 

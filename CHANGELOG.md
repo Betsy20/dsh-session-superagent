@@ -2,6 +2,35 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.269] - 2026-11-05 —— Tooltip 不再丢焦点，Orbit 触发按钮去 inline 化
+
+### Tooltip scroll-close 保留焦点
+
+`ui-host-primitives.js` 与主面板内联 Tooltip 同步：
+
+- scroll 前记录焦点是否在 trigger 或其内部；
+- 合并适配 ref 与原函数/对象 ref，不吞宿主 handlers；
+- remount 后仅对原先位于 trigger 的焦点调用 `focus({preventScroll:true})`；
+- 焦点在别处不抢，防止 scroll → remount 循环。
+
+### StatusOrbit 触发按钮原生化
+
+删除整段 inline `style`，改为 `dt-btn dt-btn-ghost sa-orbit-trigger`：
+hover/open 使用官方 `--dsw-alias-interactive-bg-hover/active`，不再写死 rgba；
+初始读取使用 `is-loading`，透明度 0.4 对齐官方 disabled 档。
+最左位置、OrbitMark、aria 与开关行为不变，DSH/fallback 共用同一按钮。
+
+### 证据
+
+```
+Tooltip 焦点适配 11/11；Orbit trigger 7/7
+npm test → 535/535
+scripts/ui-audit.mjs → 11/11，100 分
+对比度 → 浅色 16 组 ≤ 基线 16；深色 13 组 ≤ 基线 13
+```
+
+真实 WebView 的焦点、键鼠与 computed style 仍列入走查，不用测试桩冒充宿主验收。
+
 ## [0.9.268] - 2026-11-05 —— InfoTip 与卫星环接入 DSH 原生浮层
 
 ### InfoTip → DSH Tooltip

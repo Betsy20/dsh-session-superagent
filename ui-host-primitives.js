@@ -19,8 +19,8 @@ export function dismissToast(current, id) {
  * 原语必须由调用方通过 factory require 取得；本模块不做文件系统包解析。
  */
 export function createHostUi({ React, primitives } = {}) {
-  if (!React || typeof React.createElement !== 'function' || typeof React.isValidElement !== 'function') {
-    throw new TypeError('createHostUi 需要宿主 React.createElement 与 React.isValidElement')
+  if (!React || typeof React.createElement !== 'function' || typeof React.cloneElement !== 'function' || typeof React.isValidElement !== 'function') {
+    throw new TypeError('createHostUi 需要宿主 React.createElement、React.cloneElement 与 React.isValidElement')
   }
   if (!primitives || (typeof primitives !== 'object' && typeof primitives !== 'function')) {
     throw new TypeError('createHostUi 需要 DSH primitives')
@@ -72,10 +72,21 @@ export function createHostUi({ React, primitives } = {}) {
   function Tooltip({ text, icon = 'question', warn = false, children } = {}) {
     const HostTooltip = primitive('Tooltip')
     const [remountKey, setRemountKey] = React.useState(0)
+    const triggerNodeRef = React.useRef(null)
+    const restoreFocusRef = React.useRef(false)
     React.useEffect(() => {
       if (typeof window === 'undefined') return undefined
       const target = window
-      const closeOnScroll = () => setRemountKey((current) => current + 1)
+      const closeOnScroll = () => {
+        const triggerNode = triggerNodeRef.current
+        const activeElement = typeof document === 'undefined' ? null : document.activeElement
+        // 必须在卸载前记录；只有焦点原本位于 trigger 或其内部才允许恢复。
+        restoreFocusRef.current = Boolean(triggerNode && activeElement && (
+          activeElement === triggerNode
+          || (typeof triggerNode.contains === 'function' && triggerNode.contains(activeElement))
+        ))
+        setRemountKey((current) => current + 1)
+      }
       // DSH Tooltip 没有受控 open 或 scroll listener；capture 可同时覆盖嵌套滚动容器。
       target.addEventListener('scroll', closeOnScroll, true)
       return () => target.removeEventListener('scroll', closeOnScroll, true)
@@ -91,7 +102,25 @@ export function createHostUi({ React, primitives } = {}) {
     if (!React.isValidElement(trigger)) {
       throw new TypeError('Tooltip children 必须是单个 React element')
     }
-    // 只以 key 重挂载宿主 Tooltip 来清掉内部 pinned 状态；不克隆 trigger、不增加 DOM 或事件层。
+    const originalRef = trigger.ref
+    const setTriggerRef = React.useCallback((node) => {
+      triggerNodeRef.current = node
+      if (typeof originalRef === 'function') originalRef(node)
+      else if (originalRef && typeof originalRef === 'object') originalRef.current = node
+    }, [originalRef])
+    React.useEffect(() => {
+      if (!restoreFocusRef.current) return undefined
+      // 标记只消费一次；即使新 ref 缺失，也不能在后续无关渲染中抢焦点。
+      restoreFocusRef.current = false
+      const triggerNode = triggerNodeRef.current
+      if (triggerNode && typeof triggerNode.focus === 'function'
+        && (!('isConnected' in triggerNode) || triggerNode.isConnected)) {
+        // 避免焦点归还自身再次滚动容器，形成 scroll -> remount 循环。
+        triggerNode.focus({ preventScroll: true })
+      }
+      return undefined
+    }, [remountKey])
+    // DSH 会再次 cloneElement 并合并 ref/handlers；这里只补适配 ref，保留原 ref 与全部 props。
     return h(HostTooltip, {
       key: remountKey,
       label: text,
@@ -99,7 +128,7 @@ export function createHostUi({ React, primitives } = {}) {
       portal: true,
       openOnClick: true,
       gap: 8,
-    }, trigger)
+    }, React.cloneElement(trigger, { ref: setTriggerRef }))
   }
 
   // 无第二套 timer：notify 只替换当前项，dismiss 交给 Toast.onDone(id) 调用。
