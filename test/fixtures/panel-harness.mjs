@@ -40,7 +40,8 @@ export function loadClient(options = {}) {
   vm.runInContext(SOURCE, sandbox)
   assert.ok(mod, '模块没有调用 __ModuleLoader__.load')
 
-  const hooks = { queue: [], index: 0 }
+  // stateCalls 记录「setter 被调用」，用例据此断言「点了按钮 → 状态真的变了」（T38）
+  const hooks = { queue: [], index: 0, stateCalls: [] }
   const React = {
     Fragment: Symbol('Fragment'),
     createElement(type, props, ...children) {
@@ -56,10 +57,22 @@ export function loadClient(options = {}) {
       return node
     },
     memo: (fn) => fn,
+    // 审核 T38（测试桩保真度审计）：
+    // 以前 setter 是**空函数** —— 于是「点击 → 状态变化」这条链 0 覆盖。
+    // 实证：把 `setSettingsSection(item.key)` 改成 `setSettingsSection('source')`，
+    // 82 条用例全绿 —— 而真机上就是客户看到的那一屏（高亮动了、内容不动）。
+    //
+    // 最小可用版本（不引入真重渲染，风险最低）：setter **记录调用**，
+    // 用例可以断言「点这个按钮 → setSettingsSection('creds') 被调用」。
+    // 完整版（setter 真的触发重渲染）见 docs/报告-测试桩保真度审计.md §1.1。
     useState(init) {
-      const value = hooks.index < hooks.queue.length ? hooks.queue[hooks.index] : (typeof init === 'function' ? init() : init)
+      const index = hooks.index
+      const value = index < hooks.queue.length ? hooks.queue[index] : (typeof init === 'function' ? init() : init)
       hooks.index += 1
-      return [value, () => {}]
+      const setter = (next) => {
+        hooks.stateCalls.push({ index, next: typeof next === 'function' ? next(value) : next })
+      }
+      return [value, setter]
     },
     useEffect() {},
     useCallback: (fn) => fn,
@@ -90,7 +103,16 @@ export function loadClient(options = {}) {
   }
   // 改视口宽度：窄屏相关的断言要靠它，别让测试自己去碰沙箱内部
   const setViewport = (width) => { sandbox.window.innerWidth = width }
-  return { id: mod.id, registrations, render, setViewport }
+  return {
+    id: mod.id,
+    registrations,
+    render,
+    setViewport,
+    // 审核 T38：setter 以前是空函数，「点击 → 状态变化」零覆盖。
+    // 现在 setter 会把调用记进这里，用例可以断言「点了这个按钮，状态真的变了」。
+    stateCalls: () => hooks.stateCalls,
+    resetStateCalls: () => { hooks.stateCalls.length = 0 },
+  }
 }
 
 /** 展开函数组件，收集整棵树（文本节点记为 #text）。 */

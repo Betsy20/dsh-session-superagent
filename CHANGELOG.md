@@ -2,6 +2,55 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.250] - 2026-11-05 —— 9 个真机 bug 注入，82 条面板用例全绿
+
+T38 做了一件很直接的事：把 9 个「真机上一定会坏」的 bug 注入 `client.js` 副本，跑 82 条面板用例。
+
+**结果：全部绿。** 只有第 10 个（把 `props.key` 改回去）会红 ——
+**0.9.248 只修好了「被看见的那一条」。**
+
+| 注入的 bug | 真机表现 | 用例 |
+|---|---|---|
+| 删掉 `setSnap({loading:false…})` | 面板永远「正在读取…」 | 82 全绿 |
+| `setSettingsSection(item.key)` → `'source'` | **客户实拍那一屏** | 82 全绿 |
+| `onChange: setTab` → `() => {}` | 页签点了不换 | 82 全绿 |
+| 删掉 `document.addEventListener('keydown')` | Escape 关不掉弹层、焦点陷阱失效 | 82 全绿 |
+
+根因只有一句：**桩能证明「给定状态渲染什么」，证明不了「状态怎么变」。**
+
+### 这一轮修的（第一步）
+
+桩的 `useState` setter 从 `() => {}` 改成**记录调用**：
+
+```js
+const setter = (next) => hooks.stateCalls.push({ index, next: typeof next === 'function' ? next(value) : next })
+```
+
+用例因此可以断言「点了这个按钮 → 状态真的变了」。新增两条：
+
+- **设置页左栏**：点「凭证」→ `setSettingsSection('creds')`；
+- **页签**：点「判定」→ 切到对应页签。
+
+**做了变异验证**：把 `setSettingsSection(item.key)` 改成 `'source'`，新用例立刻红（`pass 82 / fail 1`）——
+以前这个变异 82 条全绿。
+
+### 还没修的（T38 的另外四条，已登记）
+
+1. `useEffect` 从不执行（Escape / 焦点 / 轮询全死代码）；
+2. `useRef` 每次新建、DOM ref 永不 attach（`touchedRef` 变异全绿）；
+3. **位置化队列静默错位** —— 14 条弹层用例实际渲染的是 `orbitError=true`、`open={x,y}`，
+   弹层视口夹紧那 5 个 `if` 从来没执行过。**这些用例现在等于没写**；
+4. 沙箱缺 `setTimeout`，Toast 反馈零覆盖。
+
+第 3 条最要紧：它不是「覆盖不足」，是**断言在错误的树上**。
+
+### 证据
+
+```
+npm test → 389/389
+变异验证：setSettingsSection 恒写 'source' → 新用例红（以前全绿）
+```
+
 ## [0.9.249] - 2026-11-05 —— 把「客户实拍」那个 bug 变成一条永久的门禁
 
 0.9.248 修了「设置页左栏点了不换内容」。那一轮修的是**一个地方**；

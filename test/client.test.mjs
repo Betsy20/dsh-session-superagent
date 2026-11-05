@@ -1595,3 +1595,50 @@ test('设置页左栏点哪一项，右边就换哪一块（客户实拍：永�
   assert.match(bodyOf('goal'), /^会话 goal|^目标/, 'goal 应显示会话 goal')
   assert.notEqual(bodyOf('creds').slice(0, 6), bodyOf('source').slice(0, 6), '两块内容不能一样')
 })
+
+test('设置页左栏点哪一项，就调用哪个 setter（T38：setter 以前是空函数，整条交互链零覆盖）', async () => {
+  const { loadClient, walk, watcher, deskForm } = await import('./fixtures/panel-harness.mjs')
+  const { registrations, render, stateCalls, resetStateCalls } = loadClient()
+  const snap = {
+    loading: false, error: null,
+    body: {
+      credentials: { token: 'none', sshKeyPath: 'none', ghConfigDir: 'none', giteeToken: 'none' },
+      gh: { ok: true, version: '2.0' },
+      defaults: { sessionMaxWakes: 12, maxWakesPerHour: 6, isolateKeepDays: 3, batchLimit: 5 },
+      watchers: [watcher('a/b')],
+    },
+  }
+  const queue = (section) => [snap, 'settings', null, deskForm, '', '', false, [], null, {}, '', false, null, false, section, null, null, false, null, '', '']
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const tree = walk(render(desk, queue('source')))
+  const navBtn = tree.filter((n) => n.type === 'button' && (n.props.children || []).join('') === '凭证')
+  assert.equal(navBtn.length, 1, '设置页左栏要有「凭证」这一项')
+  resetStateCalls()
+  navBtn[0].props.onClick()
+  const calls = stateCalls()
+  assert.equal(calls.length, 1, '点一下应当触发一次 setter，实际 ' + calls.length)
+  assert.equal(calls[0].next, 'creds', '应当写入 creds（分区 key），实际 ' + JSON.stringify(calls[0].next))
+})
+
+test('页签点哪一项就切到哪一项（T38 M6：把 onChange 改成空函数，82 条用例全绿）', async () => {
+  const { loadClient, walk, watcher, deskQueue } = await import('./fixtures/panel-harness.mjs')
+  const { registrations, render, stateCalls, resetStateCalls } = loadClient()
+  const snap = {
+    loading: false, error: null,
+    body: {
+      credentials: { token: 'none', sshKeyPath: 'none', ghConfigDir: 'none', giteeToken: 'none' },
+      gh: { ok: true, version: '2.0' },
+      defaults: { sessionMaxWakes: 12, maxWakesPerHour: 6, isolateKeepDays: 3, batchLimit: 5 },
+      watchers: [watcher('a/b')],
+    },
+  }
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const tree = walk(render(desk, deskQueue(snap, null, {}, 'overview')))
+  const tab = tree.filter((n) => n.type === 'button' && (n.props.children || []).join('') === '判定')
+  assert.equal(tab.length, 1, '要有「判定」页签')
+  resetStateCalls()
+  tab[0].props.onClick()
+  const calls = stateCalls()
+  assert.equal(calls.length, 1, '点页签应当触发一次 setter')
+  assert.ok(['queue', 'judge', 'trace', 'trigger', 'settings'].includes(calls[0].next), '应当写入页签名，实际 ' + JSON.stringify(calls[0].next))
+})
