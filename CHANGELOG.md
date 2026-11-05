@@ -2,6 +2,50 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.233] - 2026-11-05 —— 模型照着说明书做，也一定会失败的四条
+
+### ① `watch_stop` 停不掉 Gitee 守（最危险的一条）
+
+`watch_status` 的 JSON 给的 `repo` 是 `"Ghandi/workbuddy-pro"`，而 `watch_stop` 用
+`${repo}#${sessionId}` 拼 id —— 可 Gitee 守的实际 id 带 `gitee:` 前缀：
+
+```
+watch_start({repo:"gitee:Ghandi/workbuddy-pro"})  → 建好了
+watch_stop({repo:"Ghandi/workbuddy-pro"})         → no watcher（**守还在每 60 秒轮询**）
+```
+
+**模型每一步都照着说明书做**（读 status → 取 JSON 的 repo → 传给 stop），却仍然失败；
+而且失败文案是 `(...)` 不是 `[error: …]`，读起来像「已经停了」。
+
+现在两种写法都认，失败文案改成 `[error: …]` 并列出试过的 key。
+
+### ② 20 条上限被 `watch_stop` 卡成死结
+
+报错明说「先 watch_stop 停掉不用的」，但计数**不看 `enabled`**，而 stop 只置 `enabled=false`，
+8 个工具里又没有删除入口 —— 用户照做之后，同一句报错原样再来。
+
+上限的本意是「同时轮询的定时器别太多」，所以现在**只数还在跑的**。
+
+### ③ `format:'json'` 时错误分支返回纯文本
+
+`docs/json-契约.md` 与 README 都承诺「成功/失败都靠 `ok` 判断」，但 7 处 `return '[error: …]'`
+是纯字符串 —— 模型 `JSON.parse` 直接抛错。
+
+新增 `toolError(args, message)`：`format==='json'` 时返回 `{schemaVersion:1, ok:false, error}`。
+
+### ④ 必填项没进 schema
+
+`watch_trace.number` 实现里必填（缺了直接报错），schema 却没标 —— 模型只能靠「调一次失败」才知道。
+已标 `required: true`；`watch_ack` 的 `number|numbers` 在描述里写明「至少填一个」，
+`number` 类型放宽成 `['number','string']`（Gitee 的编号是 `IKSQJH` 这种字符串）。
+
+### 证据
+
+```
+npm test → 377/377（新增 3 条：JSON 错误结构化 / Gitee 守能停 / 停一条后能加新的）
+ui-audit → 11/11（100 分）
+```
+
 ## [0.9.232] - 2026-11-05 —— 一个**决定不做**的改动（附理由）
 
 T31 建议把「未认领」从唤醒消息里去掉：它无条件出现在每一条上（5 条消息 5 次），

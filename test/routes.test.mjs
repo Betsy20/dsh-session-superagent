@@ -778,11 +778,11 @@ test('一条会话最多 20 条守：第 21 条被拒绝，批量请求整批拒
     assert.ok(!out.includes('最多挂'), '第 ' + (i + 1) + ' 条不该被拦：' + out)
   }
   const over = String(await start.execute({ repo: 'acme/overflow' }))
-  assert.ok(over.includes('最多挂 20 条'), '第 21 条要被拦下：' + over)
+  assert.ok(over.includes('最多同时挂 20 条'), '第 21 条要被拦下：' + over)
 
   // 批量：整批拒绝（不能只加进去一半）
   const batch = String(await start.execute({ repo: 'acme/x acme/y' }))
-  assert.ok(batch.includes('最多挂'), '批量也要拦：' + batch)
+  assert.ok(batch.includes('最多同时挂'), '批量也要拦：' + batch)
   const state = mod.__test.readState()
   assert.equal(Object.keys(state.watchers).length, 20, '总数仍是 20')
   assert.ok(!state.watchers['acme/x#session-cap'], '批量里的第一个也不该写进去')
@@ -1404,4 +1404,69 @@ test('状态路径是惰性的：同一个实例改 env 之后立刻生效（T30
   mod.__test.writeState({ watchers: { 'b/y#s': { id: 'b/y#s', repo: 'b/y', sessionId: 's' } } })
   assert.ok(existsSync(join(second, 'watchers.json')), '应该写到新目录')
   assert.ok(existsSync(join(first, 'watchers.json')), '老目录的文件还在（没被搬走）')
+})
+
+test('format:json 时错误也必须是结构化的（T32 M2：纯文本让 JSON.parse 直接抛错）', async () => {
+  const tools = []
+  const dir = tempDir('zhuli-jsonerr-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: () => () => {} },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-jsonerr' }) },
+    get: () => null, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?jsonerr=' + Date.now())
+  mod.apply(ctx)
+  const ack = tools.find((t) => t.name === 'watch_ack')
+  const res = String(await ack.execute({ repo: 'acme/none', format: 'json' }))
+  const parsed = JSON.parse(res) // 抛错就说明还是纯文本
+  assert.equal(parsed.ok, false, '要明确说失败')
+  assert.ok(parsed.error, '要带 error 字段')
+  assert.equal(parsed.schemaVersion, 1)
+})
+
+test('watch_stop 认「带 gitee: 前缀」和「不带」两种写法（T32 M1：照 watch_status 的 JSON 调必然失败）', async () => {
+  const tools = []
+  const dir = tempDir('zhuli-giteestop-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: () => () => {} },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-gs' }) },
+    get: () => null, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?gs=' + Date.now())
+  mod.apply(ctx)
+  const start = tools.find((t) => t.name === 'watch_start')
+  const stop = tools.find((t) => t.name === 'watch_stop')
+  await start.execute({ repo: 'gitee:acme/gone' })
+  // 不带前缀（watch_status 的 JSON 就是这么给的）也必须能停掉
+  const out = String(await stop.execute({ repo: 'acme/gone' }))
+  assert.match(out, /stopped/, '应当停成功，实际：' + out)
+})
+
+test('停掉一条守之后能再挂新的（T32 M3：上限把 watch_stop 卡成死结）', async () => {
+  const tools = []
+  const dir = tempDir('zhuli-cap-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: () => () => {} },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-cap' }) },
+    get: () => null, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?cap=' + Date.now())
+  mod.apply(ctx)
+  const start = tools.find((t) => t.name === 'watch_start')
+  const stop = tools.find((t) => t.name === 'watch_stop')
+  for (let i = 0; i < 20; i += 1) await start.execute({ repo: 'cap/r' + i })
+  const over = String(await start.execute({ repo: 'cap/over' }))
+  assert.match(over, /最多同时挂/, '第 21 条该被拒，实际：' + over)
+  await stop.execute({ repo: 'cap/r0' })
+  const again = String(await start.execute({ repo: 'cap/over' }))
+  assert.match(again, /watching/, '停掉一条后应当能加，实际：' + again)
 })

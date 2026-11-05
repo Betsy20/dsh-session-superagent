@@ -89,7 +89,9 @@
         "number",
         "repo"
       ],
-      "required": []
+      "required": [
+        "number"
+      ]
     }
   ],
   "routes": [
