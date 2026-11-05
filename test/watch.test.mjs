@@ -1708,3 +1708,40 @@ test('同一编号再被叫醒时，要带回上次 ack 留的话（诉求 2：�
   const without = formatWatchText('o/r', items, {})
   assert.ok(!without.includes('上次处理'), '没记过就别硬编')
 })
+
+test('提过但没回执的条目，下一轮再提一次（Ticket「open」的最小版）', async () => {
+  const { recordPendingWake, clearPending, pendingRetry } = await import('../lib/watch.js')
+  const t0 = '2026-11-05T00:00:00.000Z'
+  const pending = recordPendingWake({}, [7, 8], t0)
+  assert.equal(pending['7'].tries, 1)
+
+  const items = [{ number: 7, state: 'open' }, { number: 8, state: 'open' }]
+  // 冷却期内不提（不打断）
+  assert.equal(pendingRetry(pending, items, { now: Date.parse('2026-11-05T00:05:00Z') }).retry.length, 0, '刚提过就别紧接着再提')
+  // 过冷却期要提，并带上「第几次」
+  const later = pendingRetry(pending, items, { now: Date.parse('2026-11-05T00:20:00Z') })
+  assert.equal(later.retry.length, 2)
+  assert.equal(later.retry[0].retryOf.tries, 1)
+  // 次数用完就放弃（不打扰）
+  const twice = recordPendingWake(pending, [7], '2026-11-05T00:20:00Z')
+  assert.equal(pendingRetry(twice, items, { now: Date.parse('2026-11-05T00:40:00Z') }).retry.length, 1, '8 还能提一次，7 提满了')
+  // 关掉的不提
+  assert.equal(pendingRetry(pending, [{ number: 7, state: 'closed' }], { now: Date.parse('2026-11-05T00:20:00Z') }).retry.length, 0)
+  // ack 之后彻底不提
+  assert.equal(pendingRetry(clearPending(pending, [7, 8]), items, { now: Date.parse('2026-11-05T00:20:00Z') }).retry.length, 0)
+})
+
+test('唤醒消息里要标出「上一轮提过，还没回执」', async () => {
+  const { formatWatchText } = await import('../lib/watch.js')
+  const item = { number: 7, title: 'x', state: 'open', user: { login: 'a' }, labels: [], assignees: [], html_url: 'https://x/7', retryOf: { tries: 1, first: '2026-11-05T00:00:00Z', at: '2026-11-05T00:00:00Z' } }
+  const text = formatWatchText('o/r', [item], {})
+  assert.match(text, /上一轮提过/, '要标出来，否则会话以为是新事件')
+  assert.match(text, /第 2 次/, '要说清是第几次')
+})
+
+test('acked / pending 必须真的写进状态文件（白名单是手维护的，漏了会静默丢失）', async () => {
+  const { POLL_RESULT_FIELDS } = await import('../lib/watch.js')
+  for (const key of ['acked', 'pending']) {
+    assert.ok(POLL_RESULT_FIELDS.includes(key), key + ' 必须在落盘白名单里，否则「算出来了但没存」')
+  }
+})
