@@ -106,4 +106,4 @@ T64 已修：visible 后每次 open 只聚焦一次；outside/confirm 不抢焦�
 - 未区分 Tooltip 的 `focus-visible` 与键盘 Tab 打开路径；本轮 focus 是真实 DOM focus；
 - 未验真实 watcher 请求/轮询；删除确认仅静态组合，不发请求。
 
-本任务只新增验证脚本、本报告和三张截图，没有创建 `test/ui-primitives-browser.test.mjs`，没有修改 `client.js`、两个适配器、`package.json`、`lib/`、版本或派单表，也没有 commit。工作树中这些生产文件及 T64/审计文件的变化属于并行任务。
+本任务只新增验证脚本、本报告和三张截图，没有创建 `test/ui-primitives-browser.test.mjs`，没有修改 `client.js`、两个适配器、`package.json`、`lib/`、版本或派单表，也没有执行 `git commit`。工作树中这些生产文件及 T64/审计文件的变化属于并行任务。最终核对时，并行 Lead 已把交付纳入 `47916b0` / `v0.9.270`；该集成提交不是本子任务执行。
