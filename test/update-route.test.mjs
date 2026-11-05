@@ -126,6 +126,7 @@ test('GET 以 installedVersion 为磁盘基线，SemVer 反例与 running 漂移
     ['minor=1000 不越过 major', '0.1000.0', '1.0.0', false],
     ['major 更新不受固定进制影响', '1.0.0', '0.1000.0', true],
     ['latest 等于 running 但磁盘较旧仍提示', '0.9.273', '0.9.272-rc.1', true],
+    ['latest 高于 installed 即磁盘升级，即使仍低于 running', '0.9.272', '0.9.270', true],
     ['大整数不丢失精度', '9007199254740993.0.0', '9007199254740992.0.0', true],
   ]
   for (const [name, latest, installedVersion, expected] of cases) {

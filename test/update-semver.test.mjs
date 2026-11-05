@@ -38,7 +38,10 @@ test('SemVer 官方 precedence 链与数字/非数字 prerelease 规则完整成
   }
   assert.equal(sign('1.0.0-alpha.999999999999999999999999', '1.0.0-alpha.1000000000000000000000000'), -1)
   assert.equal(sign('1.0.0-1', '1.0.0-alpha'), -1, '数字标识符必须低于非数字标识符')
+  assert.equal(sign('1.0.0-2', '1.0.0-10'), -1, '数字标识符按数值而不是字典序')
   assert.equal(sign('1.0.0-alpha', '1.0.0-alpha.0'), -1, '前缀相同时标识符更多者更高')
+  assert.equal(sign('1.0.0--', '1.0.0-A'), -1, 'prerelease 非数字标识符按 ASCII')
+  assert.equal(sign('1.0.0-A', '1.0.0-a'), -1, 'ASCII 大写低于小写，不用 localeCompare')
 })
 
 test('major/minor/patch 以十进制字符串比较，不受安全整数或固定进制限制', () => {
@@ -71,7 +74,8 @@ test('严格 grammar 拒绝前导零、空标识符、范围和非字符串，�
   ]) assert.equal(isStrictSemver(version), true, version)
   for (const version of [
     '', 'v1.2.3', '1.2', '01.2.3', '1.02.3', '1.2.03', '1.2.3-01',
-    '1.2.3-', '1.2.3+', '1.2.3-alpha..1', '1.2.3-alpha_1', '^1.2.3',
+    '1.2.3-', '1.2.3+', '1.2.3-alpha..1', '1.2.3+build..1', '1.2.3-alpha_1', '^1.2.3',
+    '1.2.3.4', ' 1.2.3', '1.2.3 ', '1.2.3-α',
     null, undefined, 123, ['1.2.3'], { toString: () => '1.2.3' },
   ]) assert.equal(isStrictSemver(version), false, String(version))
   assert.equal(sign(['1.2.3'], '1.2.2'), null)
