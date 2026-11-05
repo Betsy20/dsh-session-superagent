@@ -27,6 +27,7 @@
       "params": [
         "format",
         "label",
+        "note",
         "number",
         "numbers",
         "repo"

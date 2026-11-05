@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.252'
+    const CLIENT_VERSION = '0.9.254'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1632,9 +1632,11 @@ window.__ModuleLoader__.load({
       },
         (() => {
           const needle = search.trim()
-          const asNumber = /^#?[0-9]+$/.test(needle) ? needle.replace('#', '') : ''
+          // 审核 T40 M3：以前只认纯数字 —— Gitee 的编号是 IKSQJH 这种字符串，
+          // 于是**连追溯按钮都不生成**。而「这条为什么没叫醒我」正是这个产品的核心诉求。
+          const asNumber = /^#?[A-Za-z0-9_-]+$/.test(needle) ? needle.replace(/^#/, '') : ''
           const onlyRepo = watchers.length === 1 ? watchers[0].repo : ''
-          return h(Section, { key: 'trace', title: '追溯一条', hint: '在右上角搜索框输入编号（如 42），就能查它经历了什么：被过滤、已唤醒，还是根本没轮到' },
+          return h(Section, { key: 'trace', title: '追溯一条', hint: '在右上角搜索框输入编号（GitHub 如 42，Gitee 如 IKSQJH），就能查它经历了什么：被过滤、已唤醒，还是根本没轮到' },
             asNumber
               ? h('div', { className: 'dt-row-meta' },
                 h('button', {

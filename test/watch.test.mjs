@@ -1697,3 +1697,14 @@ test('只理名单里的人（官方原型的 Policy 最小版：谁可以给你
   // normalizeFilters 要去掉 @，否则面板存下来的值匹配不上
   assert.deepEqual(normalizeFilters({ allowAuthors: ['@Alice', ' bob '] }).allowAuthors, ['Alice', 'bob'])
 })
+
+test('同一编号再被叫醒时，要带回上次 ack 留的话（诉求 2：不留手尾）', async () => {
+  const { formatWatchText } = await import('../lib/watch.js')
+  const items = [{ number: 7, title: '修登录', state: 'open', user: { login: 'alice' }, labels: [], assignees: [], html_url: 'https://x/7' }]
+  const withNote = formatWatchText('o/r', items, { acked: { 7: { at: '2026-11-01T10:00:00Z', note: '已修，见 #57' } } })
+  assert.match(withNote, /上次处理/, '要提示这条以前处理过')
+  assert.match(withNote, /已修，见 #57/, '要把上次留的话原样带回')
+  assert.match(withNote, /2026-11-01/, '要带日期，方便判断多久以前')
+  const without = formatWatchText('o/r', items, {})
+  assert.ok(!without.includes('上次处理'), '没记过就别硬编')
+})

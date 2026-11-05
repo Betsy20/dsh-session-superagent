@@ -9,6 +9,8 @@
 | [design-system](design-system.md) | 要改界面：35 个设计 token、常用组件类、加页面的检查清单 |
 | [official-gui-ia](official-gui-ia.md) | 想知道「官方原版长什么样、我们砍了什么、为什么」 |
 | [awesome-submission](awesome-submission.md) | 要提交到 awesome-dsh-plugin：现成的 YAML、图标、核对结论 |
+| [为什么做这个产品](为什么做这个产品.md) | **动任何功能之前先读**：谁在痛、三条不变量（不打断 / 不留手尾 / 不失控）、明确不做什么 |
+| [对比-官方原型](对比-官方原型.md) | 想知道和官方 `dsh-superagent-prototype` 的功能差距、哪些该抄哪些不该 |
 | [competitive-analysis](competitive-analysis.md) | 想知道和 Sweep / CodeRabbit 这类工具的差别 |
 | [deepseek-papers](deepseek-papers.md) | 想知道设计取舍背后的研究依据 |
 | [真机验证清单](真机验证清单.md) | 重启后三条命令 + 三个动作，5 分钟确认新代码在跑 |

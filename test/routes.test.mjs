@@ -1363,7 +1363,13 @@ test('守数量有上限（T19：100 次 POST 就是 100 条守，每条一个�
     writeFileSync(stateFile, JSON.stringify({ watchers }, null, 2))
     const res = await call('POST', '/session-superagent/watch', { repo: 'o/new', sessionId: 's1' })
     assert.equal(res.statusCode, 429, '第 21 条必须被拒')
-    assert.match(String(res.json().error || ''), /最多挂/)
+    assert.match(String(res.json().error || ''), /最多同时挂/)
+    // 审核 T40 M1：已暂停的不该占名额 —— 停一条之后必须能再加
+    const stopped = JSON.parse(readFileSync(stateFile, 'utf8'))
+    stopped.watchers['o/r0#s1'].enabled = false
+    writeFileSync(stateFile, JSON.stringify(stopped, null, 2))
+    const again = await call('POST', '/session-superagent/watch', { repo: 'o/new', sessionId: 's1' })
+    assert.ok(again.statusCode !== 429, '停掉一条之后面板应当能再加，实际 ' + again.statusCode)
   } finally {
     writeFileSync(stateFile, original)
   }
@@ -1526,4 +1532,26 @@ test('状态文件里有一个 null 守时，/state 与 /diagnose 不能整个�
     assert.ok(!/Cannot read properties of null/.test(text), label + ' 不该抛 null 异常：' + text.slice(0, 200))
     assert.ok(res.statusCode === undefined || res.statusCode < 500, label + ' 不该 5xx：' + String(res.statusCode))
   }
+})
+
+test('allowAuthors 要走通真实链路（T40 M2：只用 filterReason 测，测不出 mergeFilters 漏了键）', async () => {
+  const tools = []
+  const dir = tempDir('zhuli-allow-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: () => () => {} },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-allow' }) },
+    get: () => null, on() {}, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?allow=' + Date.now())
+  mod.apply(ctx)
+  const start = tools.find((t) => t.name === 'watch_start')
+  const out = String(await start.execute({ repo: 'acme/allow', allowAuthors: ['@Alice', 'bob'] }))
+  assert.match(out, /watching/, out)
+  // 真的落到状态文件里了吗（以前这里静默丢成 []，而用例全绿）
+  const state = JSON.parse(readFileSync(join(dir, 'watchers.json'), 'utf8'))
+  const entry = Object.values(state.watchers)[0]
+  assert.deepEqual(entry.filters.allowAuthors, ['Alice', 'bob'], '作者名单必须真的存下来：' + JSON.stringify(entry.filters))
 })
