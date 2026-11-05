@@ -1208,9 +1208,14 @@ window.__ModuleLoader__.load({
     const PanelModal = hostUi ? hostUi.Modal : Modal
 
     /** 确认层与触发器分离：DSH orbit 关闭后，同一个本地 Modal 仍能由 StatusOrbit 持有。 */
-    function ConfirmDialog({ open, label, confirmLabel = '确定执行', title = confirmLabel, message, onConfirm, onClose, modalContext = 'panel', ButtonComponent = Btn, danger = true }) {
+    function ConfirmDialog({ open, label, confirmLabel = '确定执行', title = confirmLabel, message, onConfirm, onClose, modalContext = 'panel', ButtonComponent = Btn, danger = true, preventDismissOnBusy = false }) {
       const [busy, setBusy] = useState(false)
       const busyRef = useRef(false)
+      const dismiss = () => {
+        if (preventDismissOnBusy && (busy || busyRef.current)) return false
+        onClose()
+        return true
+      }
       const confirm = async () => {
         // state 还没来得及重渲染时也可能连点；同步 ref 是第二道锁。
         if (busyRef.current) return false
@@ -1218,6 +1223,7 @@ window.__ModuleLoader__.load({
         setBusy(true)
         try {
           const done = await onConfirm()
+          // 成功关闭走原回调，只执行一次，不能被 busy dismiss guard 挡住。
           if (done) onClose()
           return done
         } finally {
@@ -1231,10 +1237,9 @@ window.__ModuleLoader__.load({
         open,
         title,
         description: message || ('确定要执行「' + label + '」操作吗？'),
-        onClose,
-        children: null,
+        onClose: dismiss,
         footer: h(React.Fragment, null,
-          h(ButtonComponent, { variant: 'ghost', onClick: onClose }, '取消'),
+          h(ButtonComponent, { variant: 'ghost', disabled: preventDismissOnBusy && busy, onClick: dismiss }, '取消'),
           h(ButtonComponent, {
             variant: 'primary',
             className: cx(danger && 'dt-danger', busy && 'dt-btn-busy'),
@@ -1243,11 +1248,11 @@ window.__ModuleLoader__.load({
             'aria-busy': busy ? 'true' : undefined,
             onClick: confirm,
           }, confirmLabel)),
-      })
+      }, preventDismissOnBusy && busy ? h(Hint, null, '安装进行中，完成后才能关闭') : null)
     }
 
     /** 官方 ConfirmButton 动线：触发按钮只开 Modal，取消不执行，确认期间 busy 防重复。 */
-    function ConfirmButton({ label, confirmLabel = '确定执行', title = confirmLabel, message, onConfirm, variant = 'ghost', icon, size, modalContext = 'panel', ButtonComponent = Btn, danger = true }) {
+    function ConfirmButton({ label, confirmLabel = '确定执行', title = confirmLabel, message, onConfirm, variant = 'ghost', icon, size, modalContext = 'panel', ButtonComponent = Btn, danger = true, preventDismissOnBusy = false }) {
       const [open, setOpen] = useState(false)
       const close = useCallback(() => setOpen(false), [])
       return h(React.Fragment, null,
@@ -1259,7 +1264,7 @@ window.__ModuleLoader__.load({
           'aria-haspopup': 'dialog',
           onClick: () => setOpen(true),
         }, label),
-        h(ConfirmDialog, { open, label, confirmLabel, title, message, onConfirm, onClose: close, modalContext, ButtonComponent, danger }))
+        h(ConfirmDialog, { open, label, confirmLabel, title, message, onConfirm, onClose: close, modalContext, ButtonComponent, danger, preventDismissOnBusy }))
     }
 
     const watcherId = (w) => (w && w.id) || String((w && w.repo) || '') + '#' + String((w && w.sessionId) || '')
@@ -2843,6 +2848,7 @@ window.__ModuleLoader__.load({
                     size: 'sm',
                     ButtonComponent: UpdateButton,
                     danger: false,
+                    preventDismissOnBusy: true,
                     onConfirm: installUpdate,
                   }) : null,
                   h(Btn, {
