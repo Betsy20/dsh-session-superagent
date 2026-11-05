@@ -2,6 +2,34 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.246] - 2026-11-05 —— npm 上也渲染 README，但图和三份文档不在包里
+
+T35 W1：`files` 是白名单，只发 12 个文件。而 **npm 页面会把 README 完整渲染出来** ——
+
+- 头图 `assets/icon-180.png` 不在包里 → **破图**（页面最顶上那个位置）；
+- `docs/whats-new-0.9.md`、`docs/json-契约.md` 不在包里 → 死链；
+- `UPDATING.md`（升级步骤）、`CHECKLIST.md`、`MAINTENANCE.md` 也不在 → 死链。
+
+**客户打开 npm 页面看到的第一屏，就是一张破图。**
+
+### 改法
+
+把这 6 份加进 `files`（合计约 30 KB，比破图便宜），`audit-pack` 的必需清单同步。
+
+### 新增防回归用例
+
+读 README，抽出所有**本仓相对引用**（`src="x.png"` 与 `](x.md)`），逐个断言它们在 `files` 里。
+
+这条用例第一次跑就抓出 3 个漏的（`UPDATING.md` / `CHECKLIST.md` / `MAINTENANCE.md`）——
+比我肉眼找的还准。
+
+### 证据
+
+```
+npm test → 385/385（新增：README 引用的图片与文档必须打进包）
+npm pack → 20 个文件（原 13）
+```
+
 ## [0.9.245] - 2026-11-05 —— 两个「只增不减」的缓存
 
 T36 的「值得修」里有两条属于同一类：**内存里的东西没人回收**。

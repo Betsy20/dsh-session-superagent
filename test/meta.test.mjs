@@ -222,3 +222,17 @@ test('长跑相关的缓存与残留都必须有界（T36 W3/W5：titleCache 与
   assert.match(src, /watchers\.json\.corrupt-/, '要清理 .corrupt-* 残留')
   assert.match(src, /olds\.length - 3/, '只留最近 3 份')
 })
+
+test('README 里引用的图片与文档必须打进包（T35 W1：npm 上也渲染 README，缺了就是破图和死链）', async () => {
+  const { readFileSync, existsSync } = await import('node:fs')
+  const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8')
+  const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+  const files = pkg.files || []
+  // 本仓相对引用（不含 http(s)）
+  const refs = [...readme.matchAll(/(?:src="|]\()([^)"h][^)"]*\.(?:png|md))(?:")?/g)].map((m) => m[1])
+  const missing = refs.filter((rel) => {
+    if (!existsSync(new URL('../' + rel, import.meta.url))) return false // 文件本身不存在是另一个问题
+    return !files.includes(rel)
+  })
+  assert.deepEqual(missing, [], '这些被 README 引用但没进 files：' + missing.join(', '))
+})

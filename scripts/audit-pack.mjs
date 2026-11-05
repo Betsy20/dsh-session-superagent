@@ -42,6 +42,12 @@ const REQUIRED = [
   'client.js', 'cordis.patch.yml', 'package.json', 'README.md', 'LICENSE',
   'CHANGELOG.md',
   'bin/check.mjs',
+  'assets/icon-180.png',
+  'UPDATING.md',
+  'CHECKLIST.md',
+  'MAINTENANCE.md',
+  'docs/whats-new-0.9.md',
+  'docs/json-契约.md',
 ]
 // 从 npm notice 行里取文件名（最后一段），再逐条比对
 const listed = out.split(String.fromCharCode(10))
