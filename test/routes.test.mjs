@@ -1470,3 +1470,27 @@ test('停掉一条守之后能再挂新的（T32 M3：上限把 watch_stop 卡�
   const again = String(await start.execute({ repo: 'cap/over' }))
   assert.match(again, /watching/, '停掉一条后应当能加，实际：' + again)
 })
+
+test('编号带 # 时不能报「没给」（T33 M1：假报错会让这条 issue 永远关不掉）', async () => {
+  const tools = []
+  const dir = tempDir('zhuli-hashnum-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: () => () => {} },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-hash' }) },
+    get: () => null, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?hash=' + Date.now())
+  mod.apply(ctx)
+  const trace = tools.find((t) => t.name === 'watch_trace')
+  const ack = tools.find((t) => t.name === 'watch_ack')
+  // 先挂一条守，否则会先报「no watcher」（那是另一个错误分支）
+  await tools.find((t) => t.name === 'watch_start').execute({ repo: 'acme/hash' })
+  for (const [name, tool, args] of [['watch_trace', trace, { number: '#14' }], ['watch_ack', ack, { number: '#14' }]]) {
+    const out = String(await tool.execute(args))
+    assert.ok(!/is required/.test(out), name + ' 不该说「没给」：' + out)
+    assert.match(out, /# 号|去掉/, name + ' 要说清是写法问题：' + out)
+  }
+})

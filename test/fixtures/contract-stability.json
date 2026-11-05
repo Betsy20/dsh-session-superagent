@@ -30,7 +30,8 @@
       "cursor": "experimental",
       "lastPoll": "stable",
       "lastWake": "stable",
-      "lastError": "stable"
+      "lastError": "stable",
+      "lastErrorKind": "stable"
     }
   },
   "watch_doctor": {

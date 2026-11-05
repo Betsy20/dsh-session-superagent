@@ -45,6 +45,7 @@
 | `lastPoll` | 稳定 |
 | `lastWake` | 稳定 |
 | `lastError` | 稳定 |
+| `lastErrorKind` | 稳定 |
 
 ## watch_doctor
 
