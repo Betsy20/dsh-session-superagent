@@ -266,7 +266,7 @@ test('hasUpdate 显示官方 primary 安装按钮；点击只确认，复制命�
   assert.equal(postsOf(calls).length, 0, '复制命令不能冒充安装')
 })
 
-test('确认才 POST 指定版本；busyRef 挡住连点，整轮只安装一次并强制刷新', async () => {
+test('deferred POST 忙碌时取消/onClose/连点均不关闭或重发；成功后只关闭一次并展示回执', async () => {
   const calls = []
   let release
   const client = loadClient({
@@ -282,11 +282,16 @@ test('确认才 POST 指定版本；busyRef 挡住连点，整轮只安装一次
   const base = updateQueue()
   const hooks = hookIndexes(base)
   const opened = nodesOf(client, [...base, null, true, false])
-  const confirm = control(walk(hostModal(opened).props.footer), '确认安装')
+  const openedModal = hostModal(opened)
+  const openedFooter = walk(openedModal.props.footer)
+  const confirm = control(openedFooter, '确认安装')
+  const pendingCancel = control(openedFooter, '取消')
 
   client.resetStateCalls()
   const first = confirm.props.onClick()
   assert.equal(await confirm.props.onClick(), false, '第二次连点必须被同步 busyRef 挡住')
+  assert.equal(pendingCancel.props.onClick(), false, '取消处理器必须被同一个同步 busyRef 挡住')
+  assert.equal(openedModal.props.onClose(), false, '遮罩/Escape/关闭共用的 onClose 必须被 guard')
   assert.equal(postsOf(calls).length, 1)
   assert.equal(postsOf(calls)[0][0], '/session-superagent/update')
   assert.deepEqual(JSON.parse(postsOf(calls)[0][1].body), { version: '0.9.271' })
@@ -294,17 +299,37 @@ test('确认才 POST 指定版本；busyRef 挡住连点，整轮只安装一次
   assert.equal(calls.filter(([url]) => url.endsWith('/update?refresh=1')).length, 0, 'POST 未完成前不能刷新')
 
   const busyTree = nodesOf(client, [...base, null, true, true])
-  const busy = control(walk(hostModal(busyTree).props.footer), '确认安装')
+  const busyModal = hostModal(busyTree)
+  const busyFooter = walk(busyModal.props.footer)
+  const cancel = control(busyFooter, '取消')
+  const busy = control(busyFooter, '确认安装')
+  assert.equal(cancel.props.disabled, true, '安装忙碌时取消按钮必须 disabled')
   assert.equal(busy.props.disabled, true)
   assert.equal(busy.props['aria-busy'], 'true')
   assert.ok(hasClass(busy, 'dt-btn-busy'))
+  assert.ok(textOf(busyTree).includes('安装进行中，完成后才能关闭'), 'Modal 必须持续显示 busy 提示；实际：' + textOf(busyTree))
+  assert.equal(cancel.props.onClick(), false, 'busy 渲染中的取消仍受 guard')
+  assert.equal(busyModal.props.onClose(), false, 'busy 渲染中的 onClose 仍受 guard')
+  assert.equal(postsOf(calls).length, 1)
+  assert.equal(client.stateCalls().some((call) => call.index === hooks.open && call.next === false), false,
+    'POST pending 时任何 dismiss 路径都不能关闭 Modal')
 
   release()
   assert.equal(await first, true)
   assert.equal(postsOf(calls).length, 1)
   assert.equal(calls.filter(([url]) => url.endsWith('/update?refresh=1')).length, 1)
-  assert.ok(client.stateCalls().some((call) => call.index === hooks.open && call.next === false), '成功才关闭 Modal')
+  assert.equal(client.stateCalls().filter((call) => call.index === hooks.open && call.next === false).length, 1,
+    '成功必须绕过 busy guard，且只关闭一次')
   assert.ok(client.stateCalls().some((call) => call.index === hooks.busy && call.next === false))
+  const receiptCall = one(client.stateCalls().filter((call) => call.index === hooks.result), '缺安装回执 state')
+  assert.deepEqual({ ...receiptCall.next }, RECEIPT)
+
+  const finalQueue = updateQueue()
+  finalQueue[12] = { ...UPDATE, hasUpdate: false }
+  const finalText = textOf(nodesOf(client, [...finalQueue, RECEIPT]))
+  for (const expected of ['已安装，等待重载', 'installedVersion', '0.9.271', 'runningVersion', '0.9.270']) {
+    assert.ok(finalText.includes(expected), '成功回执缺：' + expected)
+  }
 })
 
 test('成功回执覆盖真实 GET hasUpdate:true：等待重载且不再提示重复安装，不冒充已运行新版', async () => {
@@ -516,25 +541,35 @@ test('GET 的 fetch rejection 与 404 仍 discoverBase 后重试，更新 POST �
   }
 })
 
-test('失败保留当前版本与命令回退，Modal 不假装成功，错误进入 Section 与 Toast', async () => {
+test('deferred POST 失败保留版本/命令与错误，busy 结束后取消和 onClose 恢复可关闭', async () => {
   const calls = []
+  let release
   const client = loadClient({
     primitives: HOST,
-    fetch: async (url, init) => {
+    fetch: (url, init) => {
       calls.push([url, init])
-      return init?.method === 'POST' ? response({ error: '磁盘只读' }, false, 500) : response(UPDATE)
+      if (init?.method === 'POST') {
+        return new Promise((resolve) => { release = () => resolve(response({ error: '磁盘只读' }, false, 500)) })
+      }
+      return Promise.resolve(response(UPDATE))
     },
   })
   const base = updateQueue()
   const hooks = hookIndexes(base)
   const opened = nodesOf(client, [...base, null, true, false])
   client.resetStateCalls()
-  assert.equal(await control(walk(hostModal(opened).props.footer), '确认安装').props.onClick(), false)
+  const pending = control(walk(hostModal(opened).props.footer), '确认安装').props.onClick()
+  assert.equal(postsOf(calls).length, 1)
+  assert.equal(client.stateCalls().some((call) => call.index === hooks.open && call.next === false), false,
+    'deferred 失败完成前不能关闭')
+  release()
+  assert.equal(await pending, false)
   assert.equal(postsOf(calls).length, 1)
   assert.equal(calls.filter(([url]) => url.endsWith('/update?refresh=1')).length, 0, '失败不能伪装成功后刷新')
   assert.equal(client.stateCalls().filter((call) => call.index === 12).length, 0, '失败不能覆盖当前 update')
   assert.equal(client.stateCalls().filter((call) => call.index === hooks.result).length, 0, '失败不能写安装回执')
   assert.ok(!client.stateCalls().some((call) => call.index === hooks.open && call.next === false), '失败保持确认层')
+  assert.ok(client.stateCalls().some((call) => call.index === hooks.busy && call.next === false), '失败后必须解除 busy')
 
   const errorText = '安装更新失败：磁盘只读'
   assert.ok(client.stateCalls().some((call) => call.index === 2 && call.next?.text === errorText), '缺 Section notice')
@@ -548,9 +583,18 @@ test('失败保留当前版本与命令回退，Modal 不假装成功，错误�
   assert.ok(text.includes('0.9.270') && text.includes(UPDATE.command), '失败后当前版本或命令回退丢失')
   assert.ok(text.includes(errorText), 'Section 必须留住错误')
   assert.ok(control(visible, '复制命令'))
-  assert.equal(hostModal(visible).props.open, true)
+  const visibleModal = hostModal(visible)
+  assert.equal(visibleModal.props.open, true)
   assert.equal(one(visible.filter((node) => node.type === HOST.Toast), '缺可见宿主 Toast').props.text, errorText)
   assert.ok(!text.includes('已运行新版'))
+
+  client.resetStateCalls()
+  const cancel = control(walk(visibleModal.props.footer), '取消')
+  assert.equal(cancel.props.disabled, false, '失败后取消必须恢复可用')
+  assert.equal(cancel.props.onClick(), true)
+  assert.equal(visibleModal.props.onClose(), true)
+  assert.equal(client.stateCalls().filter((call) => call.index === hooks.open && call.next === false).length, 2,
+    '失败后取消与 onClose 都必须能关闭')
 })
 
 test('老宿主缺 Button/Modal/Toast 时保留完整本地 fallback，确认仍执行同一 POST', async () => {
