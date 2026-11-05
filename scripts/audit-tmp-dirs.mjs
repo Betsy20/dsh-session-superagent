@@ -12,7 +12,13 @@ const bad = []
 for (const name of readdirSync(testDir)) {
   if (!name.endsWith('.test.mjs')) continue
   const text = readFileSync(join(testDir, name), 'utf8')
-  if (text.includes('mkdtempSync(join(tmpdir()')) bad.push(name)
+  // 审核 T25：以前只认一种拼写 `mkdtempSync(join(tmpdir()`。
+  // 换个写法（`tmpdir() + sep`、先 `const t = tmpdir()`、`path.join(tmpdir(), ...)`）就全逃逸。
+  // 判据放宽成「这个文件里既有 mkdtempSync 又用到 tmpdir()，却没走 tempDir()」。
+  const usesMkdtemp = /mkdtempSync\s*\(/.test(text)
+  const usesTmpdir = /\btmpdir\s*\(/.test(text)
+  const usesHelper = /from '\.\/fixtures\/tmpdir\.mjs'/.test(text) || /from '\.\/tmpdir\.mjs'/.test(text)
+  if (usesMkdtemp && usesTmpdir && !usesHelper) bad.push(name)
 }
 
 // scripts/ 下的临时文件也要收口：只 mkdtemp/tmpdir 却不删的脚本，会一点点把 tmpdir 撑满

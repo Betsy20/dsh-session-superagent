@@ -2,6 +2,39 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.222] - 2026-11-05 —— 又三条审计脚本「换个写法就绕过去」
+
+### ① `audit-readme-tests.mjs` 只看第一处
+
+`readme.match(/N 项单测/)` 只取**第一个**匹配 —— README 里第二处写错也看不见。
+两处数字不一致本身就是最危险的状态（读者不知道信哪个）。现在全部收集，要求一致。
+
+### ② `audit-syntax.mjs` 清单写死 6 个文件
+
+新增 `lib/xxx.js` 语法坏掉也 PASS。改成**扫描**：`lib/*.js` + `client.js` + `scripts/*.mjs`（门禁自己也会坏）。
+
+实测从 6 个文件变成 **63 个** —— 门禁的覆盖面一下子大了十倍。
+
+### ③ `audit-tmp-dirs.mjs` 只认一种拼写
+
+只匹配 `mkdtempSync(join(tmpdir()`。换个写法（`tmpdir() + sep`、先 `const t = tmpdir()`、
+`path.join(tmpdir(), ...)`）就全逃逸。
+
+改成按**行为**判定：这个文件里既有 `mkdtempSync(` 又用到 `tmpdir(`，却没走 `tempDir()` 就算违规。
+
+### 为什么这类「换个写法就绕过」最危险
+
+它不像「脚本坏了」那么明显 —— 脚本跑得好好的、输出 PASS、退出码 0，
+**只是它检查的东西已经不是真实存在的东西了**。上一轮那个「术语表永远不红」是同一个病，只是那一条更极端。
+
+### 证据
+
+```
+node --test → 369/369
+preflight --fast → 全部通过（38 项）
+audit-syntax → PASS 语法 node --check  63 个文件（原 6 个）
+```
+
 ## [0.9.221] - 2026-11-05 —— 让测试桩「脏」起来，才抓得住真机上的脏数据
 
 ### ① T26 的教训做成了夹具

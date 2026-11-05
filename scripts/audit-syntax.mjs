@@ -3,11 +3,18 @@
 //
 // 用法：node scripts/audit-syntax.mjs
 import { execFileSync } from 'node:child_process'
+import { readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const FILES = ['client.js', 'lib/index.js', 'lib/watch.js', 'lib/gh-format.js', 'lib/redact.js', 'lib/body.js']
+// 审核 T25：以前清单写死 6 个文件 —— 新增 `lib/xxx.js` 语法坏掉也 PASS。
+// 改成**扫描**所有源文件：lib/*.js、client.js，以及 scripts/*.mjs（门禁自己也会坏）。
+const FILES = [
+  'client.js',
+  ...readdirSync(join(ROOT, 'lib')).filter((n) => n.endsWith('.js')).map((n) => 'lib/' + n),
+  ...readdirSync(join(ROOT, 'scripts')).filter((n) => n.endsWith('.mjs')).map((n) => 'scripts/' + n),
+]
 
 const bad = []
 for (const file of FILES) {

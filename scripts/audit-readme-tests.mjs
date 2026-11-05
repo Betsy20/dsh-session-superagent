@@ -11,7 +11,11 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const readme = readFileSync(join(ROOT, 'README.md'), 'utf8')
-const claimed = (readme.match(/(\d+)\s*项单测/) || [])[1] || null
+// 审核 T25：以前用 `match` 只取**第一处** —— README 里第二处写错也看不见。
+// README 同时说「369 项单测」的地方不止一处，全部收集，要求它们一致。
+const claims = [...readme.matchAll(/(\d+)\s*项单测/g)].map((m) => m[1])
+const claimed = claims.length > 0 ? claims[0] : null
+const claimsDisagree = new Set(claims).size > 1
 
 let actual = process.argv[2]
 if (!actual) {
@@ -19,7 +23,10 @@ if (!actual) {
   actual = (out.match(/^ℹ tests (\d+)/m) || out.match(/# tests (\d+)/) || [])[1]
 }
 
-if (!claimed) {
+if (claimsDisagree) {
+  console.log('FAIL README 单测数  README 里几处单测数不一致：' + claims.join(' / '))
+  process.exitCode = 1
+} else if (!claimed) {
   console.log('FAIL README 单测数  README 没写单测数')
   process.exitCode = 1
 } else if (claimed !== String(actual)) {
