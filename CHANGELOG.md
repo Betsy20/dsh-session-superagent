@@ -2,6 +2,55 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.244] - 2026-11-05 —— `lastReported` 是唯一没有上限的集合
+
+### 问题
+
+T36 审计「跑久了会怎样」：29 个持久化字段里 **28 个有封顶**，只有一个没有 —— `lastReported`。
+
+```js
+export function recordReported(state, fresh, now = Date.now()) {
+  const next = { ...(state.lastReported ?? {}) }   // 只增不减
+  for (const item of fresh ?? []) next[String(item.number)] = now
+  return next
+}
+```
+
+同一个文件里的 `pruneSeen()` 把 `seen` 剪到 200 条 / 30 天，而**同一个 item 编号也进 `lastReported`，却永不修剪**。
+它唯一被读的地方是 **180 秒**冷却判断 —— 180 秒以外的记录纯属垃圾。
+
+实测（20 条守 × 4000 轮）：`lastReported` 从 8,608 条涨到 **35,019 条**，`watchers.json` 1.56 MB。
+按 30 天推算约 **14 MB**，每天 28,800 次 `persistEntry` × 每次 2 份全量写 = **0.8 TB/天** 磁盘写入。
+
+### 改法
+
+按「时间窗 + 条数上限」双向封顶（24 小时 / 200 条）：
+
+```
+4000 轮后：35,019 条 → 200 条
+JSON：约 1.4 MB → 4.4 KB
+```
+
+### 顺带修 W2：暂停一条守之后它还会再 tick 一次
+
+`watch_stop` 工具只清 `timers`，漏了 `bootTimers` —— 刚建好还在首轮错峰等待的守被暂停后，
+那个 `setTimeout` 仍会 fire，于是**已经停掉的守还会再轮询一次**（含真实 gh 请求，甚至建 worktree）。
+
+改用 `stopWatcher()`（两者都清）。
+
+### 确认有界的部分（不必担心）
+
+`events` 20 / `history` 20 / `filteredLog` 5 / `absorbedLog` 20 / `seen` 200(30 天) /
+`wakeTimes` 1 小时 / `dailyWakes` 7 天 / `lastStates` ≤100 —— 20 条守理论上限 496 KB；
+worktree 稳态 6 个，与运行时长无关；6 处定时器全部成对清除。
+
+### 证据
+
+```
+npm test → 383/383（新增：lastReported 必须有界）
+实测：4000 轮后 200 条 / 4.4 KB
+```
+
 ## [0.9.243] - 2026-11-05 —— 装好了吗？现在有一条客户自己能跑的命令
 
 ### 问题

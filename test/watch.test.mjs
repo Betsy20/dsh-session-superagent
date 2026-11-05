@@ -125,10 +125,14 @@ test('after the cooldown a new update is reported again', () => {
   assert.equal(splitFresh(items, state, { now, cooldownMs: 180_000 }).length, 1)
 })
 
-test('recordReported stamps every reported item', () => {
+test('recordReported stamps every reported item（并丢掉过期的）', () => {
   const now = 1_700_000_000_000
-  const next = recordReported({ lastReported: { 1: 5 } }, [item(2, 'x')], now)
-  assert.deepEqual(next, { 1: 5, 2: now })
+  const recent = now - 60 * 1000          // 一分钟前：还在窗口内
+  const ancient = now - 40 * 24 * 3600 * 1000  // 40 天前：早该扔了
+  const next = recordReported({ lastReported: { 1: recent, 2: ancient } }, [item(3, 'x')], now)
+  assert.equal(next[1], recent, '窗口内的要保留（冷却判断还要用）')
+  assert.equal(next[2], undefined, '窗口外的要丢掉（T36 M1：以前只增不减，30 天能到 14 MB）')
+  assert.equal(next[3], now)
 })
 
 test('partitionItems absorbs our own bump instead of delaying it', () => {
@@ -1666,4 +1670,18 @@ test('唤醒失败的原因要客户能看懂（T33 M3：以前是 session not l
   assert.match(busy, /[\u4e00-\u9fa5]/, '要有中文说明：' + busy)
   assert.match(busy, /顺延|等/, '要说下一步：' + busy)
   assert.match(busy, /busy/, '排查用的英文状态值要保留：' + busy)
+})
+
+test('lastReported 必须是有界的（T36 M1：以前只增不减，20 守跑 30 天约 14 MB）', async () => {
+  const { recordReported } = await import('../lib/watch.js')
+  const now = Date.now()
+  let state = { lastReported: {} }
+  // 模拟 20 条守跑 400 轮（每小时一条新条目）
+  for (let round = 0; round < 400; round += 1) {
+    const fresh = Array.from({ length: 20 }, (_, i) => ({ number: round * 20 + i }))
+    state.lastReported = recordReported(state, fresh, now + round * 3600 * 1000)
+  }
+  const count = Object.keys(state.lastReported).length
+  assert.ok(count <= 200, '条数要有上限，实际 ' + count)
+  assert.ok(JSON.stringify(state.lastReported).length < 8000, '体积要小，实际 ' + JSON.stringify(state.lastReported).length)
 })
