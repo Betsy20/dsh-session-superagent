@@ -24,9 +24,16 @@ const RECEIPT = Object.freeze({
   runningVersion: '0.9.270',
   needsReload: true,
 })
+const UNKNOWN_HINT = '请求结果未知，请先重新检查 installed/running，再手动确认'
+const UNKNOWN_RECEIPT = Object.freeze({
+  installedVersion: '未知',
+  runningVersion: '未知',
+  needsReload: null,
+  resultUnknown: true,
+})
 
 function response(body, ok = true, status = 200) {
-  return { ok, status, headers: { get: () => null }, text: async () => JSON.stringify(body) }
+  return { ok, status, headers: { get: () => null }, json: async () => body, text: async () => JSON.stringify(body) }
 }
 
 // 执行真实 UMD，同时注入可辨识的宿主原语；state setter 会记录并保存最新值。
@@ -399,6 +406,114 @@ test('手动重新检查清掉旧安装回执；顶部入口直接叫「去更�
   banner.props.onClick()
   assert.ok(client.stateCalls().some((call) => call.index === 14 && call.next === 'update'))
   assert.ok(client.stateCalls().some((call) => call.index === 1 && call.next === 'settings'))
+})
+
+test('更新 POST 首个 fetch reject 只发一次：不 discoverBase，保留 update/命令并显示结果未知', async () => {
+  const calls = []
+  const client = loadClient({
+    primitives: HOST,
+    fetch: async (url, init) => {
+      calls.push([url, init])
+      if (init?.method === 'POST') throw new Error('响应丢失')
+      return response(UPDATE)
+    },
+  })
+  const base = updateQueue()
+  const hooks = hookIndexes(base)
+  const opened = nodesOf(client, [...base, null, true, false])
+  client.resetStateCalls()
+  assert.equal(await control(walk(hostModal(opened).props.footer), '确认安装').props.onClick(), false)
+  assert.equal(postsOf(calls).length, 1, 'fetch rejection 不能自动重放更新 POST')
+  assert.equal(calls.filter(([url]) => url.endsWith('/state')).length, 0, '更新 POST 失败不能触发 discoverBase')
+  assert.equal(calls.filter(([url]) => url.endsWith('/update?refresh=1')).length, 0, '结果未知不能伪装成功后刷新')
+  assert.equal(client.stateCalls().filter((call) => call.index === 12).length, 0, '失败必须保留当前 update')
+  const resultCall = one(client.stateCalls().filter((call) => call.index === hooks.result), '缺结果未知回执')
+  assert.deepEqual({ ...resultCall.next }, UNKNOWN_RECEIPT)
+
+  const errorText = '安装更新' + UNKNOWN_HINT + '：响应丢失'
+  assert.ok(client.stateCalls().some((call) => call.index === 2 && call.next?.text === errorText), '缺未知结果 Section notice')
+  assert.ok(client.stateCalls().some((call) => call.index === 7 && call.next?.text === errorText && call.next?.tone === 'error'), '缺未知结果 Toast')
+  assert.ok(!client.stateCalls().some((call) => call.index === hooks.open && call.next === false), '结果未知保持确认层')
+
+  const visibleQueue = updateQueue()
+  visibleQueue[2] = { ok: false, text: errorText }
+  visibleQueue[7] = { id: 1, text: errorText, tone: 'error' }
+  const visible = nodesOf(client, [...visibleQueue, UNKNOWN_RECEIPT, true, false])
+  const text = textOf(visible)
+  assert.ok(text.includes('0.9.270') && text.includes(UPDATE.command), '结果未知后当前版本或命令回退丢失')
+  assert.ok(text.includes(UNKNOWN_HINT), 'Section 必须持久显示重新检查 installed/running 的提示')
+  assert.ok(text.includes('安装副本（installedVersion）') && text.includes('运行版本（runningVersion）'))
+  assert.ok(!text.includes('安装完成') && !text.includes('未安装'), '结果未知不能写成安装完成或未安装')
+  assert.ok(control(visible, '复制命令'))
+  assert.equal(hostModal(visible).props.open, true)
+})
+
+test('更新 POST 404 只发一次：即使 discoverBase 可找到新前缀也不发第二次更新', async () => {
+  const calls = []
+  const client = loadClient({
+    primitives: HOST,
+    fetch: async (url, init) => {
+      calls.push([url, init])
+      if (init?.method === 'POST') {
+        return calls.filter(([, options]) => options?.method === 'POST').length === 1
+          ? response({ error: '旧前缀不存在' }, false, 404)
+          : response({ ok: true, ...RECEIPT })
+      }
+      if (url.endsWith('/state')) {
+        const base = url.slice(0, -'/state'.length)
+        return response({ routeBase: base, serverVersion: base.endsWith('/r2') ? '0.9.273' : '0.0.0' })
+      }
+      return response(UPDATE)
+    },
+  })
+  const base = updateQueue()
+  const hooks = hookIndexes(base)
+  const opened = nodesOf(client, [...base, null, true, false])
+  client.resetStateCalls()
+  assert.equal(await control(walk(hostModal(opened).props.footer), '确认安装').props.onClick(), false)
+  assert.equal(postsOf(calls).length, 1, '404 不能经 discoverBase 自动重放更新 POST')
+  assert.equal(calls.filter(([url]) => url.endsWith('/state')).length, 0, '更新 POST 404 不应触发 discoverBase')
+  assert.equal(calls.filter(([url]) => url.endsWith('/update?refresh=1')).length, 0)
+  const resultCall = one(client.stateCalls().filter((call) => call.index === hooks.result), '404 缺结果未知回执')
+  assert.deepEqual({ ...resultCall.next }, UNKNOWN_RECEIPT)
+  const errorText = '安装更新' + UNKNOWN_HINT + '：旧前缀不存在'
+  assert.ok(client.stateCalls().some((call) => call.index === 2 && call.next?.text === errorText))
+  assert.ok(client.stateCalls().some((call) => call.index === 7 && call.next?.text === errorText && call.next?.tone === 'error'))
+})
+
+test('GET 的 fetch rejection 与 404 仍 discoverBase 后重试，更新 POST 特例不改变只读回归', async () => {
+  for (const failure of ['reject', '404']) {
+    const calls = []
+    const client = loadClient({
+      primitives: HOST,
+      fetch: async (url, init) => {
+        calls.push([url, init])
+        if (url.endsWith('/update?refresh=1')) {
+          const attempts = calls.filter(([seen]) => seen.endsWith('/update?refresh=1')).length
+          if (attempts === 1) {
+            if (failure === 'reject') throw new Error('GET 首次断网')
+            return response({ error: '旧前缀不存在' }, false, 404)
+          }
+          return response(UPDATE)
+        }
+        if (url.endsWith('/state')) {
+          const base = url.slice(0, -'/state'.length)
+          return response({ routeBase: base, serverVersion: base.endsWith('/r2') ? '0.9.273' : '0.0.0' })
+        }
+        return response({})
+      },
+    })
+    const nodes = nodesOf(client, updateQueue())
+    assert.equal(await control(nodes, '重新检查').props.onClick(), true, failure + '：GET 应重试成功')
+    const updateCalls = calls.filter(([url]) => url.endsWith('/update?refresh=1'))
+    assert.equal(updateCalls.length, 2, failure + '：GET 必须原样重试一次')
+    assert.equal(updateCalls[0][0], '/session-superagent/update?refresh=1')
+    assert.equal(updateCalls[1][0], '/session-superagent/r2/update?refresh=1', failure + '：重试必须使用发现的新前缀；实际 ' + updateCalls.map(([url]) => url).join(', '))
+    assert.equal(calls.filter(([url]) => url.endsWith('/state')).length, 8, failure + '：必须执行完整 discoverBase（默认前缀 + r2…r8）')
+    assert.equal(postsOf(calls).length, 0)
+    const updateCall = client.stateCalls().filter((call) => call.index === 12).at(-1)
+    assert.deepEqual({ ...updateCall.next }, UPDATE)
+  }
 })
 
 test('失败保留当前版本与命令回退，Modal 不假装成功，错误进入 Section 与 Toast', async () => {

@@ -380,6 +380,7 @@ window.__ModuleLoader__.load({
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
     const CLIENT_VERSION = '0.9.273'
+    const UPDATE_UNKNOWN_HINT = '请求结果未知，请先重新检查 installed/running，再手动确认'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -427,17 +428,28 @@ window.__ModuleLoader__.load({
         ...(options || {}),
         headers: { 'content-type': 'application/json', accept: 'application/json', ...((options && options.headers) || {}) },
       }
+      // 更新可能已经开始安装；响应丢失不代表请求未执行，自动重放会重复修改安装副本。
+      // 特例只覆盖更新 POST：GET 与其它 mutation 的 discover/retry 行为保持原样。
+      const updatePost = path === '/update' && String(init.method || 'GET').toUpperCase() === 'POST'
+      const unknownUpdateError = (error) => {
+        const failure = error && (typeof error === 'object' || typeof error === 'function')
+          ? error
+          : new Error(String(error))
+        failure.updateResultUnknown = true
+        return failure
+      }
       let res
       try {
         res = await fetch(BASE + path, init)
       } catch (error) {
+        if (updatePost) throw unknownUpdateError(error)
         // 前缀失效（这一代被新实例接管并释放了）：重新探一次再试，还不行就把错抛出去
         if (retried) throw error
         await discoverBase()
         return call(path, options, true)
       }
-      // 旧前缀被释放后宿主会 404：同样重探一次
-      if (res.status === 404 && !retried) {
+      // 旧前缀被释放后宿主会 404：只读请求可重探一次；更新 POST 绝不自动重放。
+      if (res.status === 404 && !retried && !updatePost) {
         await discoverBase()
         return call(path, options, true)
       }
@@ -452,7 +464,11 @@ window.__ModuleLoader__.load({
       const text = await res.text()
       let body = null
       try { body = text ? JSON.parse(text) : null } catch { body = { raw: text } }
-      if (!res.ok) throw new Error((body && body.error) || ('HTTP ' + res.status))
+      if (!res.ok) {
+        const error = new Error((body && body.error) || ('HTTP ' + res.status))
+        if (updatePost && res.status === 404) throw unknownUpdateError(error)
+        throw error
+      }
       return body
     }
 
@@ -2747,14 +2763,16 @@ window.__ModuleLoader__.load({
           h(KeyValues, { rows: [
             ['当前版本', (update && update.current) || CLIENT_VERSION],
             ['npm 最新', !update ? '检测中…' : update.error ? '检测失败 · ' + update.error : (update.latest || '未知')],
-            ['状态', updateAwaitingReload
-              ? '已安装，等待重载'
-              : updateResult
-                ? (updateResult.needsReload ? '安装完成，需要重载才生效' : '安装完成')
-                : !update ? '…' : update.error ? '检查失败' : update.hasUpdate ? '有新版本，可以升级' : '已是最新'],
-            updateResult ? ['安装副本（installedVersion）', updateResult.installedVersion] : null,
-            updateResult ? ['运行版本（runningVersion）', updateResult.runningVersion] : null,
-            updateResult ? ['重载要求（needsReload）', updateResult.needsReload ? 'true · 需要重载才生效' : 'false · 当前无需重载'] : null,
+            ['状态', updateResult && updateResult.resultUnknown
+              ? UPDATE_UNKNOWN_HINT
+              : updateAwaitingReload
+                ? '已安装，等待重载'
+                : updateResult
+                  ? (updateResult.needsReload ? '安装完成，需要重载才生效' : '安装完成')
+                  : !update ? '…' : update.error ? '检查失败' : update.hasUpdate ? '有新版本，可以升级' : '已是最新'],
+            updateResult ? ['安装副本（installedVersion）', updateResult.resultUnknown ? '未知 · 请重新检查' : updateResult.installedVersion] : null,
+            updateResult ? ['运行版本（runningVersion）', updateResult.resultUnknown ? '未知 · 请重新检查' : updateResult.runningVersion] : null,
+            updateResult ? ['重载要求（needsReload）', updateResult.resultUnknown ? '未知 · 请重新检查' : updateResult.needsReload ? 'true · 需要重载才生效' : 'false · 当前无需重载'] : null,
           ] }),
           update && update.hasUpdate
             ? h('div', null,
@@ -2886,7 +2904,19 @@ window.__ModuleLoader__.load({
           await checkUpdate(true, true)
           return true
         } catch (error) {
-          const text = '安装更新失败：' + String((error && error.message) || error)
+          const detail = String((error && error.message) || error)
+          const resultUnknown = Boolean(error && error.updateResultUnknown)
+          if (resultUnknown) {
+            setUpdateResult({
+              installedVersion: '未知',
+              runningVersion: '未知',
+              needsReload: null,
+              resultUnknown: true,
+            })
+          }
+          const text = resultUnknown
+            ? '安装更新' + UPDATE_UNKNOWN_HINT + '：' + detail
+            : '安装更新失败：' + detail
           setNotice({ ok: false, text })
           notify(text, 'error')
           return false
