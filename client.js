@@ -1808,6 +1808,9 @@ window.__ModuleLoader__.load({
       const [traceResult, setTraceResult] = useState(null)
       // 安装回执与版本检查分开：POST 失败不能冲掉当前版本和命令回退。
       const [updateResult, setUpdateResult] = useState(null)
+      // POST 后 GET 仍以 runningVersion 比较 latest；已装到 latest 且等待重载时，回执优先于 hasUpdate。
+      const updateAwaitingReload = Boolean(updateResult && updateResult.needsReload === true
+        && update && updateResult.installedVersion === update.latest)
       // 去设置页时必须同时定位分区；只切 Tab 会把人留在上次看的分区（官方 settingsRoute(group) 的最小等价）。
       const openSettings = (section) => {
         setSettingsSection(section)
@@ -2744,9 +2747,11 @@ window.__ModuleLoader__.load({
           h(KeyValues, { rows: [
             ['当前版本', (update && update.current) || CLIENT_VERSION],
             ['npm 最新', !update ? '检测中…' : update.error ? '检测失败 · ' + update.error : (update.latest || '未知')],
-            ['状态', updateResult
-              ? (updateResult.needsReload ? '安装完成，需要重载才生效' : '安装完成')
-              : !update ? '…' : update.error ? '检查失败' : update.hasUpdate ? '有新版本，可以升级' : '已是最新'],
+            ['状态', updateAwaitingReload
+              ? '已安装，等待重载'
+              : updateResult
+                ? (updateResult.needsReload ? '安装完成，需要重载才生效' : '安装完成')
+                : !update ? '…' : update.error ? '检查失败' : update.hasUpdate ? '有新版本，可以升级' : '已是最新'],
             updateResult ? ['安装副本（installedVersion）', updateResult.installedVersion] : null,
             updateResult ? ['运行版本（runningVersion）', updateResult.runningVersion] : null,
             updateResult ? ['重载要求（needsReload）', updateResult.needsReload ? 'true · 需要重载才生效' : 'false · 当前无需重载'] : null,
@@ -2755,7 +2760,7 @@ window.__ModuleLoader__.load({
             ? h('div', null,
                 h('code', { className: 'dt-code' }, update.command),
                 h('div', { className: 'dt-actions' },
-                  h(ConfirmButton, {
+                  !updateAwaitingReload ? h(ConfirmButton, {
                     label: '安装更新',
                     confirmLabel: '确认安装',
                     title: '安装更新',
@@ -2765,7 +2770,7 @@ window.__ModuleLoader__.load({
                     ButtonComponent: UpdateButton,
                     danger: false,
                     onConfirm: installUpdate,
-                  }),
+                  }) : null,
                   h(Btn, {
                     size: 'sm',
                     // 审核 T24 W2：以前点了零反馈，writeText 的 rejection 也没人接 —— 客户不知道复制没成。
@@ -3051,8 +3056,8 @@ window.__ModuleLoader__.load({
           value: tab, onChange: setTab, label: '主理鱼分区',
         }),
         notice ? h('div', { className: 'dt-banner dt-danger' }, notice.text) : null,
-        // 有新版本时在顶部提示一次（埋在设置页里客户不会主动翻）
-        update && update.hasUpdate
+        // 有新版本时在顶部提示一次；已装到 latest 且等待重载时完全隐藏，避免重复安装入口。
+        update && update.hasUpdate && !updateAwaitingReload
           ? h('div', { className: 'dt-banner dt-banner-actions' },
               h('span', { className: 'dt-banner-label' }, '有新版本 ' + update.latest + '（当前 ' + update.current + '）'),
               h('button', { className: 'dt-btn dt-btn-sm dt-btn-outline', type: 'button', onClick: () => openSettings('update') }, '去更新'))

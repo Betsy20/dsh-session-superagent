@@ -189,9 +189,12 @@ function one(items, message) {
   return items[0]
 }
 
+function controls(nodes, label) {
+  return nodes.filter((node) => (node.type === 'button' || node.type === HOST.Button) && nodeText(node) === label)
+}
+
 function control(nodes, label) {
-  return one(nodes.filter((node) => (node.type === 'button' || node.type === HOST.Button) && nodeText(node) === label),
-    '找不到唯一按钮「' + label + '」')
+  return one(controls(nodes, label), '找不到唯一按钮「' + label + '」')
 }
 
 function hostModal(nodes) {
@@ -297,8 +300,9 @@ test('确认才 POST 指定版本；busyRef 挡住连点，整轮只安装一次
   assert.ok(client.stateCalls().some((call) => call.index === hooks.busy && call.next === false))
 })
 
-test('成功显示 installed/running/needsReload 与 GET 新状态，不把安装回执写成已运行新版', async () => {
-  const refreshed = { ...UPDATE, hasUpdate: false }
+test('成功回执覆盖真实 GET hasUpdate:true：等待重载且不再提示重复安装，不冒充已运行新版', async () => {
+  // 真实服务端仍以 runningVersion 比较 latest；安装副本已到 latest 时 GET 仍会返回 hasUpdate:true。
+  const refreshed = { ...UPDATE, hasUpdate: true }
   const calls = []
   const client = loadClient({
     primitives: HOST,
@@ -330,11 +334,21 @@ test('成功显示 installed/running/needsReload 与 GET 新状态，不把安�
 
   const finalQueue = updateQueue()
   finalQueue[12] = refreshed
-  const finalText = textOf(nodesOf(client, [...finalQueue, RECEIPT]))
-  for (const expected of ['installedVersion', '0.9.271', 'runningVersion', '0.9.270', 'needsReload', 'true · 需要重载才生效']) {
+  const finalNodes = nodesOf(client, [...finalQueue, RECEIPT])
+  const finalText = textOf(finalNodes)
+  for (const expected of ['已安装，等待重载', 'installedVersion', '0.9.271', 'runningVersion', '0.9.270', 'needsReload', 'true · 需要重载才生效']) {
     assert.ok(finalText.includes(expected), '成功 Section 缺：' + expected)
   }
+  assert.equal(controls(finalNodes, '安装更新').length, 0, '已安装 latest 且等待重载时必须隐藏重复安装按钮')
+  assert.ok(control(finalNodes, '复制命令'), '手动命令回退不应随安装按钮一起隐藏')
   assert.ok(!finalText.includes('已运行新版'), 'runningVersion 未变时不能宣称已运行新版')
+
+  const installedOverview = updateQueue()
+  installedOverview[1] = 'overview'
+  installedOverview[12] = refreshed
+  const overviewNodes = nodesOf(client, [...installedOverview, RECEIPT])
+  assert.equal(controls(overviewNodes, '去更新').length, 0, '等待重载时顶部不再给重复安装入口')
+  assert.ok(!textOf(overviewNodes).includes('有新版本'), '等待重载时顶部不再误报有新版本')
 
   const noReload = { ...RECEIPT, runningVersion: '0.9.271', needsReload: false }
   const noReloadQueue = updateQueue()
@@ -343,6 +357,26 @@ test('成功显示 installed/running/needsReload 与 GET 新状态，不把安�
   assert.ok(noReloadText.includes('false · 当前无需重载'))
   assert.ok(noReloadText.includes('runningVersion') && noReloadText.includes('0.9.271'))
   assert.ok(!noReloadText.includes('已运行新版'), '界面不凭版本相等额外推断运行状态')
+})
+
+test('未安装、其它安装版本或 needsReload=false 时仍按 GET 显示安装按钮与顶部提示', () => {
+  const client = loadClient({ primitives: HOST })
+  const scenarios = [
+    ['未安装', null],
+    ['其它安装版本', { ...RECEIPT, installedVersion: '0.9.270' }],
+    ['无需重载', { ...RECEIPT, needsReload: false }],
+  ]
+  for (const [name, receipt] of scenarios) {
+    const settings = nodesOf(client, [...updateQueue(), receipt])
+    assert.ok(control(settings, '安装更新'), name + '：不能隐藏安装按钮')
+    assert.ok(!textOf(settings).includes('已安装，等待重载'), name + '：不能冒充等待重载')
+
+    const overviewQueue = updateQueue()
+    overviewQueue[1] = 'overview'
+    const overview = nodesOf(client, [...overviewQueue, receipt])
+    assert.ok(control(overview, '去更新'), name + '：不能隐藏顶部入口')
+    assert.ok(textOf(overview).includes('有新版本 0.9.271'), name + '：顶部仍按 GET 提示')
+  }
 })
 
 test('手动重新检查清掉旧安装回执；顶部入口直接叫「去更新」', async () => {
