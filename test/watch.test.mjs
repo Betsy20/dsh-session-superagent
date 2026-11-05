@@ -1561,3 +1561,41 @@ test('id=__proto__ 不能污染原型（T19：一次请求改掉 Object.prototyp
   assert.equal(({}).enabled, undefined, 'Object.prototype 被污染了')
   assert.equal(state.watchers['a#b'].enabled, true, '正常条目不该被动')
 })
+
+test('会话忙时**不许**推进水位（T20：否则下一轮 304，那条评论永远不再叫）', async () => {
+  const { planWakeSettlement } = await import('../lib/watch.js')
+  const entry = { seen: { 1: 'x' }, wakeTimes: [], history: [], silentWakes: 0, cursor: 'c0' }
+  const busy = planWakeSettlement(entry, { ok: false, reason: 'session busy', fresh: [{ number: 42 }] })
+  assert.equal(busy.advanceWatermark, false, '失败分支不许推进水位')
+  assert.equal(busy.commitEtag, false, '失败分支不许提交 ETag（否则下一轮 304 直接 return）')
+  assert.equal(busy.seen, undefined, '不该产出新的 seen')
+  assert.equal(busy.cursor, undefined, '不该产出新的 cursor')
+  assert.equal(busy.deferReason, 'busy')
+  assert.ok(!busy.bumpBackoff, '会话忙是暂时的，别退避')
+})
+
+test('真正发出去之后才推进水位，且记账（T20：入队即记账会丢消息）', async () => {
+  const { planWakeSettlement } = await import('../lib/watch.js')
+  const entry = { seen: { 1: 'x' }, wakeTimes: [], history: [], silentWakes: 0 }
+  const ok = planWakeSettlement(entry, {
+    ok: true,
+    fresh: [{ number: 42, updated_at: '2026-11-05T00:00:00.000Z' }],
+    now: 1770000000000,
+  })
+  assert.equal(ok.advanceWatermark, true)
+  assert.equal(ok.commitEtag, true)
+  assert.ok(ok.seen['42'], '水位要包含这一批')
+  assert.equal(ok.wakeTimes.length, 1, '唤醒次数要记')
+  assert.ok(ok.dailyWakes, '当日唤醒数要记')
+  assert.equal(ok.deferReason, null)
+  assert.match(ok.eventText, /#42/)
+})
+
+test('失败的唤醒也要进 history（客户能看到「叫过但没叫醒」）', async () => {
+  const { planWakeSettlement } = await import('../lib/watch.js')
+  const res = planWakeSettlement({ history: [] }, { ok: false, reason: 'session not live', fresh: [{ number: 7 }] })
+  assert.equal(res.history.length, 1)
+  assert.equal(res.history[0].ok, false)
+  assert.match(res.history[0].reason, /session not live/)
+  assert.deepEqual(res.lastBatch, [7])
+})
