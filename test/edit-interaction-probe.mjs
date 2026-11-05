@@ -91,6 +91,7 @@ export function runHarnessProbe() {
   }
 
   let queue = deskQueue(snap)
+  queue[7] = null // deskQueue 的兼容占位是 []；本探针明确模拟“当前无 Toast”。
   const closed = render(queue)
   const opener = one(closed, (node) => node.type === 'button' && hasClass(node, 'dt-open') && text(node) === 'a/b',
     '找不到仓库标题按钮')
@@ -109,6 +110,9 @@ export function runHarnessProbe() {
   assert.notEqual(one(form, (node) => node.type === 'fieldset', '编辑 form 缺 fieldset').props.disabled, true,
     '非保存态 fieldset 不得 disabled')
   assert.equal(goal.props.inert, undefined, 'input 不得 inert')
+  assert.equal(all(opened, (node) => node.props.inert !== undefined).length, 0, '编辑树不得有 inert 祖先')
+  assert.equal(all(opened, (node) => hasClass(node, 'dt-modal-root') || hasClass(node, 'dt-toast')).length, 0,
+    '无弹层/通知时编辑树不得出现覆盖层 DOM')
   assert.equal(typeof goal.props.onChange, 'function', '受控 input 缺 onChange')
   assert.equal(goal.props.onInput, undefined, '生产控件没有另一套 onInput 状态链')
 
@@ -118,6 +122,9 @@ export function runHarnessProbe() {
   assert.equal(titleInTicket.props['aria-expanded'], true)
   assert.equal(ticket.props.onClick, undefined, 'ticket 自身没有 onClick')
   assert.equal(form.props.onClick, undefined, 'form 自身没有 onClick')
+  assert.equal(one(ticket, (node) => hasClass(node, 'dt-ticket-body'), '缺 ticket body').props.onClick, undefined,
+    'ticket body 自身没有 onClick')
+  assert.equal(all(ticket, (node) => node.type === 'form').length, 1, 'ticket 内不得嵌套第二份 form')
   const fieldset = one(form, (node) => node.type === 'fieldset', '缺 fieldset')
   assert.equal(fieldset.props.onClick, undefined, 'fieldset 自身没有 onClick')
 
@@ -151,6 +158,7 @@ export function runHarnessProbe() {
   assert.match(css, /\.dt-row\s*\{[^}]*position:\s*relative/, '行容器不是定位包含块，探针前提改变')
   assert.match(css, /\.dt-open::after\s*\{[^}]*position:\s*absolute;[^}]*inset:\s*0/, '标题伪元素不再铺满定位包含块')
   const stackingProtection = /\.dt-ticket-body(?:\s*>\s*|\s+)\.dt-form\s*\{[^}]*position:\s*relative;[^}]*z-index:\s*[1-9]/.test(css)
+  assert.doesNotMatch(css, /\.dt-form[^{]*\{[^}]*pointer-events:\s*none/, 'form 自身不得 pointer-events:none')
 
   // 静态预览没有 React 事件；在 harness 中补齐“命中标题后会收起”的这一环。
   const polledTitle = one(polled, (node) => node.type === 'button' && hasClass(node, 'dt-open'), '轮询后缺标题按钮')
@@ -175,6 +183,98 @@ export function runHarnessProbe() {
     },
     titleClickClosesEditor: closedAgain[8] === null,
   }
+}
+
+/**
+ * 在 ego-browser 的 Page 上做同一静态 DOM 的 A/B：删掉唯一叠层规则即复现，恢复即可输入。
+ * 不在页面里伪造 React onClick；只给标题加计数器，直接观察真实指针命中与焦点。
+ */
+export async function runBrowserAbProbe(page, fixedHtml) {
+  const guard = '.dt-ticket-body .dt-form { position: relative; z-index: 1; }'
+  assert.ok(fixedHtml.includes(guard), '当前预览缺少待 A/B 的叠层保护规则')
+  const bugHtml = fixedHtml.replace(guard, '')
+  await page.goto('about:blank')
+  await page.evaluate((source) => {
+    document.open()
+    document.write(source)
+    document.close()
+  }, bugHtml)
+  const before = await page.evaluate(() => {
+    const heading = [...document.querySelectorAll('h2.preview-title')].find((node) => node.textContent === '行内编辑')
+    if (!heading) throw new Error('找不到行内编辑静态场景')
+    const form = heading.nextElementSibling.querySelector('form.dt-form')
+    form.id = 'probe-edit-form'
+    const field = [...form.querySelectorAll('.dt-field')].find((node) => node.querySelector('label')?.textContent === '目标/规则')
+    const input = field.querySelector('input')
+    input.id = 'probe-goal-input'
+    const opener = form.closest('li.dt-ticket').querySelector('button.dt-open')
+    opener.id = 'probe-row-opener'
+    window.__probeOpenerClicks = 0
+    opener.addEventListener('click', () => { window.__probeOpenerClicks += 1 })
+    input.scrollIntoView({ block: 'center', inline: 'nearest' })
+    const rect = input.getBoundingClientRect()
+    const x = rect.left + rect.width / 2
+    const y = rect.top + rect.height / 2
+    const pseudo = getComputedStyle(opener, '::after')
+    return {
+      value: input.value,
+      disabled: input.disabled,
+      readOnly: input.readOnly,
+      rect: { x, y, width: rect.width, height: rect.height },
+      viewport: { width: innerWidth, height: innerHeight },
+      hit: document.elementFromPoint(x, y)?.id || document.elementFromPoint(x, y)?.tagName,
+      hits: document.elementsFromPoint(x, y).slice(0, 6).map((node) => node.id || node.tagName + '.' + node.className),
+      pseudo: { position: pseudo.position, inset: pseudo.inset, zIndex: pseudo.zIndex },
+      ticketPosition: getComputedStyle(form.closest('li.dt-ticket')).position,
+      formPosition: getComputedStyle(form).position,
+      formZIndex: getComputedStyle(form).zIndex,
+    }
+  })
+  assert.equal(before.disabled, false)
+  assert.equal(before.readOnly, false)
+  assert.equal(before.formPosition, 'static')
+  assert.equal(before.hit, 'probe-row-opener', '删掉保护后，input 中心应被标题伪元素截获')
+  assert.ok(before.rect.y >= 0 && before.rect.y <= before.viewport.height, '滚动后 input 仍不在视口')
+  await page.mouse.click(before.rect.x, before.rect.y, { label: '点击被覆盖目标输入框' })
+  const badClick = await page.evaluate(() => ({
+    active: document.activeElement?.id || document.activeElement?.tagName,
+    openerClicks: window.__probeOpenerClicks,
+    value: document.querySelector('#probe-goal-input').value,
+  }))
+  assert.equal(badClick.active, 'probe-row-opener')
+  assert.equal(badClick.openerClicks, 1)
+  assert.equal(badClick.value, before.value)
+
+  const repaired = await page.evaluate((rule) => {
+    const style = document.createElement('style')
+    style.id = 'probe-minimal-repair'
+    style.textContent = rule
+    document.head.appendChild(style)
+    const input = document.querySelector('#probe-goal-input')
+    const form = document.querySelector('#probe-edit-form')
+    const rect = input.getBoundingClientRect()
+    const x = rect.left + rect.width / 2
+    const y = rect.top + rect.height / 2
+    return {
+      x, y,
+      hit: document.elementFromPoint(x, y)?.id || document.elementFromPoint(x, y)?.tagName,
+      hits: document.elementsFromPoint(x, y).slice(0, 5).map((node) => node.id || node.tagName + '.' + node.className),
+      formPosition: getComputedStyle(form).position,
+      formZIndex: getComputedStyle(form).zIndex,
+    }
+  }, guard)
+  assert.equal(repaired.hit, 'probe-goal-input', '恢复保护后仍没有命中 input')
+  await page.mouse.click(repaired.x, repaired.y, { label: '点击修复后的目标输入框' })
+  await page.keyboard.insertText('X')
+  const goodClick = await page.evaluate(() => ({
+    active: document.activeElement?.id || document.activeElement?.tagName,
+    openerClicks: window.__probeOpenerClicks,
+    value: document.querySelector('#probe-goal-input').value,
+  }))
+  assert.equal(goodClick.active, 'probe-goal-input')
+  assert.equal(goodClick.openerClicks, 1, '修复后点击 input 不应再触发标题')
+  assert.equal(goodClick.value, before.value + 'X')
+  return { guard, withoutGuard: { ...before, click: badClick }, withGuard: { ...repaired, click: goodClick } }
 }
 
 /**
