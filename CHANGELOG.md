@@ -2,6 +2,40 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.220] - 2026-11-05 —— 契约漂移：`gh.ok` 是三态，`goal` 是对象
+
+### ① `body.gh.ok` 三态被当二态用
+
+后端在「零守 / 纯 Gitee」时返回 `{ ok: null, skipped: '没有 GitHub 守' }` ——
+那行注释写得很清楚：*全 Gitee 的客户看到「gh 未登录」是纯噪音*。
+
+但前端写的是 `body.gh.ok ? A : B`，`null` 落进 else → 面板显示
+**「gh CLI 不可用 —— 先跑 gh auth login…填 token · 」**（还带个悬空的分隔号）。
+
+于是**两类最常见的客户**（刚装好还没加守的、只用 Gitee 的）都被要求去跑 `gh auth login`。
+
+### ② `watcher.goal` 是对象，被当字符串
+
+`goal: watcher.note || watcher.goal || ''` —— `note` 为空串时落到**对象**（`goalView()` 的返回），
+输入框显示 `[object Object]`；保存时后端只收 `typeof === 'string'`，于是**静默无效，Toast 照样弹「已保存」**。
+
+### ③ 顺带两条「传了但没人用」
+
+- `Section` 的 `subtitle`：传了但组件不解构 —— 上一轮我加的「共 N 条问题，涉及 M 条守」其实**从没显示过**；
+- `DEFAULTS.batchLimit`：面板读它，后端从不发 → 只能靠 `|| 5` 兜。现在后端真的发了。
+
+### 为什么 368 条测试一条都没发现
+
+T26 的原话：**`panel-harness.mjs` 的桩比真 body 干净** —— `intervalSec: 30` 恒存在、`goal: null` 恒为空、
+`gh` 根本不是桩的一部分。所以「假数据造出来的正确」掩盖了「真数据下的错误」。
+
+### 证据
+
+```
+node --test → 368/368
+ui-audit → 11/11（100 分）
+```
+
 ## [0.9.219] - 2026-11-05 —— 又修掉 3 条「改坏了还是绿」的审计脚本
 
 ### ① `audit-line-length.mjs`：空输出 = 通过

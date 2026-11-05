@@ -1250,7 +1250,7 @@ test('/state 顶层给 defaults：面板的默认值提示要从这里读', asyn
   const res = makeRes()
   await route.handler(makeReq('GET', '/session-superagent/state', undefined, {}), res)
   const body = JSON.parse(res.chunks.join(''))
-  assert.deepEqual(body.defaults, { sessionMaxWakes: 12, maxWakesPerHour: 6, isolateKeepDays: 3 })
+  assert.deepEqual(body.defaults, { sessionMaxWakes: 12, maxWakesPerHour: 6, isolateKeepDays: 3, batchLimit: 5 })
 })
 
 test('面板术语表里写死的 6/12 必须等于服务端默认值（两边不能各写一份）', async () => {
