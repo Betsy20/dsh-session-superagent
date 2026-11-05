@@ -118,6 +118,15 @@ const tryRun = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: ROOT, encod
     bad.length > 0 ? bad[0].replace(/^FAIL /, '') : (count || '?') + ' 处引用，关键行为类条目都有')
 }
 
+// ①.66 React 语义陷阱（客户实拍 0.9.248：`props.key` 在真机上是 undefined，桩里却能跑）
+{
+  const res = tryRun('node', ['scripts/audit-react-semantics.mjs'], { timeout: 60000 })
+  const out = String(res.stdout || '')
+  const bad = out.split(String.fromCharCode(10)).filter((line) => line.startsWith('FAIL'))
+  record('React 语义', res.status === 0 && bad.length === 0,
+    bad.length > 0 ? bad[0].replace(/^FAIL /, '') : '不依赖 props.key、不改写 props，桩也按 React 语义剥 key')
+}
+
 // ①.7 门禁自检（注入式验证：确认检查真的会红；--fast 跳过，约 10 秒）
 if (!FAST) {
   const res = tryRun('node', ['scripts/verify-gates.mjs'], { timeout: 180000 })

@@ -32,6 +32,7 @@ const WHY = {
   '术语表对照': ['面板在用但术语表没解释的词（客户会卡住）', 'KB `jargon-audit.md`'],
   '错误建议': ['错误建议过长或没有可执行动作（0.9.62 曾出现兜底建议为空）', 'KB `error-must-have-next-step.md`'],
   '知识库反查': ['知识库里的规则没人指着，写完就忘（T34 实测 182 条里生产代码只引用 3 条）', 'KB `attention-list-order-is-a-decision.md`（一条从 0.9.87 烂到 0.9.239）'],
+  'React 语义': ['代码依赖了 `props.key` 或改写了 props —— 真 React 会剥掉 key、冻结 props，只有测试桩里才成立（0.9.248 客户实拍：设置页左栏点了不换内容）', 'KB `test-harness-must-match-runtime.md`（桩比运行时干净就会掩盖 bug）'],
   '临时目录收口': ['测试漏建临时目录（本机曾攒到 1654 个、一次跑漏 8 个）', 'KB `temp-dir-leak.md`'],
   '单测 node --test': ['功能回归：纯函数、路由、面板渲染', 'KB `fake-pass.md`（条件断言曾让一档用例静默跳过）'],
   'README 单测数': ['文档里的数字过期（曾写 136，实际 181）', 'KB `prose-numbers-drift.md`'],

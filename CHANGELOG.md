@@ -2,6 +2,47 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.249] - 2026-11-05 —— 把「客户实拍」那个 bug 变成一条永久的门禁
+
+0.9.248 修了「设置页左栏点了不换内容」。那一轮修的是**一个地方**；
+这一轮修的是**这一类**。
+
+### 为什么一个 bug 能活 160 个版本
+
+```js
+node.props.key === settingsSection
+```
+
+真 React 会把 `key` 从 props 剥掉（它挂在 `element.key` 上），而测试桩把它留在了 props 里。
+**桩比运行时干净，就会掩盖 bug** —— 这不是第一次：
+
+| 时间 | 桩里成立、真机不成立 |
+|---|---|
+| T26 | `watcher()` 桩里 `intervalSec: 30` 恒存在、`goal: null` 恒为空、`gh` 不在桩里 |
+| 0.9.248 | `createElement` 保留 `props.key` |
+
+### 新增门禁 `audit-react-semantics.mjs`（已挂进 preflight，第 41 项）
+
+三条判据，全部是「桩里能跑、真机坏」的形状：
+
+1. `client.js` 不许靠 `props.key` 做判断（React 剥掉它）；
+2. `client.js` 不许**改写** props（React 在开发模式下冻结 props）；
+3. 测试桩**必须**按 React 语义剥掉 `key` —— 否则第 1 类 bug 永远测不出来。
+
+扫描前先按行去掉注释（不然解释这个坑的注释自己会被判红）。
+
+### 新增知识库条目
+
+`docs/kb/test-harness-must-match-runtime.md` —— 把这次的教训写成了规则：
+**桩要模仿运行时的「坏脾气」，不是模仿它的「好脾气」**。
+
+### 证据
+
+```
+npm test → 387/387
+preflight --fast → React 语义 PASS
+```
+
 ## [0.9.248] - 2026-11-05 —— 客户实拍：设置页左栏点了不换内容
 
 ### 客户看到的
