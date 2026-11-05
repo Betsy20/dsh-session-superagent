@@ -2,7 +2,10 @@
 //   ① 术语表里哪些词在面板文案里根本没出现（可能是死词，或面板已经不用这个说法）；
 //   ② 面板里出现了哪些"看起来是术语"的词，但术语表没解释（客户会卡住）。
 //
-// 只报告，不判定 —— 双向对齐是判断活，脚本负责"不漏"。
+// 判据（审核 T25 FN-1：以前这个脚本**没有退出码**，连 audit-exit-codes 都看不见它）：
+//   ① 术语表必须存在且非空（整块被删 = 客户再也查不到术语 → 红）；
+//   ② 「面板在用但术语表没解释」必须为 0（这是客户真会卡住的地方 → 红）；
+//   ③ 「术语表里但面板没出现」（死词）只报告，不红 —— 双向对齐是判断活。
 //
 // 用法：node scripts/audit-glossary.mjs
 import { execFileSync } from 'node:child_process'
@@ -44,12 +47,16 @@ if (deadTerms.length > 0) {
   console.log('术语表里但面板没出现（可能是死词，或面板换了说法）：')
   for (const t of deadTerms) console.log('  ' + t.term + ' —— ' + t.meaning.slice(0, 40))
 } else {
-  console.log('PASS 术语表的每个词都在面板里出现过')
+  console.log('· 术语表里每个词都在面板里出现过（0 条死词）')
 }
 console.log('---')
-if (unexplained.length > 0) {
-  console.log('面板在用但术语表没解释（客户可能卡住）：')
+if (terms.length === 0) {
+  console.log('FAIL 术语表是空的：解析不到任何词条（Modal 被改名或被删了？）')
+  process.exitCode = 1
+} else if (unexplained.length > 0) {
+  console.log('FAIL 面板在用但术语表没解释（客户可能卡住）：')
   for (const word of unexplained) console.log('  ' + word)
+  process.exitCode = 1
 } else {
-  console.log('PASS 面板里的技术词都有解释')
+  console.log('PASS 面板里的技术词都有解释（术语表 ' + terms.length + ' 条）')
 }

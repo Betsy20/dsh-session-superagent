@@ -392,7 +392,9 @@ if (!FAST) {
   const res = tryRun('node', ['scripts/audit-glossary.mjs'], { timeout: 90000 })
   const out = String(res.stdout || '')
   const bad = out.split(String.fromCharCode(10)).filter((line) => line.startsWith('  ') && line.trim())
-  record('术语表对照', out.includes('PASS 术语表的每个词') && out.includes('PASS 面板里的技术词'),
+  // 审核 T25 FN-1：以前看的是字符串「PASS 术语表的每个词」，而那句现在是报告项（死词不红）。
+  // 真正的判据是**脚本自己的退出码**（术语表为空 / 有词没解释都会 exit 1）。
+  record('术语表对照', res.status === 0,
     bad.length > 0 ? '待补：' + bad.map((l) => l.trim()).join(' / ') : '双向对齐（15 条术语）')
 }
 

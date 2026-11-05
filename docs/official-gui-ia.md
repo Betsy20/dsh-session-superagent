@@ -3,6 +3,8 @@
 > 目标：把官方插件 `dsh-superagent@0.1.0`（`dsh-superagent-prototype`（本地 checkout））的**面板 IA、控件、交互、文案、依赖**完整扒出来，作为「主理鱼」（`dsh-session-superagent`）重写 GUI 的施工蓝图。
 >
 > **证据约定**
+
+> **本文路径不在本项目范围内**：文中出现的 lib/client.js、src/client 下的 TSX 一律指**外部仓库**（官方插件的 checkout），本项目路径不在本文范围。
 > - 行号一律指 `lib/client.js`（6883 行，tsdown 产物，保留 `//#region src/...` 模块边界）。
 > - 同构的原始 TS 在 `src/client/*.tsx`（类型、注释、JSX 都在），编译后类型被擦除，所以**类型形状**我额外标注 `src/...` 行号；**行为与文案**以 `lib/client.js` 为准。
 > - 全部 CSS 是**一行**：`lib/client.js:664` 的巨型字符串（源 `src/client/client.css`，一行一个规则）。本文所有 "css:N" 指该文件的行号；`lib/client.js:664` 一律写作 "css"。

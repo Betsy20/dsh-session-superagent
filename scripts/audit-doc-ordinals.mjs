@@ -25,7 +25,11 @@ const walk = (dir) => {
   }
 }
 walk(join(ROOT, 'docs'))
-files.push(join(ROOT, 'README.md'), join(ROOT, 'UPDATING.md'), join(ROOT, 'MAINTENANCE.md'))
+// 审核 T25 FN-3：以前只补了 3 份根文档 —— HANDOFF.md 等 6 份完全没扫过。
+// 现在把根目录**所有** .md 都纳入（排除 node_modules / CHANGELOG 太长）。
+for (const name of readdirSync(ROOT)) {
+  if (name.endsWith('.md') && name !== 'CHANGELOG.md') files.push(join(ROOT, name))
+}
 
 const hits = []
 for (const abs of files) {
