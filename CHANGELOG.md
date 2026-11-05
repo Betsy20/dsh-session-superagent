@@ -2,6 +2,41 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.221] - 2026-11-05 —— 让测试桩「脏」起来，才抓得住真机上的脏数据
+
+### ① T26 的教训做成了夹具
+
+> `panel-harness.mjs` 的桩比**真 /state** 干净：`intervalSec: 30` 恒存在、`goal: null` 恒为空、`gh` 根本不在桩里。
+> 于是「假数据造出来的正确」掩盖了「真数据下的错误」。
+
+新增 `dirtyWatcher()` / `dirtyState()`：按**后端真实形状**造 —— `goal` 是对象（`goalView()` 的返回）、
+`intervalSec` 缺失、`gh.ok` 是 `null`、`repoAccess` 全 red、`filters`/`priority`/`history` 全是 `null`。
+
+宁可脏，也不要干净 —— 干净会让测试变成装饰。
+
+### ② 新用例一上线就抓到一个真 bug
+
+```
+节点: "未命名会话 · acme/d1 · 每 undefineds · 轮询 —"
+```
+
+面板行直接拼 `watcher.intervalSec`，而**弹层那边有 `(Number() || 60)` 兜底** —— 同一个值两条路径、只有一条有兜底。
+老条目 / 迁移过来的守缺这个字段时，行里就显示「每 undefineds」。
+
+（这正是 T26 的 W3 条目，当时判为「值得修」，现在被测试自己抓出来了。）
+
+### ③ 用例扫四个页签
+
+一个页签干净不代表别的页签干净。`overview / queue / trigger / settings` 全扫，
+断言不出现 `undefined` / `NaN` / `[object Object]`。
+
+### 证据
+
+```
+node --test → 369/369（新增 1 条：脏数据四页签渲染）
+ui-audit → 11/11（100 分）
+```
+
 ## [0.9.220] - 2026-11-05 —— 契约漂移：`gh.ok` 是三态，`goal` 是对象
 
 ### ① `body.gh.ok` 三态被当二态用

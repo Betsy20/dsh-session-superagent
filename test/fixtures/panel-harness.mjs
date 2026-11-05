@@ -129,3 +129,56 @@ export const watcher = (repo, extra = {}) => ({
   ...extra,
 })
 
+
+/**
+ * 「脏数据」夹具（审核 T26 的教训）。
+ *
+ * `watcher()` 桩比**真 /state** 干净：`intervalSec: 30` 恒存在、`goal: null` 恒为空、`gh` 根本不在桩里。
+ * 于是「假数据造出来的正确」掩盖了「真数据下的错误」——
+ * 真机上 `goal` 是**对象**（`goalView()` 的返回）、`gh.ok` 是**三态**（含 `null`）。
+ *
+ * 这个夹具按**后端真实形状**造：宁可脏，也不要干净 —— 干净会让测试变成装饰。
+ */
+export const dirtyWatcher = (repo, extra = {}) => ({
+  repo,
+  sessionId: 'session-' + repo,
+  // 真实条目一定有这些，但**不保证**都有值（老条目/迁移过来的缺字段）
+  intervalSec: undefined,
+  enabled: true,
+  cursor: null,
+  lastPoll: null,
+  lastWake: null,
+  lastError: null,
+  title: null,
+  // 真机上 goal 是对象（goalView），不是字符串
+  goal: { objective: '把登录流程补完', phase: 'active', revision: 3, updatedAt: '2026-11-05T00:00:00.000Z' },
+  note: '',
+  repoAccess: { private: true, archived: true, canPush: false, hasIssues: false, isFork: true },
+  filters: { labels: null, onlyAssigned: null },
+  priority: null,
+  wakeTimes: null,
+  dailyWakes: null,
+  history: null,
+  silentWakes: null,
+  batchLimit: null,
+  maxWakesPerHour: null,
+  deferReason: 'quota',
+  lastDeferred: null,
+  ...extra,
+})
+
+/** 真 /state 的顶层形状（含 gh 三态、credentials 哨兵值、defaults）。 */
+export const dirtyState = (watchers = []) => ({
+  loading: false,
+  error: null,
+  body: {
+    sessionGoal: null,
+    sessionTitle: null,
+    credentials: { token: 'none', sshKeyPath: 'none', ghConfigDir: 'none', giteeToken: 'none' },
+    sessionUsage: { used: 0, cap: 12, capped: 0 },
+    // 零守 / 纯 Gitee 时后端就是这么回的
+    gh: { ok: null, skipped: '没有 GitHub 守' },
+    defaults: { sessionMaxWakes: 12, maxWakesPerHour: 6, isolateKeepDays: 3, batchLimit: 5 },
+    watchers,
+  },
+})

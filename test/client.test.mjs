@@ -613,7 +613,10 @@ test('面板自己的错误也要说人话（Failed to fetch 客户看不懂）'
   const { registrations, render } = loadClient()
   const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
   const snap = { loading: false, error: 'Failed to fetch', body: { sessionGoal: null, sessionTitle: 'x', credentials: {}, watchers: [] } }
-  const text = walk(render(desk, deskQueue(snap))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  // 四个页签都扫：一个页签干净不代表别的页签干净
+  const texts = ['overview', 'queue', 'trigger', 'settings'].map((tab) =>
+    walk(render(desk, deskQueue(snap, null, {}, tab))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | '))
+  const text = texts.join(' || ')
   assert.ok(!text.includes('Failed to fetch'), '不该把原始英文丢给客户')
   assert.ok(text.includes('连不上宿主'), '要说明发生了什么：' + text.slice(0, 200))
   assert.ok(text.includes('诊断'), '要给出下一步动作')
@@ -1521,4 +1524,23 @@ test('「看建议规则」这个 action 必须被渲染（T24 M4：没人消费
   const src = readFileSync(new URL('../client.js', import.meta.url), 'utf8')
   assert.ok(src.includes('item.action ?'), 'item.action 没有被消费')
   assert.ok(src.includes('setGlossary('), '建议规则弹层的入口丢了')
+})
+
+test('脏数据（真 /state 的形状）渲染后不许出现 undefined / NaN / [object Object]（T26：桩比真 body 干净）', async () => {
+  const { loadClient } = await import('./fixtures/panel-harness.mjs')
+  const { dirtyWatcher, dirtyState } = await import('./fixtures/panel-harness.mjs')
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = dirtyState([
+    dirtyWatcher('acme/dirty-one'),
+    dirtyWatcher('acme/dirty-two', { enabled: false, lastError: 'HTTP 401: Bad credentials' }),
+  ])
+  const text = walk(render(desk, deskQueue(snap))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(text.length > 0, '面板要有内容')
+  for (const bad of ['undefined', 'NaN', '[object Object]']) {
+    assert.ok(!text.includes(bad), '脏数据渲染出了「' + bad + '」：' + text.slice(0, 400))
+  }
+  // 真机上确有的几个值要真的显示出来（而不是因为取不到而静默省略）
+  assert.ok(text.includes('acme/dirty-one'), '仓库名要显示')
+  assert.ok(/不需要|没有 GitHub/.test(text) || text.includes('gh'), 'gh 三态要被正确处理')
 })

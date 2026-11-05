@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.220'
+    const CLIENT_VERSION = '0.9.221'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1310,7 +1310,7 @@ window.__ModuleLoader__.load({
           // 标题行已经写了仓库名；这里只补「会话 + 间隔」，并把最近一次结果并进来
           // （原来这一行和下面那行各占 20px，其实说的是同一件事：这个守在干什么、最近怎么样）
           h('div', { className: 'dt-ticket-note' },
-            (watcher.title || '未命名会话') + ' · ' + sessionTag(watcher.sessionId) + ' · 每 ' + watcher.intervalSec + 's'
+            (watcher.title || '未命名会话') + ' · ' + sessionTag(watcher.sessionId) + ' · 每 ' + (Number(watcher.intervalSec) || 60) + 's'
             + ' · 轮询 ' + ageText(watcher.lastPoll)),
           watcher.lastWake
             ? h('div', { className: 'dt-ticket-note' },
