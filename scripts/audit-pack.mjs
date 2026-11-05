@@ -39,7 +39,7 @@ const files = (out.match(/total files:\s+(\d+)/) || [])[1]
 // 必需文件：装了但缺任何一个，插件要么不挂载、要么面板空白
 const REQUIRED = [
   'lib/index.js', 'lib/watch.js', 'lib/gh-format.js', 'lib/gitee.js', 'lib/redact.js', 'lib/body.js',
-  'client.js', 'cordis.patch.yml', 'package.json', 'README.md', 'LICENSE',,
+  'client.js', 'cordis.patch.yml', 'package.json', 'README.md', 'LICENSE',
   'CHANGELOG.md',
 ]
 // 从 npm notice 行里取文件名（最后一段），再逐条比对

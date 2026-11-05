@@ -3,7 +3,7 @@
 <img src="assets/icon-180.png" width="88" height="88" alt="">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.9.241-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
+[![Version](https://img.shields.io/badge/version-0.9.242-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
 [![npm](https://img.shields.io/npm/v/dsh-session-superagent.svg)](https://www.npmjs.com/package/dsh-session-superagent)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-plugin-orange.svg)](https://github.com/topics/dsh-plugin)
 [![awesome](https://img.shields.io/badge/awesome-dsh--plugin-%E2%9C%93-success.svg)](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
@@ -197,6 +197,14 @@ dsh plugin --profile <profile> add dsh-session-superagent@latest
 
 ## 验收（不用装宿主也能跑）
 
+> **这一节是给开发者的。** 下面这些脚本在 `scripts/` 里，**npm 包不包含它们** ——
+> 从 npm 装插件的客户跑不了（会得到 `Cannot find module`）。客户自查请用：
+> 面板顶部是否出现「主理鱼」、`/state` 是否 200、或让 agent 调 `watch_doctor`。
+>
+> 想跑这些：克隆仓库后 `pnpm install`。
+
+
+
 ```bash
 npm test                    # 381 项单测（带离线开关，约 1.6 秒）
 node scripts/ui-audit.mjs   # 11 项 UI 指标（写死颜色 / 自造 token / 官方结构采用 …）
@@ -211,8 +219,8 @@ node scripts/render-preview.mjs preview.html   # 双主题静态预览，直接�
 
 | 症状 | 原因 | 处理 |
 |---|---|---|
-| 面板空白、`watch_*` 工具消失、`/session-superagent/*` 全 404 | 新增的 `lib/*.js` 没同步进 profile（`file:` 安装只对**已有**文件建硬链接），宿主 import 失败 → 整个插件不挂载 | `pnpm run sync:profile`，然后重载插件 |
-| 改了代码但线上行为没变 | 硬链接断了 —— **原子写、`git checkout/restore`、某些编辑器的保存**都会换 inode，profile 里还是旧文件 | `pnpm run sync:profile:check` 看漂移，`sync:profile:repair` 修 |
+| 面板空白、`watch_*` 工具消失、`/session-superagent/*` 全 404 | 插件没被宿主加载（最常见是 npm 安装的副本损坏，或 `file:` 安装后仓库里新增的 `lib/*.js` 没进 profile） | **客户**：重新 `dsh plugin --profile <p> add dsh-session-superagent` 一次（幂等，会补全所有文件），然后重载。**开发者**（`file:` 装的本仓库）：跑 `pnpm run sync:profile` |
+| 改了代码但线上行为没变 | 硬链接断了 —— **原子写、`git checkout/restore`、某些编辑器的保存**都会换 inode，profile 里还是旧文件 | **开发者**：`pnpm run sync:profile:check` 看漂移、`sync:profile:repair` 修。**客户**（npm 装的）：重新 `add` 一次 |
 | 轮询报 `cannot get required service "agents" in inactive context` | 0.8.21 之前的 bug：定时器里直接读 `ctx.agents` | 升级到 ≥0.8.21 |
 | 绑定的会话已删除，watcher 还在打 GitHub | 0.8.14 之前的 bug：该类失败没进退避 | 升级到 ≥0.8.14（0.8.22 起未预期异常也会退避） |
 | `npm i dsh-session-superagent@<新版本>` 报 `ETARGET` | 刚发布，npm 客户端元数据缓存还没刷新 | 等 1-2 分钟，或 `npm i <tarball URL>` / `--prefer-online` |
@@ -227,6 +235,32 @@ node scripts/render-preview.mjs preview.html   # 双主题静态预览，直接�
 | 想知道客户现场到底什么状态 | 我们看不到他机器上的状态文件 | 让客户点 设置 → 版本与更新 → 复制诊断信息（已脱敏，含版本/挂载/每条守的最近错误） |
 
 `pnpm run preflight` 一条命令可自查：单测、语法、profile 一致性、版本一致、路由面、包内容、冒烟。
+
+## 卸载与回滚
+
+**卸插件**（一条命令）：
+
+```bash
+dsh plugin --profile <p> remove dsh-session-superagent
+```
+
+**插件留下的东西**（卸插件**不会**自动清，想彻底干净就照下面逐项删）：
+
+| 残留 | 位置 | 里面有什么 | 要不要删 |
+|---|---|---|---|
+| 状态与凭证 | `~/.dsh/state/session-superagent/` | `watchers.json`（你配的每条主理鱼）、**`secrets.json`（面板里填的 token / Gitee 令牌 / gh 目录）** | **要删** —— 里面是明文凭证 |
+| 隔离工作区 | 各仓库下的 `.dsh-zhuli/` | 每次唤醒开的 worktree（用完该自己回收，异常时可能留下） | 确认没有未提交内容后删 |
+| git 排除项 | 各仓库 `.git/info/exclude` 里的一行 `.dsh-zhuli/` | 我们加的一条忽略规则 | 可留可删（不影响功能） |
+| 仓库标签 | 被主理过的 GitHub 仓库上的 `主理鱼:已处理` | 我们打的 ack 标签 | 可留（就是普通标签） |
+
+**回滚到旧版本**：
+
+```bash
+dsh plugin --profile <p> add dsh-session-superagent@0.9.160   # 换成你要的版本
+```
+
+回滚**不会**回滚状态文件 —— 新版本写过的字段旧版本可能不认（会当未知字段忽略，一般不致命）。
+真出问题就删掉 `~/.dsh/state/session-superagent/watchers.json` 重新配（**删之前先抄一份**）。
 
 ## 许可
 
