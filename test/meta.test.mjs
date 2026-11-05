@@ -213,3 +213,12 @@ test('包里必须有一条客户能跑的自检命令（T35：watch_doctor 是�
   assert.ok(existsSync(new URL('../' + target, import.meta.url)), 'bin 指向的文件要真实存在：' + target)
   assert.ok((pkg.files || []).includes(target), 'bin 文件必须在 files 里（否则打不进包）：' + target)
 })
+
+test('长跑相关的缓存与残留都必须有界（T36 W3/W5：titleCache 与 .corrupt-* 以前只增不减）', async () => {
+  const { readFileSync } = await import('node:fs')
+  const src = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+  assert.match(src, /TITLE_CACHE_MAX/, 'titleCache 要有上限常量')
+  assert.match(src, /while \(titleCache\.size > TITLE_CACHE_MAX\)/, '超过上限要真的淘汰')
+  assert.match(src, /watchers\.json\.corrupt-/, '要清理 .corrupt-* 残留')
+  assert.match(src, /olds\.length - 3/, '只留最近 3 份')
+})
