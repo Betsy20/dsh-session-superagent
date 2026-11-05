@@ -25,7 +25,9 @@
     {
       "name": "watch_ack",
       "params": [
+        "comment",
         "format",
+        "kind",
         "label",
         "note",
         "number",

@@ -2,6 +2,52 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.261] - 2026-11-05 —— 完整解构官方结构树，并落地 Delivery + Outbox
+
+### 完整解构，不只列功能清单
+
+新增 `docs/official-decomp/` 五篇文档（约 1900 行）：
+
+- `01-structure-tree.md`：完整目录树、分层图、吸收取舍与落地状态；
+- `02-runtime-execution.md`：61 个运行时文件、Trigger→Eval→Ticket→Executor 全链；
+- `03-sources.md`：26 个来源文件、GitHub/Feishu 数据流、读位与幂等；
+- `04-panel-tree.md`：6 Tab、Thread/Ticket 详情、设置分区与全部二三级页面；
+- `05-prompts-skills-operations.md`：提示词、skills、SETUP、迁移、i18n 与测试组织。
+
+所有关键结论锚定官方提交 `8c32a9d` 的文件与行号；不吸收的团队级复杂度也写明理由。
+
+### 吸收 ①：Delivery —— 处理结论可以回写原条目
+
+`watch_ack` 新增 `comment: true`：把同一个 `note` 评论到原 issue/PR，而不是只存在本地。
+
+```js
+watch_ack({ number: 7, note: '已修，见 #57', comment: true })
+```
+
+- 默认仍只打标签，不自动发评论；
+- Gitee 通过 `kind: 'issue' | 'pull'` 选择正确端点；
+- `comment:true` 缺 `note` 时，在**任何外部写操作之前**拒绝；
+- 评论失败会明确区分 `phase:'comment'`，不会把「标签已打」误报成完整成功。
+
+### 吸收 ②：Outbox FIFO —— 会话忙时排队，空闲按顺序送
+
+以前忙时只保留水位、下轮重算：不丢事件，但没有真正的队列。
+现在同一会话的唤醒进入 FIFO：
+
+- 忙时入队，回调仍 `ok:false`，**不计次数、不推进水位**；
+- 空闲后按顺序 `followup`，真正发送成功才结算；
+- 相同 `queueKey` 去重，不重复排队；
+- 插件实例隔离，热重载不会误送旧实例消息；
+- 队列在内存中，重启后由未推进的水位重建；
+- 面板行内显示「排队 N」。
+
+### 证据
+
+```
+npm test → 429/429（新增：Delivery 3 + FIFO 3；旧 wake-accounting 也全过）
+test/entry-parity-final.test.mjs → 3/3（上一轮 W9-W11 仍全绿）
+```
+
 ## [0.9.260] - 2026-11-05 —— T40 入口对等收尾：同一件事，不再两套行为
 
 ### 工具新建也会做「添加前体检」

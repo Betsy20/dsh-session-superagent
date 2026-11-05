@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.260'
+    const CLIENT_VERSION = '0.9.261'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1335,6 +1335,7 @@ window.__ModuleLoader__.load({
             filterText(watcher.filters) ? h(Tag, null, filterText(watcher.filters)) : null,
             // ack 标签决定这条是否还会被叫醒，不能只在工具参数里出现。
             h(Tag, { tone: 'quiet' }, '回执 ' + (watcher.ackLabel || (watcher.provider === 'gitee' ? '主理鱼-已处理' : '主理鱼:已处理'))),
+            watcher.queuedWakes > 0 ? h(Tag, { tone: 'warning' }, '排队 ' + watcher.queuedWakes) : null,
             backoffText(watcher) ? h(Tag, { tone: 'warning' }, backoffText(watcher)) : null),
           // 三行，各管一件事：① 是谁 ② 节律与最近结果 ③ 目标
           // 原来六段用 ' · ' 串成一行（会话 · 每 60s · 轮询 · 唤醒 · 上次唤醒 · 目标），

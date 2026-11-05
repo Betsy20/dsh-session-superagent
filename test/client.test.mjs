@@ -1795,7 +1795,7 @@ test('列表显示作者白名单与 ack 标签，编辑器也能改标签（T40
       credentials: { token: 'none', sshKeyPath: 'none', ghConfigDir: 'none', giteeToken: 'none' },
       gh: { ok: true, version: '2.0' }, defaults: {},
       watchers: [watcher('a/b', {
-        ackLabel: 'team:done',
+        ackLabel: 'team:done', queuedWakes: 2,
         filters: { labels: [], ignoreLabels: [], onlyAssigned: false, allowAuthors: ['alice', 'bob'] },
       })],
     },
@@ -1804,6 +1804,7 @@ test('列表显示作者白名单与 ack 标签，编辑器也能改标签（T40
   const overview = textOf(walk(render(desk, deskQueue(snap))))
   assert.match(overview, /作者: alice,bob/, '列表必须显示作者白名单，否则设了也看不出来')
   assert.match(overview, /回执 team:done/, '列表必须显示实际 ack 标签')
+  assert.match(overview, /排队 2/, '会话忙时排了几条必须可见，不能只在内部 Map 里')
 
   const draft = {
     intervalSec: '60', labels: '', ignoreLabels: '', onlyAssigned: false,
