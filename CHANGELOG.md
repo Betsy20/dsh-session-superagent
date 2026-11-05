@@ -2,6 +2,48 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.224] - 2026-11-05 —— 用户文档「照着做会失败」：安装命令、端口、入口路径全是错的
+
+### ① README 的安装命令根本跑不起来
+
+```bash
+dsh plugin install dsh-session-superagent     # ← 没有 install 这个子命令
+```
+
+实测本机 `dsh: command not found`；换 Desktop 自带 CLI 后是
+`error: required option '--profile <name>' not specified` —— **`--profile` 是必填的，子命令是 `add`**。
+
+三处已改成 `dsh plugin --profile desktop add …`。
+
+### ② 「设置 → 诊断」这个入口不存在
+
+4 份文档都写「点 设置 → 诊断 → 复制诊断信息」。实际左栏是
+**来源 / 凭证 / 版本与更新 / 分诊信号 / 会话 goal** —— 那个按钮在「版本与更新」里面。
+
+### ③ 默认端口写死成 64349，实际是 65466
+
+`scripts/verify-live.mjs` 的默认 base 写死 64349 → 照做必然
+`FAIL 连接 fetch failed`（exit 1）。已全部改成 65466，现在能连上并正确报出真实状态。
+
+### ④ 门禁项数写着 10 项，实际 40 项
+
+README 说「10 项门禁」「103 例单测」，实际是 **40 项 / 369 例**。
+另外 `docs/真机验证清单.md` 说的「9 项全 PASS（含『契约快照』）」—— **「契约快照」这个检查名压根不存在**（实际叫 `JSON 契约`）。
+
+### ⑤ 顺带修掉 README 的行尾损坏
+
+README 有 **210 处 `\r\r\r\r\n`**（多次 Windows 编辑叠加的产物）。它让任何按行匹配的工具
+（门禁、编辑器、`grep` 锚点）全部失准 —— 这一轮我三次改 README 都因为锚点匹配不上而失败，就是它。已归一。
+
+### 证据
+
+```
+node --test → 369/369
+preflight --fast → 全部通过（38 项）
+verify-live → 能连上 65466（唯一 FAIL 是「线上 0.9.179 ≠ 仓库 0.9.224，需要重启」，这是真实状态）
+check-docs → 5 项 PASS
+```
+
 ## [0.9.223] - 2026-11-05 —— CI 红了为什么查不出来：失败的用例名被整段吞掉
 
 ### ① `preflight.mjs` 把 `node --test` 的输出整段吞掉

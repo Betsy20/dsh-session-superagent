@@ -4,7 +4,7 @@
 // 只有人去试才发现。版本号与链接已有门禁，这里补的是**标识符**。
 //
 // 用法：node scripts/audit-claims-consistency.mjs
-import { readFileSync, readdirSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -20,8 +20,20 @@ const routes = new Set([...index.matchAll(/path: '(\/session-superagent\/[a-z-]+
 const sectionTitles = new Set([...client.matchAll(/title: '([^']{2,24})'/g)].map((m) => m[1]))
 
 // 要检查的文档
-const docs = ['README.md', 'MAINTENANCE.md', 'HANDOFF.md', 'docs/whats-new-0.9.md', 'docs/optimization-plan.md']
-  .filter((name) => { try { readFileSync(join(root, name)); return true } catch { return false } })
+// 审核 T25：以前清单写死 5 份文档 —— 其余 40+ 份里的死工具名 / 死路由完全看不见。
+// 改成扫描**全部** Markdown；只跳过 CHANGELOG（它记录历史，允许出现已经删掉的名字）与报告类（历史快照）。
+const collectDocs = (dir, out = []) => {
+  for (const name of readdirSync(dir)) {
+    if (name === 'node_modules' || name === '.git') continue
+    const full = join(dir, name)
+    if (statSync(full).isDirectory()) { collectDocs(full, out); continue }
+    if (!name.endsWith('.md')) continue
+    if (name === 'CHANGELOG.md') continue
+    out.push(full)
+  }
+  return out
+}
+const docs = collectDocs(root).map((full) => full.slice(root.length + 1).replace(/\\/g, '/')).filter((rel) => !rel.split('/').pop().startsWith('报告-'))
 
 const mentionsTools = []
 const mentionsRoutes = []

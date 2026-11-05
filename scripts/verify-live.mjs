@@ -4,13 +4,13 @@
 // 为什么需要：服务端改动只有重启才生效。仓库版本和线上版本可能差几十个版本，
 // 而界面上看不出来 —— 这个脚本把"线上到底跑的哪一版、有没有新特性"变成一条命令。
 //
-// 用法：node scripts/verify-live.mjs [http://127.0.0.1:64349]
+// 用法：node scripts/verify-live.mjs [http://127.0.0.1:65466]
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const base = (process.argv[2] || 'http://127.0.0.1:64349').replace(/\/+$/, '')
+const base = (process.argv[2] || 'http://127.0.0.1:65466').replace(/\/+$/, '')
 const expected = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version
 
 const rows = []
