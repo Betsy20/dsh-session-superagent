@@ -62,6 +62,7 @@
         "observe",
         "onlyAssigned",
         "repo",
+        "resume",
         "sessionMaxWakes",
         "workdir"
       ],

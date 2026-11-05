@@ -1555,3 +1555,63 @@ test('allowAuthors 要走通真实链路（T40 M2：只用 filterReason 测，�
   const entry = Object.values(state.watchers)[0]
   assert.deepEqual(entry.filters.allowAuthors, ['Alice', 'bob'], '作者名单必须真的存下来：' + JSON.stringify(entry.filters))
 })
+
+test('面板填错 activeHours 要被拒（T40：HTTP 路径以前原样收下 = 静默全天有效）', async () => {
+  const tools = []
+  const localRoutes = new Map()
+  const dir = tempDir('zhuli-hours-http-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: (route) => { localRoutes.set(route.path, route); return () => {} } },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-h' }) },
+    get: () => null, on() {}, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?hh=' + Date.now())
+  mod.apply(ctx)
+  const res = makeRes()
+  await localRoutes.get('/session-superagent/watch').handler(
+    makeReq('POST', '/session-superagent/watch', JSON.stringify({ repo: 'a/b', activeHours: '9-23', sessionId: 'session-h' })), res)
+  const text = res.chunks.join('')
+  assert.equal(res.statusCode, 400, '非法格式要 400，实际 ' + res.statusCode + ' / ' + text.slice(0, 100))
+  assert.match(text, /HH:MM/, '要说明正确格式')
+  // 合法格式：先建一条守（走工具，不联网），再用 HTTP 改 activeHours（编辑路径不触发 precheckRepo）
+  await tools.find((t) => t.name === 'watch_start').execute({ repo: 'a/b' })
+  const ok = makeRes()
+  await localRoutes.get('/session-superagent/watch').handler(
+    makeReq('POST', '/session-superagent/watch', JSON.stringify({ repo: 'a/b', activeHours: '09:00-23:00', sessionId: 'session-h' })), ok)
+  assert.ok(ok.statusCode === undefined || ok.statusCode < 400, '合法格式不该被拒：' + ok.chunks.join('').slice(0, 120))
+  const after = JSON.parse(readFileSync(join(dir, 'watchers.json'), 'utf8'))
+  assert.equal(Object.values(after.watchers)[0].activeHours, '09:00-23:00', '合法值要真的存下来')
+})
+
+test('watch_start 恢复暂停的守要在回执里说明（T40 W12：不许静默恢复）', async () => {
+  const tools = []
+  const dir = tempDir('zhuli-resume-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  const ctx = {
+    tools: { register: (tool) => tools.push(tool) },
+    webServer: { register: () => () => {} },
+    agents: { get: () => null, currentInitiator: () => ({ id: 'session-r' }) },
+    get: () => null, on() {}, effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?rs=' + Date.now())
+  mod.apply(ctx)
+  const start = tools.find((t) => t.name === 'watch_start')
+  const stop = tools.find((t) => t.name === 'watch_stop')
+  await start.execute({ repo: 'a/b' })
+  await stop.execute({ repo: 'a/b' })
+  const out = String(await start.execute({ repo: 'a/b', labels: ['bug'] }))
+  assert.match(out, /之前是暂停的/, '回执必须说「之前是暂停的」：' + out)
+  assert.match(out, /已恢复/, '要说清已恢复')
+  // resume:false = 只改配置，保持暂停
+  await stop.execute({ repo: 'a/b' })
+  const quiet = String(await start.execute({ repo: 'a/b', labels: ['bug', 'p1'], resume: false }))
+  assert.match(quiet, /保持暂停/, 'resume:false 要说明仍暂停：' + quiet)
+  const state = JSON.parse(readFileSync(join(dir, 'watchers.json'), 'utf8'))
+  const entry = Object.values(state.watchers)[0]
+  assert.equal(entry.enabled, false, 'resume:false 时不能悄悄恢复')
+  assert.deepEqual(entry.filters.labels, ['bug', 'p1'], '但配置要真的改上')
+})
