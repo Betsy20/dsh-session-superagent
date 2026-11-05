@@ -2,6 +2,30 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.272] - 2026-11-06 —— 界面更新补上真实 DSH CLI 入口
+
+### 修复 mock 全绿但真机 `cli_not_found`
+
+0.9.271 的 CLI 候选漏掉了本机 asar 内的官方入口，直接调用 `resolveDshCommand({})`
+会返回 `cli_not_found`。现在补充 `DSH_PROFILE_DIR / DSH_HOME / resourcesPath` 对应的：
+
+```text
+app.asar/dsh/node_modules/@deepseek-ai/dsh/lib/bin.js
+```
+
+Electron 实测解析成功：`profile=desktop`，可执行文件为 DSH 自己的 Electron，
+参数指向上述官方 `bin.js`。该 `bin.js --help` 也已真实运行成功。
+
+### 证据
+
+```
+更新路由定向 → 20/20
+npm test → 571/571
+真实 Electron CLI 解析与 bin.js --help → 通过（未执行 plugin add）
+```
+
+只验证入口可执行性，没有真实安装，没有重启。
+
 ## [0.9.271] - 2026-11-06 —— 界面内安装更新 + Toast/响应式真实验收 39/39
 
 ### 设置页可以直接安装更新

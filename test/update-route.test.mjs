@@ -362,6 +362,20 @@ test('CLI 解析顺序：DSH_CLI_PATH → PATH → DSH 安装布局；找不到�
   }), (error) => error.code === 'cli_not_found' && /DSH_CLI_PATH/.test(error.message))
 })
 
+test('DSH_PROFILE_DIR 安装布局可解析 asar 内官方 bin.js', () => {
+  const root = process.platform === 'win32' ? 'C:\\DSH' : '/dsh'
+  const executable = join(root, 'Desktop', 'DeepSeek Harness.exe')
+  const expected = join(root, 'Desktop', 'resources', 'app.asar', 'dsh', 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
+  const command = resolveDshCommand({
+    env: { DSH_PROFILE_DIR: join(root, 'home', 'profiles', 'desktop'), PATH: '' },
+    platform: 'win32', execPath: executable, resourcesPath: null,
+    fileExists: (path) => path === expected,
+  })
+  assert.equal(command.file, executable)
+  assert.deepEqual(command.args, [expected])
+  assert.equal(command.source, 'DSH installation CLI JS')
+})
+
 test('标准 Windows dsh.cmd 布局转换为独立 Electron CLI，不经 shell', () => {
   const root = process.platform === 'win32' ? 'C:\\DSH\\Desktop' : '/dsh/Desktop'
   const resources = join(root, 'resources')
