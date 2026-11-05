@@ -72,6 +72,14 @@ const tryRun = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: ROOT, encod
     for (const line of failed.slice(0, 40)) console.log('  ' + line.trim())
     if (failed.length === 0) console.log('  （没解析到失败行，下面贴输出末尾 40 行）')
     if (failed.length === 0) for (const line of out.trim().split(String.fromCharCode(10)).slice(-40)) console.log('  ' + line)
+    // 只列 not ok 标题看不到真正断言。再贴首个失败的完整上下文，CI 才能定位平台差异。
+    const lines = out.split(String.fromCharCode(10))
+    const firstFailure = lines.findIndex((line) => /^(✖|not ok )/.test(line.trim()))
+    if (firstFailure >= 0) {
+      console.log('--- 首个失败完整上下文（最多 100 行）---')
+      for (const line of lines.slice(firstFailure, firstFailure + 100)) console.log('  ' + line)
+      console.log('--- 首个失败上下文结束 ---')
+    }
     console.log('--- 失败详情结束 ---')
   }
   // README 里写着“N 项单测”：这个数最容易悄悄过期（本轮从 136 掉到 181 才发现）
