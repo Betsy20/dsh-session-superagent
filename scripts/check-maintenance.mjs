@@ -43,7 +43,18 @@ check('CHANGELOG 最新小节 = 当前版本', firstHeading === version, '最新
 
 // ③ 本地有 tag
 const tags = new Set(run('git', ['tag', '-l']).split('\n').filter(Boolean))
-check('当前版本有 git tag', tags.has(tag), tags.has(tag) ? tag : '缺 ' + tag + '（跑 node scripts/release-gh.mjs --latest）')
+// 审核（0.9.248 的 CI 红）：这条在 CI 上红过一次，原因是**推送顺序** ——
+// 先推 main、再推 tag，中间那几秒 CI 已经开始跑，tag 还没到远端。
+// 现在把话说明白：本地没有 vs 远端没有，是两种完全不同的处置。
+const remoteTags = (() => { try { return run('git', ['ls-remote', '--tags', 'origin']).split(String.fromCharCode(10)) } catch { return [] } })()
+const hasRemote = remoteTags.some((line) => line.trim().endsWith('refs/tags/' + tag) || line.includes('refs/tags/' + tag + '^{}'))
+check(
+  '当前版本有 git tag',
+  tags.has(tag),
+  tags.has(tag)
+    ? (hasRemote ? tag : tag + '（本地有、远端没有 —— 先 git push origin ' + tag + '）')
+    : '缺 ' + tag + '（跑 node scripts/release-gh.mjs --latest）'
+)
 
 // ④ tag 指向真实 commit
 const tagSha = tags.has(tag) ? run('git', ['rev-parse', '--verify', tag + '^{commit}']) : ''
