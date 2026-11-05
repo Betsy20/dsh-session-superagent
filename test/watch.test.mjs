@@ -1618,3 +1618,23 @@ test('实际间隔 = 自己配置与 x-poll-interval 取大者（T23：以前测
   assert.equal(effectiveIntervalMs(null, 60000), 60000)
   assert.ok(effectiveIntervalMs({ minIntervalSec: -99 }, 60000) > 0)
 })
+
+test('合并多条唤醒时「接下来」必须还在（T31 M2：去重把整段指令吃掉了）', async () => {
+  const { mergeWakeTexts } = await import('../lib/watch.js')
+  const one = '第 1 处\n【完成标准】\n- 有 ack\n接下来：\n1. 读 AGENTS.md\n2. 改\n3. 回'
+  const two = '第 2 处\n【完成标准】\n- 有 ack\n接下来：\n1. 读 AGENTS.md\n2. 改\n3. 回'
+  const merged = mergeWakeTexts([one, two])
+  const tails = (merged.match(/接下来：/g) || []).length
+  assert.equal(tails, 1, '合并后「接下来」应当恰好出现 1 次，实际 ' + tails)
+  assert.match(merged, /读 AGENTS\.md/, '下一步指令不能丢')
+  // 完成标准该去重（只留一份）
+  assert.equal((merged.match(/【完成标准】/g) || []).length, 1, '完成标准应当只留一份')
+})
+
+test('「取前 N 条」说的是优先级，不是「最近更新」（T31 M3：文案与实际排序不符）', async () => {
+  const { formatWatchText } = await import('../lib/watch.js')
+  const list = [1, 2, 3, 4, 5].map((n) => ({ number: n, title: 't' + n, state: 'open', html_url: 'u' + n, updated_at: '2026-11-05T00:00:00Z' }))
+  const text = formatWatchText('o/r', list, { batchLimit: 3, changedTotal: 9 })
+  assert.ok(!text.includes('最近更新'), '不该再写「按最近更新」—— 实际按 priorityScore 排')
+  assert.match(text, /按优先级取前 3 条/)
+})
