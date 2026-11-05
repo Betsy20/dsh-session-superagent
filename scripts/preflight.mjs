@@ -64,6 +64,16 @@ const tryRun = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: ROOT, encod
   const pass = (out.match(/# pass (\d+)/) || out.match(/ℹ pass (\d+)/) || [])[1]
   const fail = (out.match(/# fail (\d+)/) || out.match(/ℹ fail (\d+)/) || [])[1]
   record('单测 node --test', res.status === 0 && fail === '0', `${pass}/${tests} 通过，失败 ${fail}`)
+  // 审核 T28 M1：失败时**必须**把失败用例名打出来。
+  // 以前整段输出被吞掉，CI 日志只剩「361/363 通过，失败 1」—— 本地复现不了就永远查不出是哪个。
+  if (res.status !== 0) {
+    const failed = out.split(String.fromCharCode(10)).filter((line) => /^(✖|not ok |  AssertionError|ℹ fail )/.test(line.trim()))
+    console.log('--- 失败详情（最多 40 行）---')
+    for (const line of failed.slice(0, 40)) console.log('  ' + line.trim())
+    if (failed.length === 0) console.log('  （没解析到失败行，下面贴输出末尾 40 行）')
+    if (failed.length === 0) for (const line of out.trim().split(String.fromCharCode(10)).slice(-40)) console.log('  ' + line)
+    console.log('--- 失败详情结束 ---')
+  }
   // README 里写着“N 项单测”：这个数最容易悄悄过期（本轮从 136 掉到 181 才发现）
   const claimed = (readFileSync(join(ROOT, 'README.md'), 'utf8').match(/(\d+) 项单测/) || [])[1]
   const res2 = tryRun('node', ['scripts/audit-readme-tests.mjs', String(tests)], { timeout: 60000 })
@@ -247,14 +257,21 @@ if (!FAST) {
   const bad = []
   // 退出码 2 = 环境问题（本机没有浏览器 / 渲染空）。CI 上没有浏览器是正常的，
   // 这种情况必须 SKIP 而不是 FAIL —— 否则「没量」会被当成「不达标」，门禁在 CI 里永远红。
-  if (res.status === 2) {
-    record('对比度体检', true, '跳过：本机没有可用的浏览器（CI 环境正常现象）')
+  //
+  // 审核 T28 M2：以前这里先 record 一次 PASS，末尾又**无条件** record 一次 →
+  // 同名两行 PASS，而且「没量」被记成「达标」，对比度回归在 CI 里永远绿。
+  // 现在用第三种状态 skip：不进「全部通过」，也不谎报达标。
+  const skippedContrast = res.status === 2
+  if (skippedContrast) {
+    record('对比度体检', 'skip', '没量：本机没有可用的浏览器（CI 环境正常现象，但不算通过）')
   } else if (!light || !dark) bad.push('量不到数据（渲染/浏览器失败）')
   else {
     if (light.groups > base.light.groups) bad.push('浅色不达标 ' + light.groups + ' 组 > 基线 ' + base.light.groups)
     if (dark.groups > base.dark.groups) bad.push('深色不达标 ' + dark.groups + ' 组 > 基线 ' + base.dark.groups)
   }
-  record('对比度体检', bad.length === 0, bad.length ? bad[0] : (light && dark ? '浅色 ' + light.groups + ' / 深色 ' + dark.groups + ' 组（不高于基线）' : '无数据'))
+  if (!skippedContrast) {
+    record('对比度体检', bad.length === 0, bad.length ? bad[0] : (light && dark ? '浅色 ' + light.groups + ' / 深色 ' + dark.groups + ' 组（不高于基线）' : '无数据'))
+  }
 }
 
 // ⑥.458 全 docs/ 一致性（老文档最容易把人带到不存在的工具/路由/文件）

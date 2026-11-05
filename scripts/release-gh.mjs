@@ -97,6 +97,8 @@ const entries = readChangelog()
 const todo = LATEST_ONLY ? entries.slice(0, 1) : (LIMIT > 0 ? entries.slice(0, LIMIT) : entries)
   // --max-create 与 --limit 可以叠加：先按 CHANGELOG 顺序取窗口，再在里面建到 N 个为止
 const createdTags = []
+// 审核 T28 M3：推送失败的 tag 单独记账 —— 它们既不算「已存在」也不算「已创建」。
+const failedTags = []
 const createdReleases = []
 const skipped = []
 const noCommit = []
@@ -112,8 +114,13 @@ for (const entry of todo) {
       run('git', ['tag', tag, sha])
       // 只推新建的这一个：`git push --tags` 会把历史遗留 tag 一起推，
       // 远端已有同名不同 sha 的会整批 reject（v0.2.0 就这样挡过一次）。
+      //
+      // 审核 T28 M3：以前推送失败只打一行日志，然后**照样** existingTags.add + createdTags.push ——
+      // 报告里写「已创建」，而远端其实没有这个 tag，用户 checkout 会落到错版本。
       try { run('git', ['push', 'origin', tag]) } catch (error) {
-        console.error('tag 推送失败', tag, String(error.stderr || '').slice(0, 120))
+        console.error('tag 推送失败', tag, String(error.stderr || '').slice(0, 200))
+        failedTags.push(tag)
+        continue // 不记账：既不算「已存在」，也不算「已创建」
       }
     }
     existingTags.add(tag)
@@ -142,10 +149,17 @@ console.log(JSON.stringify({
   dryRun: DRY,
   tagOnly: TAG_ONLY,
   tags: createdTags.length,
+  failedTags: failedTags.length ? failedTags : undefined,
   releases: createdReleases.length,
   skipped: skipped.length,
   noCommit: noCommit.length ? noCommit : undefined,
 }, null, 2))
 if (createdReleases.length) {
   console.log('新建 release:', createdReleases.slice(0, 5).join(' '), createdReleases.length > 5 ? '…' : '')
+}
+
+// 审核 T28 M3：有 tag 推送失败就非零退出 —— 以前吞掉失败后 exit 0，自动化会以为发版成功。
+if (failedTags.length > 0) {
+  console.error('有 ' + failedTags.length + ' 个 tag 推送失败：' + failedTags.join(' '))
+  process.exitCode = 1
 }

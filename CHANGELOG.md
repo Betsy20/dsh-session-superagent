@@ -2,6 +2,47 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.223] - 2026-11-05 —— CI 红了为什么查不出来：失败的用例名被整段吞掉
+
+### ① `preflight.mjs` 把 `node --test` 的输出整段吞掉
+
+CI 日志里只有一行 **「361/363 通过，失败 1」** —— 没有任何用例名。
+
+0.9.209 那次 CI 红**至今无法定位**：本地复跑同一个 commit 是全绿的，
+当时猜了个原因（「CI 无 ICU」）就改了，而今天的 runner 上那条 GBK 用例其实是**真跑**的 ——
+**红过、猜了个原因、真因没留痕。**
+
+现在失败时将打印失败用例名（最多 40 行）；一行都解析不到就贴输出末尾 40 行。
+
+### ② 对比度体检在 CI 里永远绿
+
+没有浏览器时 `record('对比度体检', true, '跳过…')` 记成 **PASS**，而末尾又**无条件** `record` 一次
+→ CI 日志里两行同名 PASS，且「没量」被当成「达标」。
+
+改成第三种状态 `skip`：不进「全部通过」，也不谎报达标。
+
+### ③ tag 推送失败被吞掉后照样记成「已创建」
+
+`release-gh.mjs` 里 `git push origin <tag>` 失败只打一行日志，然后**继续** `existingTags.add(tag)` ——
+报告说「已创建」，远端其实没有。用户 `git checkout v0.9.x` 会落到错版本。
+
+现在失败单独记账（既不算「已存在」也不算「已创建」），并且**非零退出**。
+
+### ④ `npm publish` 与门禁完全解耦
+
+`package.json` 没有 `prepublishOnly` —— 门禁红着、被 cancel、甚至没跑过，都能 `npm publish`，
+而 npm 的发布**不可撤回**。
+
+已加：`"prepublishOnly": "node scripts/preflight.mjs --fast"`。
+
+### 证据
+
+```
+node --test → 369/369
+preflight --fast → 全部通过（38 项）
+release-gh --dry-run → 正常（幂等，skipped 记账不变）
+```
+
 ## [0.9.222] - 2026-11-05 —— 又三条审计脚本「换个写法就绕过去」
 
 ### ① `audit-readme-tests.mjs` 只看第一处
