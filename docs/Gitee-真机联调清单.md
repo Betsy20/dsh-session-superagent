@@ -539,7 +539,7 @@ Gitee 网页上该 issue 出现这个标签；`/state` 里 `lastAcked = { number
 
 **看到别的说明什么**：
 - `[error: number (or numbers) is required]` → 传了空串，或编号里带了斜杠/空格（比如把 `issues/IKSQJH` 整段贴进去）。
-- 想用 `watch_trace` 追这条：**当前追不了** —— 它对编号做了 `Number(args.number)`，`Number("IKSQJH") = NaN` → 直接返回 `[error: number is required]`（见「还没做的」）。
+- 想用 `watch_trace` 追这条：**现在能追了** —— schema 已改成 `type: ['number','string']`，实现里走 `String(args.number)`（此前 `Number("IKSQJH")` 会变 NaN，已修）。
 
 ### [ ] 5.4 `watch_doctor` 的 Gitee 两项输出
 
@@ -600,13 +600,13 @@ INFO Gitee 没有 ETag 条件请求，所以这条守每轮都会真的读一次
 
 1. **私有仓库的完整闭环**：本机只验了公开仓库 + 令牌有效性（0.9），没在真私有仓库上跑过 issue/评论/ack。
 2. **Gitee 的 PR ack**：`addGiteeLabel` 打的是 `/issues/{number}/labels`，PR 编号在 Gitee 是否同路径**没验证**（这次不做写操作，所以没测）。
-3. **标签自动创建**：Gitee 无此端点，插件明确不建（5.2）；「首次 ack 时顺手建标签」这个体验没做。
+3. ~~标签自动创建~~：**已做**（`ensureGiteeLabel`：先按 Gitee 规则校验名字 → 翻页查重 → 不存在才建；查不到就不盲发 POST）。
 4. **429 限流路径**：需要打满额度才能触发；`nextAt = +60s` 与 `lastDeferred="被 Gitee 限流，等 60 秒"` 只做了代码走读。
 5. **`partial`（一半端点失败）**：3.6 需要人为把 PR 关掉的仓库，本次没找到。
-6. **`watch_trace` 处理 Gitee 字符串编号**：当前 `Number()` 化直接 NaN，缺陷已知未修。
+6. ~~`watch_trace` 处理 Gitee 字符串编号~~：**已修**（同上，schema 收字符串 + `String()`）。
 7. **跨平台多仓库**：一条会话同时挂 GitHub + Gitee 两条守（provider 分派是否互不干扰）没联调。
 8. **隔离执行（`isolated`）+ Gitee**：`watch_doctor` 对 gitee 条目 `continue` 掉了 workdir 检查，所以「隔离区建在 Gitee 仓库上」这条路完全没验。
-9. **Gitee 自定义状态（`issue_state`：待确认/进行中/…）**：只验了四个 `state` 值的归一，`issue_state` 的中文状态没进判定。
+9. ~~Gitee 自定义状态（`issue_state`）~~：**已接**（`normalizeGiteeItem` 同时看 `state` 与 `issue_state`，`resolved` / `rejected` 都判关闭）。真机上还没跑过一遍，但逻辑有单测钉住。
 10. **时区**：Gitee 返回 `+08:00`，`since` 传 UTC ISO（0.6 已证能工作），但没在非 +08:00 的机器 / 夏令时场景下验过。
 11. **评论数上限**：每轮只取前 3 条（4.4），第 4 条之后的「最后评论」到底会不会丢、丢几轮，没实测。
 12. **`watch_ack` 的 `format=json` 分支**：Gitee 失败时 `retryable=false` + `advice="需要你处理"`，机器消费方的重试逻辑没验。

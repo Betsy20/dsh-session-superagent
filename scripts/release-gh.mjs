@@ -71,7 +71,19 @@ function commitFor(version) {
   return list[list.length - 1] || ''
 }
 
+// 审核 T22 B2：以前只看**本地** tag（`git tag -l`）—— 换一台机器或 clone 浅一点，
+// 就会以为「没有 tag」，于是去重复建已经存在的 Release（或漏掉远端有、本地没有的）。
+// 以**远端**为准，本地取并集。
 const existingTags = new Set(quiet('git', ['tag', '-l']).trim().split(LF).filter(Boolean))
+try {
+  const remote = quiet('git', ['ls-remote', '--tags', 'origin'])
+  for (const line of remote.trim().split(LF)) {
+    const name = String(line.split('refs/tags/')[1] || '').replace(/\^\{\}$/, '')
+    if (name) existingTags.add(name)
+  }
+} catch (error) {
+  console.error('读不到远端 tag（离线？）：', String(error.message || error).split(LF)[0])
+}
 const existingReleases = new Set()
 try {
   const json = run('gh', ['release', 'list', '--repo', REPO, '--limit', '400', '--json', 'tagName'])

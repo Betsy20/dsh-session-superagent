@@ -277,3 +277,12 @@ test('列表满一页要标记 truncated（否则被截掉的条目永远不再�
   assert.equal((await listGiteeItems({ repo: 'o/r', perPage: 20, fetchImpl: mk(20) })).truncated, true)
   assert.equal((await listGiteeItems({ repo: 'o/r', perPage: 20, fetchImpl: mk(5) })).truncated, false)
 })
+
+test('issue_state 也要参与判定（T22 B4：resolved/rejected 以前一直算「开着」）', () => {
+  const { normalizeGiteeItem } = giteeModule
+  assert.equal(normalizeGiteeItem({ number: '1', state: 'open', issue_state: 'resolved' }).state, 'closed')
+  assert.equal(normalizeGiteeItem({ number: '2', state: 'open', issue_state: 'rejected' }).state, 'closed')
+  assert.equal(normalizeGiteeItem({ number: '3', state: 'open', issue_state: 'progressing' }).state, 'open')
+  assert.equal(normalizeGiteeItem({ number: '4', state: 'closed' }).state, 'closed')
+  assert.equal(normalizeGiteeItem({ number: '5', state: 'open' }).state, 'open')
+})

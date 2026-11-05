@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.211'
+    const CLIENT_VERSION = '0.9.212'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1064,7 +1064,9 @@ window.__ModuleLoader__.load({
 
       const busyRef = useRef(false)
       const run = async (work, done) => {
-        if (busyRef.current) return
+        // 审核 T22 B3：上一件事没跑完时点了会**静默丢弃**（界面毫无反应，客户以为按钮坏了）。
+        // 至少说一句「还在处理」—— 不说的话没人知道该等。
+        if (busyRef.current) { setNotice({ ok: false, text: '上一件事还在处理，请稍等再点' }); return }
         busyRef.current = true
         setNotice(null)
         try {

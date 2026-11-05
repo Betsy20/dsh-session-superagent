@@ -2,6 +2,45 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.212] - 2026-11-05 —— 跨文档待办对账：8 条「待办」已经做完了，另有 5 条真待办
+
+### ① 8 条已失效的「待办」（T22 审计，逐条给代码证据）
+
+`docs/*.md` 与根目录文档里同样有「下一步 / 未做 / 还没」这类陈述，**和代码从没对过账**：
+
+| 文档 | 它说 | 代码实际 |
+|---|---|---|
+| `deepseek-papers` | 隔离执行是「下一步」 | `prepareIsolation` + `git worktree add` 早就在跑 |
+| `Gitee-真机联调清单` | `watch_trace` 对字符串编号直接 NaN | 已改成收 `['number','string']` |
+| 同上 | 标签自动创建没做 | `ensureGiteeLabel`（校验 → 查重 → 才建） |
+| 同上 | Gitee ack 标签 INFO 是死代码 | 现在真查标签 |
+| `HANDOFF` | SegTabs 焦点跟随、Toast 定位未做 | `nextButton.focus()` + `.dt-toast{position:fixed;top:40px}` |
+| `official-gui-ia` | 全局搜索未做 | 面板头部搜索框已渲染 |
+| `HANDOFF` | 在等维护者合并 PR | `gh pr view` 实测 **MERGED** |
+
+已改的 4 条（Gitee 清单）写成「已落地 + 依据」；其余在报告里带证据列出。
+
+### ② 真待办 17 项，其中 5 项模型能做 —— 本轮做了 3 项
+
+- **B2 · release 工具只看本地 tag**：`git tag -l` 在换机器 / 浅 clone 时会以为「没有 tag」→ 重复建或漏建。
+  改成以 **`git ls-remote --tags origin`** 为准、本地取并集。
+- **B4 · Gitee 的 `issue_state` 没进判定**：Gitee 的 issue 除了 `state` 还有 `issue_state`
+  （`progressing` / `resolved` / `rejected`…）。以前只看 `state`，于是**「已解决」的 issue 一直算开着**、
+  每轮都被当成新动态。现在两个字段都看。
+- **B3 · 面板 `run()` 忙碌时静默丢弃**：上一件事没跑完时点按钮**界面毫无反应**，客户以为按钮坏了。
+  现在会提示「上一件事还在处理，请稍等再点」。
+
+### ③ 上一轮的成果被确认（别再改第二遍）
+
+T22 顺手核实：`docs/kb/` 那 8 条**已经修好**（`repo-permissions.md` 现在写「## 还没做的（没有）」）。
+
+### 证据
+
+```
+node --test → 364/364（新增：issue_state 参与判定）
+ui-audit → 11/11（100 分）
+```
+
 ## [0.9.211] - 2026-11-05 —— 182 篇知识库里有 8 篇的「还没做的」早就做完了
 
 ### ① 8 篇过期条目（T21 审计，逐条 grep 复核后改）
