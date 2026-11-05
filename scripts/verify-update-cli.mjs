@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 0.9.272 真机回归：只解析官方 DSH CLI 并执行 bin.js --help。
+// 0.9.272 真机回归：只解析官方 DSH CLI 并执行 desktop-host cli.js --help。
 // 不执行 plugin add，不安装、不重启，也不读取或打印凭证。
 //
 // 用法：node scripts/verify-update-cli.mjs [--json] [--timeout-ms 30000]
@@ -21,14 +21,14 @@ const ROOT = resolve(dirname(SCRIPT_PATH), '..')
 const STARTED = Date.now()
 const STARTED_AT = new Date(STARTED).toISOString()
 const ELECTRON_NAME = 'DeepSeek Harness.exe'
-const OFFICIAL_BIN_SUFFIX = join('app.asar', 'dsh', 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
+const OFFICIAL_HOST_CLI_SUFFIX = join('app.asar', 'dsh', 'node_modules', '@deepseek-ai', 'dsh-desktop-host', 'lib', 'cli.js')
 const USAGE = [
   '用法：node scripts/verify-update-cli.mjs [--json] [--timeout-ms 30000] [--output-limit-bytes 16384]',
   '定位 DeepSeek Harness.exe：DSH_ELECTRON_PATH → resourcesPath → DSH_PROFILE_DIR → DSH_HOME。',
   '找不到 exe 时输出 SKIP 并以 2 退出；这不是通过，CI 不应忽略。',
   '可显式指定：DSH_ELECTRON_PATH="D:/DeepSeek Harness/Desktop/DeepSeek Harness.exe" node scripts/verify-update-cli.mjs',
   '也可用真实 Electron 直接运行：ELECTRON_RUN_AS_NODE=1 "D:/DeepSeek Harness/Desktop/DeepSeek Harness.exe" scripts/verify-update-cli.mjs',
-  '只调用 resolveDshCommand({}) 与官方 bin.js --help；不会执行 plugin add、安装或重启。',
+  '只调用 resolveDshCommand({}) 与官方 desktop-host cli.js --help；不会执行 plugin add、安装或重启。',
 ].join('\n')
 
 let cliOptions = { json: false, nested: false }
@@ -311,14 +311,16 @@ async function runElectronProbe(options) {
     return finishReport(report, 'FAIL', 1)
   }
 
-  const entry = typeof command.args?.[0] === 'string' ? command.args[0] : null
+  const entry = typeof command.args?.[1] === 'string' ? command.args[1] : null
   check(report, '解析结果 file/args/source 完整', typeof command.file === 'string' && Array.isArray(command.args) && typeof command.source === 'string')
   check(report, '解析文件就是当前官方 Electron', typeof command.file === 'string' && samePath(command.file, process.execPath) && isFile(command.file), command.file)
-  check(report, 'argv 只含一个官方 bin.js', Array.isArray(command.args) && command.args.length === 1 && entry && normalizedPath(entry).endsWith('/' + normalizedSuffix(OFFICIAL_BIN_SUFFIX)), command.args)
-  check(report, '来源是 0.9.272 安装布局 CLI JS', command.source === 'DSH installation CLI JS', command.source)
+  check(report, 'argv 为 --expose-internals + 官方 desktop-host cli.js', Array.isArray(command.args) && command.args.length === 2
+    && command.args[0] === '--expose-internals' && entry && normalizedPath(entry).endsWith('/' + normalizedSuffix(OFFICIAL_HOST_CLI_SUFFIX)), command.args)
+  check(report, '来源是安装布局 CLI JS', command.source === 'DSH installation CLI JS', command.source)
+  check(report, '解析环境含 ELECTRON_RUN_AS_NODE=1', command.env?.ELECTRON_RUN_AS_NODE === '1', command.env)
 
   if (report.checks.some((row) => !row.pass) || !entry) {
-    report.error = { code: 'invalid_resolution', message: '解析结果不是预期的官方 asar bin.js；为避免执行非官方入口，未启动 --help' }
+    report.error = { code: 'invalid_resolution', message: '解析结果不是预期的官方 desktop-host cli.js；为避免执行非官方入口，未启动 --help' }
     return finishReport(report, 'FAIL', 1)
   }
 
@@ -329,25 +331,25 @@ async function runElectronProbe(options) {
       bytes: body.length,
       sha256: createHash('sha256').update(body).digest('hex'),
     }
-    check(report, '官方 bin.js 可由 Electron 从 asar 读取并哈希', body.length > 0, report.entry)
+    check(report, '官方 desktop-host cli.js 可由 Electron 从 asar 读取并哈希', body.length > 0, report.entry)
   } catch (error) {
     report.error = errorInfo(error)
-    check(report, '官方 bin.js 可由 Electron 从 asar 读取并哈希', false, report.error.message)
+    check(report, '官方 desktop-host cli.js 可由 Electron 从 asar 读取并哈希', false, report.error.message)
     return finishReport(report, 'FAIL', 1)
   }
 
   report.help = await runOfficialHelp(command, options)
   report.help.firstLine = report.help.stdout.split(/\r?\n/, 1)[0].trim()
-  check(report, '官方 bin.js --help 退出码为 0', !report.help.timedOut && !report.help.error && report.help.exitCode === 0, {
+  check(report, '官方 desktop-host cli.js --help 退出码为 0', !report.help.timedOut && !report.help.error && report.help.exitCode === 0, {
     exitCode: report.help.exitCode,
     signal: report.help.signal,
     timedOut: report.help.timedOut,
     error: report.help.error,
   })
   check(report, 'CLI 帮助首行非空', Boolean(report.help.firstLine), report.help.firstLine || '(empty)')
-  if (report.help.timedOut) report.error = { code: 'timeout', message: `官方 bin.js --help 超过 ${options.timeoutMs}ms，已终止该子进程` }
+  if (report.help.timedOut) report.error = { code: 'timeout', message: `官方 desktop-host cli.js --help 超过 ${options.timeoutMs}ms，已终止该子进程` }
   else if (report.help.error) report.error = report.help.error
-  else if (report.help.exitCode !== 0) report.error = { code: 'help_exit_nonzero', message: `官方 bin.js --help 实际退出码 ${report.help.exitCode}` }
+  else if (report.help.exitCode !== 0) report.error = { code: 'help_exit_nonzero', message: `官方 desktop-host cli.js --help 实际退出码 ${report.help.exitCode}` }
   const pass = report.checks.every((row) => row.pass)
   return finishReport(report, pass ? 'PASS' : 'FAIL', pass ? 0 : 1)
 }

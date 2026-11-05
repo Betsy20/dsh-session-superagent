@@ -52,6 +52,10 @@ node -e "console.log(require('<安装副本>/package.json').version)"
 
 ## 用户怎么升级
 
+优先在面板里操作：**设置 → 版本与更新 → 安装更新**。确认版本后会安装到当前 profile，并显示安装副本、运行版本和是否需要重载；不会自动重启。复制命令仍保留作手动回退。
+
+也可以在终端运行：
+
 ```bash
 dsh plugin --profile <p> update dsh-session-superagent
 ```

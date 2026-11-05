@@ -137,3 +137,15 @@ stderr    空
 - `docs/报告-真实CLI探针.md`
 
 未改 `lib/`、`package.json`、`client.js`、版本、preflight、派单表；未 commit，未 push，未操作其他 worktree。
+
+## 7. 0.9.274 Desktop 入口修正
+
+严格审核证明通用 `dsh/lib/bin.js` 不适合管理 reserved desktop profile。探针已同步改为验证：
+
+```text
+DeepSeek Harness.exe
+  --expose-internals
+  app.asar/dsh/node_modules/@deepseek-ai/dsh-desktop-host/lib/cli.js
+```
+
+并要求 `ELECTRON_RUN_AS_NODE=1`。本机复跑全部通过：desktop-host `cli.js --help` exit 0，入口 bytes=5607，SHA-256=`ed8bd3ca840d67599bde74f940cdb1714f7b7a98cecd166705a42a661e5cd1b7`。仍未执行 plugin add。上文 bin.js 结果保留为 0.9.272 历史快照。

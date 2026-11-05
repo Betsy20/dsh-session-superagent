@@ -2,6 +2,33 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.274] - 2026-11-06 —— 更新链路严格审核六项修复 + 完整面板真实验收
+
+### 更新链路六项必须修
+
+1. installed=latest 且 needsReload 时，设置页显示「已安装，等待重载」，隐藏重复安装与顶部提示。
+2. 生产 CLI 超时后必须等 close 才结算/解锁；旧进程未关闭时后续更新保持 409，不重叠安装。
+3. Windows Desktop 改走 `dsh-desktop-host/lib/cli.js` + `--expose-internals` + `ELECTRON_RUN_AS_NODE=1`，不再用通用 bin.js 管理 desktop profile。
+4. 更新 POST 的 fetch rejection/404 不自动重放；显示「结果未知，先重新检查」，GET 重试保留。
+5. 统一真正 SemVer comparator：prerelease、build、大整数与 ASCII 规则；installed 决定磁盘更新，POST 后失效缓存，禁止静默降级。
+6. stdout/stderr 在注入结果与生产 collector 两条路径都先脱敏再截断，跨 16KiB 边界不留秘密前缀。
+
+### 真实验收
+
+- 完整主理鱼面板：真实 client.js UMD + 安装版 React/primitives，原始 **23/23**；主线功能复跑 exit 0，CDP 截图通道问题单列 SKIP。
+- 真实 CLI 探针：desktop-host `cli.js --help` exit 0，解析环境、入口 hash 与帮助首行均通过。
+- live 只读对照：旧 running 比较把 latest=0.9.272 误判为有更新；新 comparator 对 installed=0.9.273 正确判为无更新。
+
+### 证据
+
+```
+更新路由 24/24；更新 UI 10/10；SemVer 合并定向 47/47
+npm test → 593/593
+UI 体检 → 11/11（100 分）
+```
+
+所有更新安装测试均为 mock；未真实 plugin add、未重启。按 Git 工作流保留本地候选，未推远端。
+
 ## [0.9.273] - 2026-11-06 —— 更新回执与重新检查不再互相遮状态
 
 ### 修正两个更新状态路径

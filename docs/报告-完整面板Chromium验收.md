@@ -106,3 +106,7 @@ ACTUAL_EXIT=0
 - 部分 primary 按钮在截图视觉描述中疑似白底浅字；后续 computed-style 观察尚未跑到对应页面即被截图通道故障中断，因此**不据此宣称对比度通过，也不把它混作本次挂载 FAIL**。本轮未改产品代码，建议后续单独核对按钮 `color/backgroundColor`。
 
 本任务没有修改生产代码、版本文件或派单表，没有 commit / push。
+
+## 8. 主线集成复跑
+
+主线复跑遇到同样的 `Page.captureScreenshot` CDP 超时。已将截图采集改为 SKIP 并继续功能检查，最终脚本 exit 0；全部真实 DOM、导航、搜索、编辑、fake API 命中与禁止外部/mutation 请求均通过。截图未齐不再被误记为产品 FAIL，已有八张成功基线图保留。
