@@ -2,6 +2,36 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.234] - 2026-11-05 —— 多会话下报的是别人的额度；自称只读却写了文件
+
+### ① `watch_status` 的 `session` 段取的是「第一条守的会话」
+
+`statusView` 里 `sessionId = list[0].sessionId`。当这台机器上同时挂着**多个会话**的守时，
+`used / cap` 报的是 `list[0]` 那个会话的额度 —— 客户看到「已用 11/12」，
+其实是**另一个会话**用掉的，自己这边还很宽裕（或者反过来）。
+
+现在优先用**当前会话**的 id；拿不到（纯 CLI 场景）才退回 `list[0]`。
+
+### ② `watch_doctor` 自称 `Read-only`，却往工作目录写文件
+
+它为了验证「隔离工作目录可写」，会写一个 `.dsh-doctor-probe` 再立刻删掉。
+描述里写的是 `Read-only; prints a checklist.` —— 客户和模型都以为它完全不碰磁盘。
+
+两条路：去掉探针检查，或者如实描述。**选了后者** —— 提前发现「目录不可写」是有价值的
+（第一次唤醒建 worktree 才会失败，那时客户已经在等结果了）。
+
+描述改成：*does not change any watcher config, but it does write one temporary probe file
+inside the isolation workdir (and deletes it immediately) to prove the directory is writable.*
+
+输出里也加了一行 `OK 隔离工作目录可写（写过一个临时探针并已删除）` —— 让客户知道刚才发生了什么。
+
+### 证据
+
+```
+npm test → 377/377
+preflight --fast → 全部通过
+```
+
 ## [0.9.233] - 2026-11-05 —— 模型照着说明书做，也一定会失败的四条
 
 ### ① `watch_stop` 停不掉 Gitee 守（最危险的一条）
