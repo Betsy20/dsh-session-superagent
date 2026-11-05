@@ -2,6 +2,50 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.258] - 2026-11-05 —— 新建能一次设好，模型也能看见自己写了什么
+
+继续收 T40「两个入口能力不对等」的尾项，并用**真实点击 + 请求体断言**验收，而不是只查字段出现在源码里。
+
+### ① 新建表单：四个关键配置不再要求「先建再改」
+
+新建主理鱼时现在可以直接设置：
+
+- 只理这些人提的（作者白名单，自动去掉 `@`）；
+- 这条会话每小时最多被唤醒；
+- 隔离区保留天数；
+- 最多保留几个隔离区。
+
+保存后只清空仓库相关内容，**限额与隔离策略保留**，连续添加多个仓库不用反复重填。
+
+### ② 编辑表单：看得到，也终于改得到
+
+补上「排除这些标签」和「只看指派给谁」两个控件。
+
+`filters` 是整块提交的，所以保存体现在同时带上 `labels` / `ignoreLabels` / `assignee` / `allowAuthors`，
+**改其中一项不会把另外几项静默清空**。控件名到 `filters` 的 touched 映射也同步补齐。
+
+### ③ HTTP 的间隔与工具同口径
+
+`/watch` 以前把 `30.7` 原样存成 `30.7`，工具路径存 `31`。
+现在两边都是**先取整、再夹取到 30–3600 秒**。
+
+### ④ `watch_status` 补齐 11 个可写配置字段（T41）
+
+模型设完以后终于能自查：`batchLimit`、`maxWakesPerHour`、`sessionMaxWakes`、
+`isolateKeepDays`、`maxIsolated`、`ackLabel`、`workdir`、`priority`、
+`ignoreLabels`、`assignee`、`allowAuthors` 全部回传。
+
+数组与 `priority` 返回副本，避免调用方修改视图时反向污染状态；
+重复调用 JSON 完全一致，**不破坏 ETag**。
+字段已登记到 `test/fixtures/contract-stability.json`。
+
+### 证据
+
+```
+npm test → 408/408（新增：新建真实点击核对请求体、编辑 filters 不丢旧值、HTTP 取整、statusView 4 条）
+node scripts/measure-state.mjs → 20 条守 43.8 KB ≤ 50 KB
+```
+
 ## [0.9.257] - 2026-11-05 —— 同一个字段，两条路径两种校验
 
 T40 剩下的两条「值得修」落地。

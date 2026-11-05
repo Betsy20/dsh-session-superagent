@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.257'
+    const CLIENT_VERSION = '0.9.258'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -979,6 +979,8 @@ window.__ModuleLoader__.load({
         'cap-watcher': '撞单守上限',
         busy: '会话忙',
       }
+      // 新建与编辑共用：同一个输入提示写两份，改一处忘另一处就会漂移（文案门禁会拦）。
+      const AUTHOR_LIST_PLACEHOLDER = 'GitHub 登录名，逗号分隔，留空 = 谁都算'
 
       const [snap, setSnap] = useState({ loading: true, error: null, body: null })
       const [tab, setTab] = useState('overview')
@@ -986,6 +988,8 @@ window.__ModuleLoader__.load({
       const [form, setForm] = useState({
         repo: '', intervalSec: '60', goal: '', labels: '', onlyAssigned: false,
         activeHours: '', isolated: false, workdir: '',
+        // 新建时就要能定：先建再改会多一步，尤其隔离区天数/数量不该先用默认值跑一轮。
+        allowAuthors: '', sessionMaxWakes: '', isolateKeepDays: '', maxIsolated: '',
       })
       const [token, setToken] = useState('')
       const [goalDraft, setGoalDraft] = useState('')
@@ -1106,8 +1110,10 @@ window.__ModuleLoader__.load({
               intervalSec: Number(draft.intervalSec) || watcher.intervalSec,
               filters: {
                 labels: String(draft.labels || '').split(',').map((v) => v.trim()).filter(Boolean),
+                // filters 整块发送，三个名单都必须带上，否则改标签会顺带清空另外两项。
+                ignoreLabels: String(draft.ignoreLabels || '').split(',').map((v) => v.trim()).filter(Boolean),
                 onlyAssigned: !!draft.onlyAssigned,
-                // 必须带上：filters 是**整块**发出去的，漏了它会把作者名单清空
+                assignee: String(draft.assignee || '').trim().replace(/^@/, '') || null,
                 allowAuthors: String(draft.allowAuthors || '').split(',').map((v) => v.trim().replace(/^@/, '')).filter(Boolean),
               },
               activeHours: draft.activeHours || '',
@@ -1133,7 +1139,9 @@ window.__ModuleLoader__.load({
             // 而 Toast 照样说「已保存」。这里显式做一次「控件名 → 字段名」的映射。
             const CONTROL_TO_FIELD = {
               labels: "filters",
+              ignoreLabels: "filters",
               onlyAssigned: "filters",
+              assignee: "filters",
               allowAuthors: "filters",
               priorityReopened: "priority",
               priorityComments: "priority",
@@ -1185,6 +1193,7 @@ window.__ModuleLoader__.load({
             filters: {
               labels: String(form.labels || '').split(',').map((v) => v.trim()).filter(Boolean),
               onlyAssigned: !!form.onlyAssigned,
+              allowAuthors: String(form.allowAuthors || '').split(',').map((v) => v.trim().replace(/^@/, '')).filter(Boolean),
             },
             activeHours: form.activeHours || '',
             isolated: !!form.isolated,
@@ -1192,9 +1201,13 @@ window.__ModuleLoader__.load({
             observe: !!form.observe,
             batchLimit: Number(form.batchLimit) || undefined,
             maxWakesPerHour: Number(form.maxWakesPerHour) || undefined,
+            sessionMaxWakes: Number(form.sessionMaxWakes) || undefined,
+            isolateKeepDays: Number(form.isolateKeepDays) || undefined,
+            maxIsolated: Number(form.maxIsolated) || undefined,
           }),
         })
-        setForm({ repo: '', intervalSec: form.intervalSec, goal: '', labels: '', onlyAssigned: false, activeHours: form.activeHours, isolated: form.isolated, workdir: form.workdir, observe: form.observe })
+        // 只清仓库相关的内容；限额、隔离策略保留，连续添加多个仓库时不用重填。
+        setForm({ ...form, repo: '', goal: '', labels: '', onlyAssigned: false, allowAuthors: '' })
         // 添加前体检的警告直接说出来：填错仓库名 / 只读 / 归档，这一刻讲最省事
         const warnings = (created && Array.isArray(created.warnings)) ? created.warnings : []
         if (warnings.length > 0) notify('已添加，但注意：' + warnings.join(' ／ '), 'error')
@@ -1278,6 +1291,8 @@ window.__ModuleLoader__.load({
                 setDraft({
                   intervalSec: String(watcher.intervalSec ?? 60),
                   labels: (watcher.filters && watcher.filters.labels ? watcher.filters.labels : []).join(','),
+                  ignoreLabels: (watcher.filters && watcher.filters.ignoreLabels ? watcher.filters.ignoreLabels : []).join(','),
+                  assignee: (watcher.filters && watcher.filters.assignee) || '',
                   activeHours: watcher.activeHours || '',
                   // 审核 T26 M2：`watcher.goal` 是**对象**（goalView），当字符串塞进输入框会显示
                   // [object Object]；保存时后端只收 string，于是静默无效而 Toast 说「已保存」。
@@ -1387,11 +1402,13 @@ window.__ModuleLoader__.load({
           ? h('div', { className: 'dt-fieldset' },
             field('间隔（秒）', h(Input, { value: draft.intervalSec, onChange: (e) => setField({ ...draft, intervalSec: e.target.value }) }), '多长时间检查一次这个仓库，最小 30 秒'),
             field('只处理这些标签', h(Input, { value: draft.labels, placeholder: '逗号分隔，留空 = 全部', onChange: (e) => setField({ ...draft, labels: e.target.value }) })),
+            field('排除这些标签', h(Input, { value: draft.ignoreLabels || '', placeholder: '逗号分隔，留空 = 不排除', onChange: (e) => setField({ ...draft, ignoreLabels: e.target.value }) }), '命中任意一个就跳过，优先级高于上面的白名单'),
             field('活跃时段', h(HoursField, { value: draft.activeHours, onChange: (next) => setField({ ...draft, activeHours: next }) }), '只在这个时间段内唤醒；窗口外只攒条目，不打扰'),
             // 官方原型的 Policy 第一件事是「谁可以给你派活」。单人场景也要：别人随手提的 issue 不该叫醒你。
-            field('只理这些人提的', h(Input, { value: draft.allowAuthors || '', placeholder: 'GitHub 登录名，逗号分隔，留空 = 谁都算', onChange: (e) => setField({ ...draft, allowAuthors: e.target.value }) }), '不在名单里的人提的 issue/PR 不会叫醒你（Gitee 也可以填）'),
+            field('只理这些人提的', h(Input, { value: draft.allowAuthors || '', placeholder: AUTHOR_LIST_PLACEHOLDER, onChange: (e) => setField({ ...draft, allowAuthors: e.target.value }) }), '不在名单里的人提的 issue/PR 不会叫醒你（Gitee 也可以填）'),
             field('目标/规则', h(Input, { value: draft.goal || '', placeholder: '可选，会附在唤醒消息里', onChange: (e) => setField({ ...draft, goal: e.target.value }) })),
             h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!draft.onlyAssigned, onChange: (v) => setField({ ...draft, onlyAssigned: v }), label: '只看已指派' }), '只处理已指派给人的条目'),
+            draft.onlyAssigned ? field('只看指派给谁', h(Input, { value: draft.assignee || '', placeholder: 'GitHub 登录名，留空 = 只要有指派就行', onChange: (e) => setField({ ...draft, assignee: e.target.value }) })) : null,
             field('单次最多唤醒条数', h(Input, { value: draft.batchLimit || '', placeholder: String(DEFAULTS.batchLimit || 5) + '（1-20）', onChange: (e) => setField({ ...draft, batchLimit: e.target.value }) })),
             field('每小时最多唤醒次数', h(Input, { value: draft.maxWakesPerHour || '', placeholder: String(DEFAULTS.maxWakesPerHour || 6) + '（1-60）', onChange: (e) => setField({ ...draft, maxWakesPerHour: e.target.value }) })),
             field('这条会话每小时最多被唤醒', h(Input, { value: draft.sessionMaxWakes || '', placeholder: String(DEFAULTS.sessionMaxWakes || 12) + '（1-60）', onChange: (e) => setField({ ...draft, sessionMaxWakes: e.target.value }) }), '跨所有守累计：守 5 个仓库时，光有单守上限挡不住叠加'),
@@ -1835,13 +1852,17 @@ window.__ModuleLoader__.load({
           field('间隔（秒）', h(Input, { value: form.intervalSec, onChange: (e) => setForm({ ...form, intervalSec: e.target.value }) })),
           field('单次最多唤醒条数', h(Input, { value: form.batchLimit || '', placeholder: String(DEFAULTS.batchLimit || 5) + '（1-20）', onChange: (e) => setForm({ ...form, batchLimit: e.target.value }) })),
           field('每小时最多唤醒次数', h(Input, { value: form.maxWakesPerHour || '', placeholder: String(DEFAULTS.maxWakesPerHour || 6) + '（1-60）', onChange: (e) => setForm({ ...form, maxWakesPerHour: e.target.value }) })),
+          field('这条会话每小时最多被唤醒', h(Input, { value: form.sessionMaxWakes || '', placeholder: String(DEFAULTS.sessionMaxWakes || 12) + '（1-60）', onChange: (e) => setForm({ ...form, sessionMaxWakes: e.target.value }) }), '跨所有主理鱼累计，守多个仓库时尤其要设'),
           field('只处理这些标签', h(Input, { value: form.labels, placeholder: '逗号分隔，留空 = 全部', onChange: (e) => setForm({ ...form, labels: e.target.value }) })),
+          field('只理这些人提的', h(Input, { value: form.allowAuthors || '', placeholder: AUTHOR_LIST_PLACEHOLDER, onChange: (e) => setForm({ ...form, allowAuthors: e.target.value }) }), '不在名单里的人提的 issue/PR 不会叫醒你'),
           field('活跃时段', h(HoursField, { value: form.activeHours, onChange: (next) => setForm({ ...form, activeHours: next }) }), '只在这个时间段内唤醒；不填 = 全天'),
           field('目标/规则', h(Input, { value: form.goal || '', placeholder: '可选，会附在唤醒消息里', onChange: (e) => setForm({ ...form, goal: e.target.value }) })),
           h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: form.onlyAssigned, onChange: (v) => setForm({ ...form, onlyAssigned: v }), label: '只看已指派' }), '只处理已指派给人的条目'),
           h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: !!form.observe, onChange: (v) => setForm({ ...form, observe: v }), label: '仅观察' }), '仅观察（只记录本会唤醒哪几条，不真唤醒）'),
           h('label', { className: 'dt-switch-row' }, h(Toggle, { checked: form.isolated, onChange: (v) => setForm({ ...form, isolated: v }), label: '隔离执行' }), ISOLATED_HINT),
           form.isolated ? field('隔离工作目录', h(Input, { value: form.workdir, placeholder: '绝对路径，留空 = 当前工作目录', onChange: (e) => setForm({ ...form, workdir: e.target.value }) })) : null,
+          form.isolated ? field('隔离区保留天数', h(Input, { value: form.isolateKeepDays || '', placeholder: String(DEFAULTS.isolateKeepDays || 3) + '（1-30）', onChange: (e) => setForm({ ...form, isolateKeepDays: e.target.value }) }), '每次唤醒前回收这个天数之前的一次性工作区') : null,
+          form.isolated ? field('最多保留几个隔离区', h(Input, { value: form.maxIsolated || '', placeholder: '5（1-50）', onChange: (e) => setForm({ ...form, maxIsolated: e.target.value }) }), '超出就回收最旧的，不影响正在使用的那个') : null,
           h('div', { className: 'dt-actions' },
             h(Btn, { variant: 'primary', icon: h(Icon, { name: 'plus' }), onClick: addWatcher, disabled: !sessionId || !form.repo.trim() },
               sessionId ? '添加到当前会话' : '先打开一个会话'))))

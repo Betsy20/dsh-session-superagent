@@ -38,6 +38,17 @@
 | `activeHours` | 稳定 |
 | `labels` | 稳定 |
 | `onlyAssigned` | 稳定 |
+| `batchLimit` | 稳定 |
+| `maxWakesPerHour` | 稳定 |
+| `sessionMaxWakes` | 稳定 |
+| `isolateKeepDays` | 稳定 |
+| `maxIsolated` | 稳定 |
+| `ackLabel` | 稳定 |
+| `workdir` | 稳定 |
+| `priority` | 稳定 |
+| `ignoreLabels` | 稳定 |
+| `assignee` | 稳定 |
+| `allowAuthors` | 稳定 |
 | `deferReason` | 稳定 |
 | `lastDeferred` | 实验 |
 | `silentWakes` | 稳定 |

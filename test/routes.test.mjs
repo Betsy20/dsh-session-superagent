@@ -1615,3 +1615,16 @@ test('watch_start 恢复暂停的守要在回执里说明（T40 W12：不许静�
   assert.equal(entry.enabled, false, 'resume:false 时不能悄悄恢复')
   assert.deepEqual(entry.filters.labels, ['bug', 'p1'], '但配置要真的改上')
 })
+
+test('HTTP 与工具的 intervalSec 都先取整再夹取（T40 W7：30.7 不能一路存成 30.7）', async () => {
+  const start = tools.find((t) => t.name === 'watch_start')
+  await start.execute({ repo: 'acme/round' })
+  const res = await call('POST', '/session-superagent/watch', {
+    repo: 'acme/round', sessionId: 'session-test', intervalSec: 30.7,
+  })
+  assert.equal(res.statusCode, 200, res.body)
+  const state = JSON.parse(readFileSync(join(STATE_DIR, 'watchers.json'), 'utf8'))
+  const entry = state.watchers['acme/round#session-test']
+  assert.equal(entry.intervalSec, 31, 'HTTP 必须与 watch_start 一样取整')
+  await call('POST', '/session-superagent/watch', { action: 'delete', id: 'acme/round#session-test' })
+})

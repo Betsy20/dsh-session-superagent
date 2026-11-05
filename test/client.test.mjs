@@ -1702,3 +1702,86 @@ test('总览要显示「有动作率」（《为什么做这个产品》：没�
   assert.match(text, /有动作/, '总览要有这个指标')
   assert.match(text, /7 \/ 10/, '要显示 ack 数 / 叫醒数：' + text.slice(0, 200))
 })
+
+test('新建表单能一次设好作者名单、会话上限与隔离保留策略（T40 W2）', async () => {
+  const requests = []
+  const { registrations, render } = loadClient({
+    fetch: async (url, options = {}) => {
+      requests.push({ url, options })
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, warnings: [] }) }
+    },
+  })
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = {
+    loading: false, error: null,
+    body: {
+      credentials: { token: 'none', sshKeyPath: 'none', ghConfigDir: 'none', giteeToken: 'none' },
+      gh: { ok: true, version: '2.0' },
+      defaults: { sessionMaxWakes: 12, maxWakesPerHour: 6, isolateKeepDays: 3, batchLimit: 5 },
+      watchers: [],
+    },
+  }
+  const form = {
+    repo: 'acme/demo', intervalSec: '60', goal: '', labels: 'bug', onlyAssigned: false,
+    activeHours: '', isolated: true, workdir: '', observe: false,
+    batchLimit: '3', maxWakesPerHour: '4', sessionMaxWakes: '8',
+    allowAuthors: '@alice,bob', isolateKeepDays: '2', maxIsolated: '4',
+  }
+  const queue = deskQueue(snap, null, {}, 'trigger')
+  queue[3] = form
+  const nodes = walk(render(desk, queue, { sessionId: 's1' }))
+  const labels = nodes.filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  for (const title of ['只理这些人提的', '这条会话每小时最多被唤醒', '隔离区保留天数', '最多保留几个隔离区']) {
+    assert.ok(labels.includes(title), '新建表单缺字段：' + title)
+  }
+  const add = nodes.find((n) => n.type === 'button' && String((n.props.children || []).join('')).includes('添加到当前会话'))
+  assert.ok(add, '要有添加按钮')
+  await add.props.onClick()
+  const created = requests.find((r) => String(r.url).endsWith('/watch'))
+  assert.ok(created, '点击后必须真的发 /watch')
+  const body = JSON.parse(created.options.body)
+  assert.deepEqual(body.filters.allowAuthors, ['alice', 'bob'], '@ 前缀要清掉，两个人都要保留')
+  assert.equal(body.sessionMaxWakes, 8)
+  assert.equal(body.isolateKeepDays, 2)
+  assert.equal(body.maxIsolated, 4)
+})
+
+test('编辑过滤字段时，已有作者名单和指派人不能被顺带清空（T40 W3）', async () => {
+  const requests = []
+  const { registrations, render } = loadClient({
+    fetch: async (url, options = {}) => {
+      requests.push({ url, options })
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true }) }
+    },
+  })
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = {
+    loading: false, error: null,
+    body: {
+      credentials: { token: 'none', sshKeyPath: 'none', ghConfigDir: 'none', giteeToken: 'none' },
+      gh: { ok: true, version: '2.0' }, defaults: {},
+      watchers: [watcher('a/b', {
+        filters: { labels: ['bug'], ignoreLabels: ['old'], onlyAssigned: true, assignee: 'octocat', allowAuthors: ['alice'] },
+      })],
+    },
+  }
+  const draft = {
+    intervalSec: '60', labels: 'bug', ignoreLabels: 'old', onlyAssigned: true,
+    assignee: 'octocat', allowAuthors: 'alice', activeHours: '', goal: '', isolated: false, workdir: '',
+  }
+  const queue = deskQueue(snap, 'a/b#session-a/b', draft)
+  const nodes = walk(render(desk, queue))
+  const ignore = nodes.find((n) => n.type === 'input' && n.props.value === 'old')
+  assert.ok(ignore, '已有排除标签要显示在输入框里')
+  ignore.props.onChange({ target: { value: 'skip' } })
+  const save = nodes.find((n) => n.type === 'button' && String((n.props.children || []).join('')) === '保存')
+  assert.ok(save, '编辑器里要有保存按钮')
+  await save.props.onClick()
+  const saved = requests.find((r) => String(r.url).endsWith('/watch'))
+  assert.ok(saved, '保存必须真的发请求')
+  const body = JSON.parse(saved.options.body)
+  assert.deepEqual(body.filters, {
+    labels: ['bug'], ignoreLabels: ['old'], onlyAssigned: true,
+    assignee: 'octocat', allowAuthors: ['alice'],
+  }, '只要提交 filters，就必须保留其中所有已有值（测试桩不重渲染，所以不断言输入后的新值）')
+})
