@@ -2,6 +2,53 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.227] - 2026-11-05 —— 测试把假的守写进了**真实**状态目录
+
+### ① 已经发生过的事故（不是假设）
+
+本机真实状态文件 `~/.dsh/state/session-superagent/watchers.json` 里有 4 条守，其中一条是：
+
+```
+o/parity#session-parity
+```
+
+`o/parity` 是 `test/routes.test.mjs` 里造的**测试仓库**（现实里不存在）。它被 `watch_start`
+写进了真实状态文件，于是**真机面板上从此一直有一条永远轮询失败的假守**。
+
+根因：那条用例用 `import('../lib/index.js?parity=…')` 加载模块，
+而模块在**加载那一刻**读 `DSH_SUPERAGENT_STATE` —— env 没设好时就读到了真实的 `~/.dsh/`。
+
+### ② 两条修法
+
+- `test/fixtures/tmpdir.mjs` 新增 `assertTempStateDir()`：任何会写状态的用例，动手前先确认
+  `DSH_SUPERAGENT_STATE` 指向临时目录，**指错就当场炸**（不再靠调用顺序才对）；
+  `o/parity` 那条用例已接上。
+- `test/contract-stability.test.mjs` 里的**裸 import** 换成复用同一份实例
+  （裸 import 可能拿到别的测试留下的实例，`writeState` 会真的写进去），并加了一道「目录不是临时目录就拒绝写入」的守卫。
+
+### ③ 顺带修好上一轮我自己引入的一个问题
+
+上一轮加的 `afterEach` 还原 env 的钩子插在了**文件顶部** —— 那时 `DSH_SUPERAGENT_STATE` 还没设，
+所以 afterEach 会把它**删掉**，后面的用例就没了临时目录。守卫一上线就把这个错抓出来了。
+现在钩子插在 env 设置**之后**。
+
+### 证据
+
+```
+npm test                                    → 370/370
+node --test --experimental-test-isolation=none → 370/370
+真实状态目录里的 4 条守完好（没被测试动过）
+```
+
+### 遗留（需要你决定）
+
+真实状态文件里那条 `o/parity#session-parity` **是测试垃圾**，我没有直接删 ——
+它在你机器上会一直轮询失败。要清就执行：
+
+```bash
+node -e "const fs=require('fs'),os=require('os'),p=require('path').join(os.homedir(),'.dsh','state','session-superagent','watchers.json');const j=JSON.parse(fs.readFileSync(p,'utf8'));delete j.watchers['o/parity#session-parity'];fs.writeFileSync(p,JSON.stringify(j,null,2));console.log('已清')"
+```
+
 ## [0.9.226] - 2026-11-05 —— 文档给的 `node --test` 不是绿色路径
 
 ### ① 裸 `node --test` 会真的去 spawn `gh`

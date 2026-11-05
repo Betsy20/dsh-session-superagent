@@ -1,25 +1,22 @@
 // 路由层单测：之前 0 覆盖，全靠真机 curl 手测。
 // 用环境变量把状态目录指到临时目录，并把轮询关掉，避免打到真 GitHub。
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tempDir } from './fixtures/tmpdir.mjs'
+import { assertTempStateDir, tempDir } from './fixtures/tmpdir.mjs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 // 审核 T30：这些用例会改 process.env.DSH_SUPERAGENT_STATE 却从不还原 ——
-// 同一个进程里后跑的用例会拿到前一个的目录（ 实测 10 红）。
-// 用 afterEach 把环境变量还原，保证“谁改谁收拾”。
-const __restoreEnv = (() => {
-  const saved = { ...process.env }
-  return () => {
-    for (const key of Object.keys(process.env)) { if (!(key in saved)) delete process.env[key] }
-    Object.assign(process.env, saved)
-  }
-})()
-test.afterEach?.(() => __restoreEnv())
 import assert from 'node:assert/strict'
 
 const STATE_DIR = tempDir('superagent-routes-')
 process.env.DSH_SUPERAGENT_STATE = STATE_DIR
+// 审核 T30：本文件会改 process.env.DSH_SUPERAGENT_STATE —— 每个用例结束后还原，
+// 否则同一个进程里后跑的用例会拿到前一个的目录（isolation=none 下实测 10 红）。
+const __envBaseline = { ...process.env }
+test.afterEach?.(() => {
+  for (const key of Object.keys(process.env)) { if (!(key in __envBaseline)) delete process.env[key] }
+  Object.assign(process.env, __envBaseline)
+})
 process.env.DSH_SUPERAGENT_NO_POLL = '1'
 
 const { apply } = await import('../lib/index.js')
@@ -413,7 +410,7 @@ test('watch_start 能设面板里的三项（会话上限 / 隔离保留天数 /
     assert.ok(start.parameters.properties[key], '缺参数 ' + key)
   }
   const res = await start.execute({
-    repo: 'o/parity', sessionMaxWakes: 24, isolateKeepDays: 7, maxIsolated: 3,
+    repo: assertTempStateDir('o/parity 用例') && 'o/parity', sessionMaxWakes: 24, isolateKeepDays: 7, maxIsolated: 3,
   })
   assert.equal(typeof res, 'string')
   const state = JSON.parse(JSON.stringify(mod.__test.readState()))

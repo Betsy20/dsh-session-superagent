@@ -26,7 +26,9 @@ async function loadTools() {
   }
   const mod = await import('../lib/index.js?stab=' + Date.now())
   mod.apply(ctx)
-  return tools
+  // 审核 T30：把这份实例带回去给下面用 —— 以前下面用**裸 import**，
+  // 可能拿到别的测试留下的实例（指向真实状态目录），`writeState` 会真的写进去。
+  return { tools, mod }
 }
 
 const sameSet = (actual, expected) => {
@@ -36,12 +38,16 @@ const sameSet = (actual, expected) => {
 }
 
 test('结构化输出的每个字段都在稳定性清单里（新增字段必须登记）', async () => {
-  const tools = await loadTools()
+  const { tools, mod: mod0 } = await loadTools()
   const byName = (name) => tools.find((tool) => tool.name === name)
 
   await byName('watch_start').execute({ repo: 'o/stab', format: 'json' })
   // 造一条"有痕迹"的条目，让 watch_trace 真的返回 results[]（否则这段断言永远被跳过）
-  const mod0 = await import('../lib/index.js')
+  // 审核 T30：这里以前是裸 import，可能指着真实状态目录 —— 现在复用上面那份实例。
+  // 再加一道断言：状态目录必须是临时目录，绝不能是 `~/.dsh/...`。
+  if (!String(process.env.DSH_SUPERAGENT_STATE || '').includes('zhuli-stab-')) {
+    throw new Error('状态目录不是临时目录，拒绝写入：' + process.env.DSH_SUPERAGENT_STATE)
+  }
   const st = mod0.__test.readState()
   const key = Object.keys(st.watchers)[0]
   st.watchers[key].seen = { 1: new Date().toISOString() }
@@ -81,7 +87,7 @@ test('结构化输出的每个字段都在稳定性清单里（新增字段必�
 })
 
 test('清单里不能有已经不存在的字段（避免清单自己腐烂）', async () => {
-  const tools = await loadTools()
+  const { tools } = await loadTools()
   const byName = (name) => tools.find((tool) => tool.name === name)
   const status = JSON.parse(await byName('watch_status').execute({ format: 'json' }))
   // 空状态时 watchers 为空：先用结构清单校验根与 session

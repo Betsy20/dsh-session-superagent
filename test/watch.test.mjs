@@ -1,15 +1,5 @@
 import test from 'node:test'
 // 审核 T30：这些用例会改 process.env.DSH_SUPERAGENT_STATE 却从不还原 ——
-// 同一个进程里后跑的用例会拿到前一个的目录（ 实测 10 红）。
-// 用 afterEach 把环境变量还原，保证“谁改谁收拾”。
-const __restoreEnv = (() => {
-  const saved = { ...process.env }
-  return () => {
-    for (const key of Object.keys(process.env)) { if (!(key in saved)) delete process.env[key] }
-    Object.assign(process.env, saved)
-  }
-})()
-test.afterEach?.(() => __restoreEnv())
 import { readFileSync } from 'node:fs'
 import assert from 'node:assert/strict'
 
