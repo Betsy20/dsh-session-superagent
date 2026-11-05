@@ -380,6 +380,66 @@ window.__ModuleLoader__.load({
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
     const CLIENT_VERSION = '0.9.273'
+    // SEMVER_COMPARATOR_SOURCE_START
+    // This block is duplicated verbatim in client.js because the browser UMD cannot import ESM.
+    // test/update-semver.test.mjs audits both copies and exercises their behavior.
+    const SEMVER_RE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/
+
+    function parseSemver(value) {
+      if (typeof value !== 'string') return null
+      const match = SEMVER_RE.exec(value)
+      if (!match) return null
+      return {
+        core: [match[1], match[2], match[3]],
+        prerelease: match[4] === undefined ? null : match[4].split('.'),
+      }
+    }
+
+    // Numeric identifiers are compared as decimal strings: Number/BigInt would either
+    // lose precision or impose a fixed-width limit that SemVer itself does not have.
+    function compareNumericIdentifiers(left, right) {
+      if (left.length !== right.length) return left.length < right.length ? -1 : 1
+      if (left === right) return 0
+      return left < right ? -1 : 1
+    }
+
+    function comparePrerelease(left, right) {
+      if (left === null || right === null) {
+        if (left === right) return 0
+        return left === null ? 1 : -1
+      }
+      const length = Math.max(left.length, right.length)
+      for (let index = 0; index < length; index += 1) {
+        if (index >= left.length) return -1
+        if (index >= right.length) return 1
+        const a = left[index]
+        const b = right[index]
+        if (a === b) continue
+        const aNumeric = /^\d+$/.test(a)
+        const bNumeric = /^\d+$/.test(b)
+        if (aNumeric && bNumeric) return compareNumericIdentifiers(a, b)
+        if (aNumeric !== bNumeric) return aNumeric ? -1 : 1
+        return a < b ? -1 : 1
+      }
+      return 0
+    }
+
+    /** Return -1/0/1 by SemVer precedence, or null when either input is invalid. */
+    function compareSemver(left, right) {
+      const a = parseSemver(left)
+      const b = parseSemver(right)
+      if (!a || !b) return null
+      for (let index = 0; index < 3; index += 1) {
+        const compared = compareNumericIdentifiers(a.core[index], b.core[index])
+        if (compared !== 0) return compared
+      }
+      return comparePrerelease(a.prerelease, b.prerelease)
+    }
+
+    function isStrictSemver(value) {
+      return parseSemver(value) !== null
+    }
+    // SEMVER_COMPARATOR_SOURCE_END
     const UPDATE_UNKNOWN_HINT = '请求结果未知，请先重新检查 installed/running，再手动确认'
     let BASE = '/session-superagent'
     /**
@@ -392,10 +452,6 @@ window.__ModuleLoader__.load({
     async function discoverBase() {
       const candidates = [BASE]
       for (let i = 2; i <= 8; i += 1) candidates.push('/session-superagent/r' + i)
-      const versionScore = (v) => {
-        const parts = String(v || '0').split('.').map((n) => Number(n) || 0)
-        return parts[0] * 1e6 + parts[1] * 1e3 + parts[2]
-      }
       let best = null
       for (const base of candidates) {
         try {
@@ -404,8 +460,8 @@ window.__ModuleLoader__.load({
           const body = await res.json()
           // 只有「自报前缀 = 我请求的前缀」才说明这个实例真的在这条路径上服务
           if (!body || body.routeBase !== base) continue
-          const score = versionScore(body.serverVersion)
-          if (!best || score > best.score) best = { base, score }
+          if (!isStrictSemver(body.serverVersion)) continue
+          if (!best || compareSemver(body.serverVersion, best.version) === 1) best = { base, version: body.serverVersion }
         } catch {}
       }
       if (best && best.base !== BASE) {
