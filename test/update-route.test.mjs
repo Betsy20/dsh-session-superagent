@@ -60,7 +60,7 @@ function makeRes() {
   }
 }
 
-async function setup({ runner, timeoutMs = 1000, installedVersion, profile = 'test-profile' } = {}) {
+async function setup({ runner, timeoutMs = 1000, installedVersion, installedVersionReader, profile = 'test-profile' } = {}) {
   for (const key of ['DSH_PROFILE', 'DSH_PROFILE_NAME', 'DSH_ACTIVE_PROFILE']) delete process.env[key]
   if (profile) process.env.DSH_PROFILE = profile
   const routes = new Map()
@@ -79,17 +79,17 @@ async function setup({ runner, timeoutMs = 1000, installedVersion, profile = 'te
   mod.apply(ctx, {
     updateRunner,
     updateTimeoutMs: timeoutMs,
-    readInstalledVersion: () => installedVersion === undefined ? mod.SERVER_VERSION : installedVersion,
+    readInstalledVersion: installedVersionReader || (() => installedVersion === undefined ? mod.SERVER_VERSION : installedVersion),
   })
   const route = routes.get('/session-superagent/update')
   assert.ok(route, '必须注册 /session-superagent/update')
   return {
     calls,
     runningVersion: mod.SERVER_VERSION,
-    async call(method, body, headers = {}) {
+    async call(method, body, headers = {}, query = '') {
       const raw = body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body)
       const res = makeRes()
-      await route.handler(makeReq(method, '/session-superagent/update', raw, headers), res)
+      await route.handler(makeReq(method, '/session-superagent/update' + query, raw, headers), res)
       return res
     },
   }
@@ -108,10 +108,54 @@ test('GET 保持只读；其它方法 405，均不启动 runner', async () => {
   const get = await route.call('GET')
   assert.equal(get.statusCode, 200)
   assert.equal(get.json().current, route.runningVersion)
+  assert.equal(get.json().runningVersion, route.runningVersion)
+  assert.equal(get.json().installedVersion, route.runningVersion)
   assert.equal(get.json().hasUpdate, false)
   const put = await route.call('PUT', { version: '0.9.271' })
   assert.equal(put.statusCode, 405)
   assert.equal(runs, 0)
+})
+
+test('GET 以 installedVersion 为磁盘基线，SemVer 反例与 running 漂移均准确', async () => {
+  delete process.env.DSH_SUPERAGENT_UPDATE_OFFLINE
+  const cases = [
+    ['rc latest 不覆盖 release', '0.9.273-rc.1', '0.9.273', false],
+    ['build 不制造更新', '0.9.273+build.5', '0.9.273', false],
+    ['反向 build 仍同 precedence', '0.9.273', '0.9.273+build.5', false],
+    ['旧 prerelease 不更新', '0.9.272-rc.1', '0.9.273', false],
+    ['minor=1000 不越过 major', '0.1000.0', '1.0.0', false],
+    ['major 更新不受固定进制影响', '1.0.0', '0.1000.0', true],
+    ['latest 等于 running 但磁盘较旧仍提示', '0.9.273', '0.9.272-rc.1', true],
+    ['大整数不丢失精度', '9007199254740993.0.0', '9007199254740992.0.0', true],
+  ]
+  for (const [name, latest, installedVersion, expected] of cases) {
+    globalThis.fetch = async () => ({ ok: true, json: async () => ({ version: latest, dist: {} }) })
+    const route = await setup({ installedVersion })
+    const res = await route.call('GET')
+    assert.equal(res.statusCode, 200, name)
+    assert.equal(res.json().hasUpdate, expected, name)
+    assert.equal(res.json().installedVersion, installedVersion, name)
+    assert.equal(res.json().runningVersion, route.runningVersion, name)
+    assert.equal(res.json().current, route.runningVersion, name)
+  }
+})
+
+test('registry latest 非字符串或非法 SemVer 时 GET 明确报错，POST 不执行', async () => {
+  delete process.env.DSH_SUPERAGENT_UPDATE_OFFLINE
+  for (const latest of [['0.9.274'], '01.0.0']) {
+    let runs = 0
+    globalThis.fetch = async () => ({ ok: true, json: async () => ({ version: latest, dist: {} }) })
+    const route = await setup({ runner: async () => { runs += 1; return { code: 0 } } })
+    const get = await route.call('GET')
+    assert.equal(get.statusCode, 200)
+    assert.equal(get.json().hasUpdate, false)
+    assert.match(get.json().error, /严格 semver/)
+    assert.equal(get.json().command, '')
+    const post = await route.call('POST', {})
+    assert.equal(post.statusCode, 503)
+    assert.equal(post.json().code, 'latest_unavailable')
+    assert.equal(runs, 0)
+  }
 })
 
 test('POST 走 guardWrite：跨源请求 403 且不读版本、不启动 runner', async () => {
@@ -206,6 +250,111 @@ test('成功：省略 version 时使用 checkUpdate 的 latest，不使用 @late
   assert.equal(requests[0].version, '0.9.272')
   assert.equal(requests[0].profile, 'registry-profile')
   assert.equal(res.json().version, '0.9.272')
+})
+
+test('POST 成功失效缓存：即使强制额度已消费，紧接着 GET 也重读 installed 与 latest', async () => {
+  delete process.env.DSH_SUPERAGENT_UPDATE_OFFLINE
+  let installed = '0.9.273'
+  let latest = '0.9.274'
+  let registryCalls = 0
+  globalThis.fetch = async () => {
+    registryCalls += 1
+    return { ok: true, json: async () => ({ version: latest, dist: {} }) }
+  }
+  const route = await setup({
+    installedVersionReader: () => installed,
+    runner: async (request) => {
+      installed = request.version
+      latest = request.version
+      return { code: 0, stdout: '', stderr: '' }
+    },
+  })
+  const before = await route.call('GET', undefined, {}, '?refresh=1')
+  assert.equal(before.json().installedVersion, '0.9.273')
+  assert.equal(before.json().hasUpdate, true)
+  assert.equal(registryCalls, 1)
+
+  const post = await route.call('POST', { version: '0.9.274' })
+  assert.equal(post.statusCode, 200)
+  const after = await route.call('GET', undefined, {}, '?refresh=1')
+  assert.equal(registryCalls, 2, '60 秒 force 节流不得让安装前缓存复活')
+  assert.equal(after.json().installedVersion, '0.9.274')
+  assert.equal(after.json().runningVersion, route.runningVersion)
+  assert.equal(after.json().latest, '0.9.274')
+  assert.equal(after.json().hasUpdate, false)
+})
+
+test('POST 前在飞的旧 GET 晚到也不能把安装前快照写回缓存', async () => {
+  delete process.env.DSH_SUPERAGENT_UPDATE_OFFLINE
+  let installed = '0.9.273'
+  let registryCalls = 0
+  let releaseRegistry
+  globalThis.fetch = async () => {
+    registryCalls += 1
+    if (registryCalls === 1) {
+      return new Promise((resolve) => {
+        releaseRegistry = () => resolve({ ok: true, json: async () => ({ version: '0.9.274', dist: {} }) })
+      })
+    }
+    return { ok: true, json: async () => ({ version: '0.9.275', dist: {} }) }
+  }
+  const route = await setup({
+    installedVersionReader: () => installed,
+    runner: async () => {
+      installed = '0.9.275'
+      return { code: 0, stdout: '', stderr: '' }
+    },
+  })
+  const stalePending = route.call('GET', undefined, {}, '?refresh=1')
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(registryCalls, 1)
+  const post = await route.call('POST', { version: '0.9.275' })
+  assert.equal(post.statusCode, 200)
+  releaseRegistry()
+  const stale = await stalePending
+  assert.equal(stale.json().installedVersion, '0.9.273', '旧请求自己的返回值仍是旧快照')
+
+  const fresh = await route.call('GET')
+  assert.equal(registryCalls, 2, '晚到旧响应不得填充缓存，下一 GET 必须真查')
+  assert.equal(fresh.json().installedVersion, '0.9.275')
+  assert.equal(fresh.json().latest, '0.9.275')
+  assert.equal(fresh.json().hasUpdate, false)
+})
+
+test('无 version POST 拒绝相对 installed 的静默降级，显式 version 仍是用户明确选择', async () => {
+  delete process.env.DSH_SUPERAGENT_UPDATE_OFFLINE
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ version: '0.9.272', dist: {} }) })
+  let runs = 0
+  const route = await setup({
+    installedVersion: '0.9.273',
+    runner: async () => { runs += 1; return { code: 0, stdout: '', stderr: '' } },
+  })
+  const implicit = await route.call('POST', {})
+  assert.equal(implicit.statusCode, 409)
+  assert.equal(implicit.json().code, 'downgrade_requires_explicit_version')
+  assert.equal(implicit.json().installedVersion, '0.9.273')
+  assert.equal(runs, 0)
+
+  const explicit = await route.call('POST', { version: '0.9.272' })
+  assert.equal(explicit.statusCode, 200)
+  assert.equal(explicit.json().version, '0.9.272')
+  assert.equal(runs, 1)
+})
+
+test('installed 不可用时无 version POST 以 running 防降级，installed 较新时不被 running 掩盖', async () => {
+  delete process.env.DSH_SUPERAGENT_UPDATE_OFFLINE
+  for (const installedVersion of [null, 'not-semver', '0.1000.0']) {
+    let runs = 0
+    globalThis.fetch = async () => ({ ok: true, json: async () => ({ version: '0.9.272', dist: {} }) })
+    const route = await setup({
+      installedVersion,
+      runner: async () => { runs += 1; return { code: 0 } },
+    })
+    const res = await route.call('POST', {})
+    assert.equal(res.statusCode, 409, String(installedVersion))
+    assert.equal(res.json().code, 'downgrade_requires_explicit_version')
+    assert.equal(runs, 0)
+  }
 })
 
 test('latest 缺失时 503，不执行带 @latest 的更新', async () => {
