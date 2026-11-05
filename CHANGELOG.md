@@ -2,6 +2,35 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.275] - 2026-11-06 —— primary 全原生化 + 更新失败/忙碌边界
+
+### 全部 primary 按钮接入官方 DSH Button
+
+真实 Chromium 发现旧 `Btn variant=primary` 在深色下白字配浅绿底，只有 **1.045:1**。
+现在新增表单、保存凭证、保存 goal、安装更新及危险确认等 primary 在有官方 Button 时统一委托；
+其它 variant 不变，旧宿主完整回退。业务 busy/danger/disabled/aria/type/ref 均透传，未回填旧主题类。
+
+同一真实对比度脚本复验：**23/23，16/16 非禁用测量通过**。
+新增/保存凭证/安装更新/保存 goal：深色均 **18.0823:1**，浅色均 **18.8965:1**。
+测量脚本改为官方按钮选择器，并修正 TaskSpace 启动与 ego stdin 仓库定位。
+
+### 更新失败与忙碌状态
+
+- runner 实际 settle（成功/非零/timeout/spawn_error）后才失效更新缓存并递增 generation；504 且仍 pending 时不提前清理，旧 GET 不能晚写。
+- error 在 normalizeFailure 与路由出口都脱敏；405 增加 `Allow: GET, POST`。
+- 安装忙碌时取消、遮罩、Escape 与右上关闭均被阻止，POST 不中断；成功/失败后恢复，成功只关闭一次。
+
+### 证据
+
+```
+更新路由 33/33；更新 UI 14/14；primary 定向 120/120
+真实 Chromium primary 对比度 → 23/23
+npm test → 600/600
+UI 体检 → 11/11（100 分）
+```
+
+未真实执行安装或重启；本版按 Git 工作流保留本地候选。
+
 ## [0.9.274] - 2026-11-06 —— 更新链路严格审核六项修复 + 完整面板真实验收
 
 ### 更新链路六项必须修

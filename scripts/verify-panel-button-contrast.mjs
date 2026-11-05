@@ -6,8 +6,13 @@ import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import http from 'node:http'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const REPO = 'D:/主工作区/projects/dsh-session-superagent-button-contrast'
+const REPO = process.env.DSH_SUPERAGENT_REPO
+  || (import.meta.url.startsWith('file:') && !import.meta.url.includes('[eval')
+    ? resolve(dirname(fileURLToPath(import.meta.url)), '..')
+    : 'D:/主工作区/projects/dsh-session-superagent')
 const ASAR = 'D:/DeepSeek Harness/Desktop/resources/app.asar'
 const ELECTRON = 'D:/DeepSeek Harness/Desktop/DeepSeek Harness.exe'
 const FRONTEND = `${ASAR}/dsh/node_modules/@deepseek-ai/dsh-web-frontend`
@@ -472,8 +477,8 @@ const clientSource = readFileSync(`${REPO}/client.js`, 'utf8')
 const fixture = makeFixture(repoPackage.version)
 const clientSha256 = sha256(clientSource)
 const scriptSha256 = sha256(readFileSync(`${REPO}/scripts/verify-panel-button-contrast.mjs`))
-const { server, origin } = await startServer(installed, clientSource, fixture)
 const task = await taskSpace(SPACE_NAME)
+const { server, origin } = await startServer(installed, clientSource, fixture)
 let page = null
 let completed = false
 let chromium = 'unknown'
@@ -586,19 +591,19 @@ try {
     await applyTheme(theme)
     await openTab('触发')
     await page.waitForSelector('#watcher-new-repo', { state: 'visible', timeout: 5000 })
-    await measure(theme, '新增表单 primary（空白禁用）', 'primary-disabled-observation', 'local Btn', '#watcher-new .dt-btn-primary', '添加到当前会话')
+    await measure(theme, '新增表单 primary（空白禁用）', 'primary-disabled-observation', 'primary Btn（官方优先）', '#watcher-new button[type="submit"]', '添加到当前会话')
     await page.fill('#watcher-new-repo', 'fixture/contrast')
     await page.waitForFunction(() => {
-      const button = document.querySelector('#watcher-new .dt-savebar .dt-btn-primary')
+      const button = document.querySelector('#watcher-new .dt-savebar button[type="submit"]')
       return button && !button.disabled
     }, undefined, { timeout: 5000 })
-    await measure(theme, '新增表单 primary', 'primary', 'local Btn', '#watcher-new .dt-savebar .dt-btn-primary', '添加到当前会话')
+    await measure(theme, '新增表单 primary', 'primary', 'primary Btn（官方优先）', '#watcher-new .dt-savebar button[type="submit"]', '添加到当前会话')
     await measure(theme, '新增表单普通 Btn 对照', 'control', 'local Btn ghost', '#watcher-new .dt-savebar .dt-btn-ghost', '放弃')
     await shot(`${theme}-trigger`)
 
     await openTab('设置')
     await openSettings('凭证')
-    await measure(theme, '设置保存凭证 primary', 'primary', 'local Btn', '.dt-settings-body .dt-btn-primary', '保存凭证')
+    await measure(theme, '设置保存凭证 primary', 'primary', 'primary Btn（官方优先）', '.dt-settings-body button', '保存凭证')
     await measure(theme, '凭证普通 Btn 对照', 'control', 'local Btn ghost', '.dt-settings-body .dt-btn-ghost', '解绑 gh 账号目录')
     await shot(`${theme}-settings-creds`)
 
@@ -610,7 +615,7 @@ try {
     await shot(`${theme}-settings-update`)
 
     await openSettings('会话 goal')
-    await measure(theme, '设置保存 goal primary', 'primary', 'local Btn', '.dt-settings-body .dt-btn-primary', '保存 goal')
+    await measure(theme, '设置保存 goal primary', 'primary', 'primary Btn（官方优先）', '.dt-settings-body button', '保存 goal')
     // 最后一次截图可能使 Page 消失；先完成错误采集，之后不再访问 Page。
     const themeErrors = await page.evaluate(() => ({
       capture: window.__captureErrors.filter((event) => !String(event.message).includes('intentional-capture-stop')),
