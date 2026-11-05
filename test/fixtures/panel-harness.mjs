@@ -44,10 +44,16 @@ export function loadClient(options = {}) {
   const React = {
     Fragment: Symbol('Fragment'),
     createElement(type, props, ...children) {
-      return {
+      // 审核（客户实拍发现的真 bug）：**真 React 会把 `key` 从 props 里剥掉**，
+      // 而这里以前把它留在 props 里 —— 于是「靠 props.key 找子节点」的代码在桩里能跑、
+      // 在真机上是 undefined。桩比运行时干净，就会掩盖 bug（T26 的老毛病）。
+      const { key, ...rest } = props || {}
+      const node = {
         type,
-        props: { ...(props || {}), children: children.flat(Infinity).filter((c) => c !== null && c !== undefined && c !== false) },
+        props: { ...rest, children: children.flat(Infinity).filter((c) => c !== null && c !== undefined && c !== false) },
       }
+      if (key !== undefined) node.key = key
+      return node
     },
     memo: (fn) => fn,
     useState(init) {

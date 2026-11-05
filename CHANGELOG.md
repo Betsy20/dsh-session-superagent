@@ -2,6 +2,48 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.248] - 2026-11-05 —— 客户实拍：设置页左栏点了不换内容
+
+### 客户看到的
+
+截图里左栏高亮已经跳到「会话 goal」，而右边内容还是「来源」。
+
+**导航高亮会动、内容不动** —— 说明点击是有效的、状态也变了，只是**查表查不到**。
+
+### 根因：React 会把 `key` 从 props 里剥掉
+
+```js
+const settingsBody = settingsSections.find((node) => node && node.props && node.props.key === settingsSection)
+```
+
+`key` 是 React 的**特殊 prop**：它挂在 `element.key` 上，**不出现在 `props` 里**。
+所以真机上 `node.props.key` 恒为 `undefined` → find 永远落空 → 回退到 `settingsSections.find(Boolean)` = **第一块（来源）**。
+
+浅色高亮跟着 `settingsSection` 走，内容跟着「找不到就用第一个」走 —— 于是永远停在来源。
+
+改成**按顺序取**（`settingsSections` 与导航 `SETTINGS_SECTIONS` 同序）。
+
+### 为什么 387 条测试一条都没发现
+
+**测试桩的 `h()` 把 `key` 留在了 `props` 里** —— 真实 React 不会。于是这段代码在桩里能跑、在真机上是坏的。
+
+这正是 T26 说过的老毛病：**桩比运行时干净，就会掩盖 bug**。
+
+两处都修了：`client.js` 不再依赖 `props.key`；测试桩改成和 React 一致（`key` 单独存放，不进 `props`）。
+
+### 新增用例（会红的那个）
+
+按槽位把 `settingsSection` 设成 source / creds / goal，断言**三块内容各不相同**。
+修复前 creds 与 goal 都渲染成「来源」。
+
+### 证据
+
+```
+npm test → 387/387
+修复前：source/creds/goal → 全是「来源」
+修复后：来源 / 凭证 / 会话 goal
+```
+
 ## [0.9.247] - 2026-11-05 —— 状态文件里一个坏值，整块面板全灭
 
 T37 造了 8 种「旧/坏状态文件」喂给当前代码。**三种旧版本形状全部正常兜底**，

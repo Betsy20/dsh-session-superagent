@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.247'
+    const CLIENT_VERSION = '0.9.248'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1951,8 +1951,11 @@ window.__ModuleLoader__.load({
         { key: 'diagnose', title: '分诊信号' },   // 与卡片标题「分诊信号与取舍」同名：导航与标题不同名会让人以为是两块东西
         { key: 'goal', title: '会话 goal' },
       ]
-      const settingsBody = settingsSections.find((node) => node && node.props && node.props.key === settingsSection)
-        || settingsSections.find(Boolean)
+      // 审核（客户实拍）：**React 会把 `key` 从 props 里剥掉** —— `node.props.key` 在真机上是
+      // undefined，于是 find 永远落空、回退到第一个分区。表现就是：点左栏导航高亮会动，
+      // 右边内容永远是「来源」。按**顺序**取（settingsSections 与 SETTINGS_SECTIONS 同序）。
+      const settingsIndex = Math.max(0, SETTINGS_SECTIONS.findIndex((item) => item.key === settingsSection))
+      const settingsBody = settingsSections[settingsIndex] || settingsSections.find(Boolean) || null
       const settings = h('div', { className: 'dt-settings' },
         h('nav', { className: 'dt-settings-nav', 'aria-label': '设置分区' },
           SETTINGS_SECTIONS.map((item) => h('button', {

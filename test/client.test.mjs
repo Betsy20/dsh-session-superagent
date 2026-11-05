@@ -1568,3 +1568,30 @@ test('两个会话守同一仓库时，「需要关注」不能出现两条一�
   const hits = (text.match(/已归档：GitHub 上归档仓库是只读的/g) || []).length
   assert.equal(hits, 1, '同一条问题只该出现一次，实际 ' + hits + ' 次')
 })
+
+test('设置页左栏点哪一项，右边就换哪一块（客户实拍：永远停在「来源」）', async () => {
+  const { loadClient, walk, watcher, deskForm } = await import('./fixtures/panel-harness.mjs')
+  const { registrations, render } = loadClient()
+  const snap = {
+    loading: false, error: null,
+    body: {
+      credentials: { token: 'none', sshKeyPath: 'none', ghConfigDir: 'none', giteeToken: 'none' },
+      gh: { ok: true, version: '2.0' },
+      defaults: { sessionMaxWakes: 12, maxWakesPerHour: 6, isolateKeepDays: 3, batchLimit: 5 },
+      watchers: [watcher('a/b')],
+    },
+  }
+  // 槽位：snapshot / tab / ... / settingsSection（第 15 个）
+  const queue = (section) => [snap, 'settings', null, deskForm, '', '', false, [], null, {}, '', false, null, false, section, null, null, false, null, '', '']
+  const bodyOf = (section) => {
+    const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+    const text = walk(render(desk, queue(section))).filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+    const at = text.indexOf('会话 goal |')   // 跳过多出来的导航按钮
+    return at >= 0 ? text.slice(at + 10) : text
+  }
+  // 根因：React 会把 `key` 从 props 剥掉，靠 `props.key` 找子节点在真机上是 undefined。
+  assert.match(bodyOf('source'), /^来源/, 'source 应显示来源')
+  assert.match(bodyOf('creds'), /^凭证/, 'creds 应显示凭证（以前这里是来源）')
+  assert.match(bodyOf('goal'), /^会话 goal|^目标/, 'goal 应显示会话 goal')
+  assert.notEqual(bodyOf('creds').slice(0, 6), bodyOf('source').slice(0, 6), '两块内容不能一样')
+})
