@@ -16,6 +16,15 @@ const LIMIT = 120
 const out = execFileSync('node', [join(root, 'scripts', 'first-run.mjs')], { encoding: 'utf8' })
 const lines = out.split(String.fromCharCode(10)).map((text) => ({ text, chars: [...text].length }))
 const over = lines.filter((line) => line.chars > LIMIT)
+
+// 审核 T25 FN-7：first-run 输出为空时（脚本坏了 / 被改成一字不打印），
+// 上面那行会得到 1 行 0 字符，于是「没有超限」→ PASS。空输出必须算失败。
+const MIN_LINES = 5
+if (lines.filter((line) => line.text.trim()).length < MIN_LINES) {
+  console.log('FAIL first-run 只输出了 ' + lines.filter((l) => l.text.trim()).length + ' 行有效内容（至少该有 ' + MIN_LINES + ' 行）—— 空输出不等于合规')
+  process.exitCode = 1
+}
+
 const worst = lines.slice().sort((a, b) => b.chars - a.chars)[0]
 
 console.log('检查 ' + lines.length + ' 行（按字符数）')

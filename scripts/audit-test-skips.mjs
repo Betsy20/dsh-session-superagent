@@ -18,17 +18,19 @@ const earlyReturns = []
 for (const name of files) {
   const text = readFileSync(join(testDir, name), 'utf8')
   const lines = text.split(String.fromCharCode(10))
+  // 审核 T25 FN-2：以前逐行匹配，`{ skip:` 与 `}` 不在同一行就完全看不见；
+  // 现在用**整块**正则（`[^}]` 允许跨行），并且要求 `skip:` 后面确实有理由。
+  for (const match of text.matchAll(/\{\s*skip:\s*([^}]*)\}/g)) {
+    const value = String(match[1] || '').trim()
+    const before = text.slice(0, match.index)
+    const lineNo = before.split(String.fromCharCode(10)).length
+    // 理由必须是三元里的字符串：`? '原因' : false`；条件里出现的引号不算
+    const hasReason = /\?\s*['"`]/.test(value)
+    if (!hasReason) silentSkips.push({ file: name, line: lineNo, value: value.replace(/\s+/g, ' ').slice(0, 80) })
+  }
   lines.forEach((line, index) => {
-    // 跳过选项：必须带原因字符串
-    const skipMatch = line.match(/\{\s*skip:\s*(.+?)\s*\}/)
-    if (skipMatch) {
-      const value = skipMatch[1]
-      // 原因必须是三元里的字符串：`? '原因' : false`；条件里出现的引号不算
-      const hasReason = /\?\s*['"`]/.test(value)
-      if (!hasReason) silentSkips.push({ file: name, line: index + 1, value })
-    }
-    // 测试体里出现裸 `return` 且同一行没有断言 —— 悄悄跳过
-    if (/^\s{2,}if \([^)]*\) return\s*$/.test(line)) earlyReturns.push({ file: name, line: index + 1, text: line.trim() })
+    // 测试体里出现裸 `return`（允许带分号）且同一行没有断言 —— 悄悄跳过
+    if (/^\s{2,}if \([^)]*\) return\s*;?\s*$/.test(line)) earlyReturns.push({ file: name, line: index + 1, text: line.trim() })
   })
 }
 

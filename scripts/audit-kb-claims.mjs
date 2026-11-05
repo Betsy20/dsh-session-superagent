@@ -20,7 +20,10 @@ const noClaim = []
 
 for (const name of files) {
   const text = readFileSync(join(kbDir, name), 'utf8')
-  const versions = [...text.matchAll(/✅[^\n]*?(\d+\.\d+\.\d+)/g)].map((m) => m[1])
+  // 审核 T25 FN-6：以前要求 ✅ 与版本号**同一行**（[^\n] 排除了换行）。
+  // 但知识库里「✅ 已落地」换行再写版本号很常见，那样一条都查不到。
+  // 现在允许跨行，但只跨到**下一个空行**为止（避免把下一段的版本号算进来）。
+  const versions = [...text.matchAll(/✅(?:(?!\n\s*\n)[\s\S]){0,200}?(\d+\.\d+\.\d+)/g)].map((m) => m[1])
   // "写了落地状态"：有专门的段落，或明确写了未落地 —— 不要求必须有 ✅ + 版本号
   const statesStatus = text.includes('是否已落地') || text.includes('未落地')
   if (!statesStatus) noClaim.push(name)

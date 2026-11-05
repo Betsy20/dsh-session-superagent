@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.218'
+    const CLIENT_VERSION = '0.9.219'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
