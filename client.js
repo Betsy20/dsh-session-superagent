@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.239'
+    const CLIENT_VERSION = '0.9.240'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -681,8 +681,11 @@ window.__ModuleLoader__.load({
     /** Dock entry: the machine-wide ring plus its click-through detail list. */
     /** 把错误拆成「现象」和「建议」：服务端存的是 short +（hint），建议在末尾的括号里。 */
     // 唤醒失败 vs 轮询失败：前者轮询是成功的，说成「轮询失败」会让客户去查网络
+    // KB: paused-means-no-new-facts.md —— 暂停=不再产生新事实（不要拿旧数据冒充当前状态）
     function isWakeFailure(text) { return /^wake:/.test(String(text || '')) }
 
+    // KB: error-must-have-next-step.md —— 每个错误都要带下一步（现象与建议分开存）
+    // KB: error-needs-a-button.md —— 能一键解决的错误，不要只给一句话
     function splitErrorText(text) {
       const value = String(text || '')
       const match = /（[^（）]*）\s*$/.exec(value)

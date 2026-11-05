@@ -2,6 +2,46 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.240] - 2026-11-05 —— 让代码指着知识库：引用从 3 条到 16 条
+
+### 问题
+
+T34 反查发现：182 条知识库里，**生产代码 `lib/` + `client.js` 只引用了 3 条**，`client.js` 是 **0 条**。
+
+- 「通知与消息设计」8 条 → **0%**
+- 「判定与优先级」12 条 → **0%**
+- 「安全」2 条 → **0%**
+
+**一个 bug 能烂 160 个版本，土壤就是这里**：规则写在知识库里，代码里没有任何东西指着它。
+下一个改这段代码的人（和下一轮的我）根本不知道「这里有规矩」。
+
+### 改法
+
+给**行为类**条目在代码的可读位置加上 `// KB: xxx.md` 引用，覆盖两个 0 引用板块：
+
+| 文件 | 引用 |
+|---|---|
+| `lib/watch.js` | `priority-configurable` / `batch-priority` / `filter-explainability` / `actionable-suggestion` / `actionable-does-not-mean-repeated` / `error-must-have-next-step` |
+| `lib/gh-format.js` | `assignment-signal` / `state-reason` / `stale-threshold` / `linked-pull-requests` / `draft-pr-signal` / `pr-blocked-state` / `ci-status-on-linked-pr` / `triage-signal-table` |
+| `client.js` | `error-must-have-next-step` / `error-needs-a-button` / `paused-means-no-new-facts` |
+
+**3 条 → 16 条。**
+
+### 新增门禁 `audit-kb-links.mjs`（已挂进 preflight）
+
+三条判据：
+
+1. 每个引用都要指到**真实存在**的条目（改名后悬空会红）；
+2. 引用数**不许倒退**（有人删注释就红，基线 16）；
+3. 5 条关键行为类条目**必须**被代码引用。
+
+### 证据
+
+```
+npm test → 381/381
+preflight --fast → 知识库反查 PASS（17 处引用，关键行为类条目都有）
+```
+
 ## [0.9.239] - 2026-11-05 —— 知识库里那条规则，从落地那天起就没成立过
 
 ### ① `attention-list-order-is-a-decision.md` 已失效

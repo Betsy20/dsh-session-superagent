@@ -108,6 +108,16 @@ const tryRun = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: ROOT, encod
     bad.length > 0 ? bad[0].replace(/^FAIL /, '') : (cover ? cover + ' 类：都 ≤60 字符且有可执行动作' : '无输出'))
 }
 
+// ①.65 知识库 ←→ 代码的反向连接（T34：182 条里生产代码只引用 3 条，规则写完就忘）
+{
+  const res = tryRun('node', ['scripts/audit-kb-links.mjs'], { timeout: 60000 })
+  const out = String(res.stdout || '')
+  const bad = out.split(String.fromCharCode(10)).filter((line) => line.startsWith('FAIL'))
+  const count = (out.match(/代码里的 KB 引用：(\d+) 处/) || [])[1]
+  record('知识库反查', res.status === 0 && bad.length === 0,
+    bad.length > 0 ? bad[0].replace(/^FAIL /, '') : (count || '?') + ' 处引用，关键行为类条目都有')
+}
+
 // ①.7 门禁自检（注入式验证：确认检查真的会红；--fast 跳过，约 10 秒）
 if (!FAST) {
   const res = tryRun('node', ['scripts/verify-gates.mjs'], { timeout: 180000 })
