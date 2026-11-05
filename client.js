@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useRef, useState } = React
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.238'
+    const CLIENT_VERSION = '0.9.239'
     let BASE = '/session-superagent'
     /**
      * 挑「最新的那个服务端实例」。
@@ -1563,7 +1563,17 @@ window.__ModuleLoader__.load({
             }))
           : null,
         // 排序：会丢消息的（失败/没回音）排前面；静态提示（仓库归档、只读）排后面
-        (() => { problems.sort((a, b) => ((a.rank ?? 9) - (b.rank ?? 9)) || String(a.text).localeCompare(String(b.text))); return problems.length > 0 })()
+        (() => {
+          // 审核 T34：知识库那条「同一条只出现一次」从 0.9.87 落地起就**没成立过** ——
+          // 当时只删掉了循环体内重复 push 的那一行，从未按 key 去重。
+          // 而面板拿到的是**全部会话**的守：两个会话守同一仓库，就会出两条一字不差的条目。
+          // 排序前按 key 去重（保留第一条：先 push 的 rank 更高）。
+          const deduped = [...new Map(problems.map((item) => [item.key, item])).values()]
+          problems.length = 0
+          problems.push(...deduped)
+          problems.sort((a, b) => ((a.rank ?? 9) - (b.rank ?? 9)) || String(a.text).localeCompare(String(b.text)))
+          return problems.length > 0
+        })()
           // 审核 T24 W4：这里的 count 是**条目数**（一条守可能贡献多条），而「只看有问题的 (N)」是**守的条数**。
         // 两个数字口径不同是对的，但要说清，否则客户会以为算错了。
         ? h(Section, { key: 'problems', title: '需要关注', count: problems.length, subtitle: '共 ' + problems.length + ' 条问题，涉及 ' + watchers.filter(hasProblem).length + ' 条守' },

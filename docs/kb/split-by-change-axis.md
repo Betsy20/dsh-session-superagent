@@ -41,5 +41,5 @@ head 用到的 tail 名字：assignmentNote, commentSummaryLine, linkedPrNote, s
 ✅ 0.8.95。测试 138 例全过、preflight 9 项全过（语法 6 个文件）。
 
 ## 还没做的
-- `lib/index.js` 1795 行是下一个候选，但它按"工具/路由"天然分区，暂不动；
+- `lib/index.js` 约 2950 行（2026-11 实测 2954，0.8.96 时是 1795）是下一个候选，但它按"工具/路由"天然分区，暂不动；
 - 没有加"单文件行数上限"的门禁（怕逼出无意义的拆）。

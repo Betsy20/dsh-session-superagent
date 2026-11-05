@@ -272,7 +272,7 @@
 | [四十个版本的 CHANGELOG ≠ 客户能读的东西](release-notes-for-humans.md) | ✅ 0.8.90 |
 | [文档分四种，别用一种应付](docs-four-kinds.md) | ✅ 0.8.91 |
 | [拆分文件看「改动轴」，不看行数](split-by-change-axis.md) | ✅ 0.8.95 |
-| [1795 行的 index.js：量完，不拆](why-not-split-index.md) | ✅ 决定 + 文档体检工具（0.8.96） |
+| [越写越大的 index.js：量完，不拆](why-not-split-index.md) | ✅ 决定 + 文档体检工具（0.8.96） |
 | ["已知限制"要和代码一起改](limits-must-track-code.md) | ✅ 0.9.1 |
 | [同一段文案有两份实现，就会慢慢走偏](two-copies-drift.md) | ✅ 0.9.17 |
 | [索引按主题分组，别按时间堆](index-by-theme.md) | ✅ 0.9.18 |

@@ -1544,3 +1544,27 @@ test('脏数据（真 /state 的形状）渲染后不许出现 undefined / NaN /
   assert.ok(text.includes('acme/dirty-one'), '仓库名要显示')
   assert.ok(/不需要|没有 GitHub/.test(text) || text.includes('gh'), 'gh 三态要被正确处理')
 })
+
+test('两个会话守同一仓库时，「需要关注」不能出现两条一模一样的条目（T34：知识库那条规则从没落地）', async () => {
+  const { loadClient, walk, deskQueue, watcher } = await import('./fixtures/panel-harness.mjs')
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = {
+    loading: false, error: null,
+    body: {
+      credentials: { token: 'none', sshKeyPath: 'none', ghConfigDir: 'none', giteeToken: 'none' },
+      gh: { ok: true, version: '2.0' },
+      defaults: { sessionMaxWakes: 12, maxWakesPerHour: 6, isolateKeepDays: 3, batchLimit: 5 },
+      watchers: [
+        { ...watcher('a/b'), sessionId: 's1', repoAccess: { archived: true } },
+        { ...watcher('a/b'), sessionId: 's2', repoAccess: { archived: true } },
+      ],
+    },
+  }
+  const text = walk(render(desk, deskQueue(snap)))
+    .filter((n) => typeof n.text === 'string')
+    .map((n) => n.text).join(' | ')
+  // 「需要关注」里那条长句只该出现一次（行内的「已归档」徽章是另一回事，每条守各一个）
+  const hits = (text.match(/已归档：GitHub 上归档仓库是只读的/g) || []).length
+  assert.equal(hits, 1, '同一条问题只该出现一次，实际 ' + hits + ' 次')
+})
