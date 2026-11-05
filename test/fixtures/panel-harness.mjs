@@ -97,9 +97,27 @@ export function loadClient(options = {}) {
 
   // props 可以传：面板有些文案取决于宿主给的 sessionId（"添加到当前会话" vs "先打开一个会话"）
   const render = (registration, queue, props = {}) => {
-    hooks.queue = queue
+    hooks.queue = queue || []
     hooks.index = 0
-    return registration.Component(props)
+    const tree = registration.Component(props)
+    // 审核 T38：位置化队列会**静默错位**。但校验不能在这里做 ——
+    // 此刻只跑完**根组件**，子组件（如 ConfirmBtn 自带 useState）要等 walk() 展开时才跑。
+    // 所以把「预期槽位数」记在树上，由 walk() 收尾时比对。
+    Object.defineProperty(tree, '__panelVerify', {
+      enumerable: false,
+      value: () => {
+        const message = '状态槽位对不上：传了 ' + hooks.queue.length + ' 个，组件用了 ' + hooks.index
+          + ' 个 useState（' + registration.opts.id + '）—— 位置化队列错位会静默渲染出错误的状态'
+        if (hooks.queue.length === hooks.index) return
+        // 传多了 = 一定错（多余的值被静默丢掉）；传少了可能是「只用默认值」，只在严格模式抛。
+        const strict = globalThis.process && globalThis.process.env && globalThis.process.env.PANEL_STRICT === '1'
+        if (hooks.queue.length > hooks.index || strict) throw new Error(message)
+        if (globalThis.process && globalThis.process.env && globalThis.process.env.PANEL_WARN === '1') {
+          console.warn('[panel-harness] ' + message)
+        }
+      },
+    })
+    return tree
   }
   // 改视口宽度：窄屏相关的断言要靠它，别让测试自己去碰沙箱内部
   const setViewport = (width) => { sandbox.window.innerWidth = width }
@@ -115,17 +133,33 @@ export function loadClient(options = {}) {
   }
 }
 
-/** 展开函数组件，收集整棵树（文本节点记为 #text）。 */
-export function walk(node, out = []) {
+/**
+ * 展开函数组件，收集整棵树（文本节点记为 #text）。
+ *
+ * 收尾时校验「状态槽位传够了吗」：位置化队列传少了会让值落进错误的槽，
+ * 这种错位不会报错，只会渲染出一棵**看起来合理、其实不对**的树
+ * （T38：14 条弹层用例就是这么错的，弹层的视口夹紧从来没执行过）。
+ */
+export function walk(node, out = [], check = { top: true }) {
+  if (check.top) {
+    const result = walkInner(node, out)
+    // 整棵树展开完了，现在才知道一共用掉几个状态槽 —— 比对放在这里
+    if (node && typeof node === 'object' && typeof node.__panelVerify === 'function') node.__panelVerify()
+    return result
+  }
+  return walkInner(node, out)
+}
+
+function walkInner(node, out) {
   if (node === null || node === undefined || node === false) return out
   if (typeof node === 'string' || typeof node === 'number') {
     out.push({ type: '#text', text: String(node) })
     return out
   }
   if (typeof node !== 'object') return out
-  if (typeof node.type === 'function') return walk(node.type(node.props || {}), out)
+  if (typeof node.type === 'function') return walkInner(node.type(node.props || {}), out)
   out.push(node)
-  for (const child of node.props?.children || []) walk(child, out)
+  for (const child of node.props?.children || []) walkInner(child, out)
   return out
 }
 

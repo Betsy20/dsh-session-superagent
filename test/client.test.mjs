@@ -40,7 +40,7 @@ test('0 个主理鱼也占位：灰色空环、没有卫星、不转', () => {
 test('空态点开面板显示引导文案', () => {
   const { registrations, render } = loadClient()
   const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
-  const nodes = walk(render(orbit, [[], true, { x: 720, y: 860 }]))
+  const nodes = walk(render(orbit, [[], null, true, { x: 720, y: 860 }]))
   const panel = nodes.find((n) => n.props && n.props.role === 'dialog')
   assert.ok(panel, '空态也要能展开面板')
   const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
@@ -97,7 +97,7 @@ test('点击展开的面板逐条列出仓库 / 会话 / 间隔 / 轮询 / 状�
     watcher('a/b', { sessionId: 'session-1e82afca-8be2-42f9-8186-2bd274e30342', goal: { objective: '让主理鱼实时同步 goal', phase: null, revision: 3 } }),
     watcher('c/d', { sessionId: 'session-7f7155cf-20f0-4d9a', lastError: 'HttpError: 401 bad credentials' }),
   ]
-  const nodes = walk(render(orbit, [list, true, { x: 720, y: 860 }]))
+  const nodes = walk(render(orbit, [list, null, true, { x: 720, y: 860 }]))
   const panel = nodes.find((n) => n.props && n.props.role === 'dialog')
   assert.ok(panel, '面板没有渲染')
   assert.equal(panel.props.style.position, 'fixed')
@@ -119,7 +119,7 @@ test('状态栏面板每行都带暂停/删除，能直接关掉一个主理鱼'
   const { registrations, render } = loadClient()
   const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
   const list = [watcher('a/b'), watcher('c/d', { enabled: false })]
-  const nodes = walk(render(orbit, [list, true, { x: 720, y: 860 }]))
+  const nodes = walk(render(orbit, [list, null, true, { x: 720, y: 860 }]))
   const labels = nodes
     .filter((n) => n.type === 'button')
     .map((b) => (b.props.children || []).filter((c) => typeof c === 'string').join(''))
@@ -185,7 +185,7 @@ test('面板显示过滤器与失败退避', () => {
     nextAt: new Date(Date.now() + 45000).toISOString(),
     consecutiveFailures: 1,
   })]
-  const nodes = walk(render(orbit, [list, true, { x: 720, y: 860 }]))
+  const nodes = walk(render(orbit, [list, null, true, { x: 720, y: 860 }]))
   const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
   const titles = nodes.filter((n) => n.props && n.props.className === 'sa-dock-row').map((n) => String(n.props.title || '')).join(' | ')
   assert.ok(titles.includes('标签: ai-fix'), '悬停详情要含标签白名单：' + titles.slice(0, 200))
@@ -202,7 +202,7 @@ test('面板显示隔离执行状态与活跃时段', () => {
     workdir: 'E:/temp/iso',
     activeHours: '09:00-23:00',
   })]
-  const nodes = walk(render(orbit, [list, true, { x: 720, y: 860 }]))
+  const nodes = walk(render(orbit, [list, null, true, { x: 720, y: 860 }]))
   const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
   assert.ok(text.includes('时段 09:00-23:00'), '活跃时段要留在行内副行：' + text.slice(0, 200))
   const titles = nodes.filter((n) => n.props && n.props.className === 'sa-dock-row').map((n) => String(n.props.title || '')).join(' | ')
@@ -233,13 +233,13 @@ test('面板显示最近一次唤醒的结果', () => {
   const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
   const at = new Date(Date.now() - 120000).toISOString()
   const list = [watcher('a/b', { history: [{ at, numbers: [12, 13], ok: true, reason: null }] })]
-  const nodes = walk(render(orbit, [list, true, { x: 720, y: 860 }]))
+  const nodes = walk(render(orbit, [list, null, true, { x: 720, y: 860 }]))
   const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' ')
   const titles = () => nodes.filter((n) => n.props && n.props.className === 'sa-dock-row').map((n) => String(n.props.title || '')).join(' | ')
   assert.ok(titles().includes('上次唤醒 #12 #13'), titles().slice(0, 220))
   assert.ok(titles().includes('2 分钟前'), titles().slice(0, 220))
 
-  const failed = render(orbit, [[watcher('a/b', { history: [{ at, numbers: [7], ok: false, reason: 'session not live' }] })], true, { x: 720, y: 860 }])
+  const failed = render(orbit, [[watcher('a/b', { history: [{ at, numbers: [7], ok: false, reason: 'session not live' }] })], null, true, { x: 720, y: 860 }])
   const failedTitles = walk(failed).filter((n) => n.props && n.props.className === 'sa-dock-row').map((n) => String(n.props.title || '')).join(' | ')
   assert.ok(failedTitles.includes('上次唤醒失败 #7'), failedTitles.slice(0, 220))
 })
@@ -1187,7 +1187,7 @@ test('比例条不为 0 的类别画线段（避免 1px 脏点），并保持总
   const { registrations, render } = loadClient()
   const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
   const one = [watcher('a/b', { id: 'a/b#s1', enabled: true })]
-  const nodes = walk(render(orbit, [one, true, { x: 500, y: 700 }]))
+  const nodes = walk(render(orbit, [one, null, true, { x: 500, y: 700 }]))
   const bar = nodes.find((n) => n.props && n.props.className === 'sa-dock-bar')
   assert.ok(bar, '有守时要有比例条')
   const segs = (bar.props.children || []).filter((c) => c && c.props && c.props['data-tone'])
@@ -1199,7 +1199,7 @@ test('比例条不为 0 的类别画线段（避免 1px 脏点），并保持总
     watcher('c/d', { id: 'c/d#s2', enabled: false }),
     watcher('e/f', { id: 'e/f#s3', enabled: true, lastError: 'gh: HTTP 502（网关）', lastErrorKind: 'gateway' }),
   ]
-  const segs2 = walk(render(orbit, [mixed, true, { x: 500, y: 700 }]))
+  const segs2 = walk(render(orbit, [mixed, null, true, { x: 500, y: 700 }]))
     .find((n) => n.props && n.props.className === 'sa-dock-bar').props.children
     .filter((c) => c && c.props && c.props['data-tone'])
   assert.equal(segs2.length, 3, '三种状态都有时画 3 段')
@@ -1232,7 +1232,7 @@ test('活跃时段用两个原生时间选择器（起 / 止），不再让人�
 test('弹层键盘可达：带 tabIndex=-1 且 role=dialog（打开后可聚焦进去）', () => {
   const { registrations, render } = loadClient()
   const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
-  const nodes = walk(render(orbit, [[watcher('a/b')], true, { x: 720, y: 860 }]))
+  const nodes = walk(render(orbit, [[watcher('a/b')], null, true, { x: 720, y: 860 }]))
   const panel = nodes.find((n) => n.props && n.props.role === 'dialog')
   assert.ok(panel, '弹层没渲染')
   assert.equal(panel.props.tabIndex, -1, '弹层要能被程序聚焦（tabIndex=-1）')
@@ -1244,7 +1244,7 @@ test('窗口很窄时弹层不能溢出屏幕（368 -> 视口宽 - 16）', () =>
   const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
   try {
     setViewport(360)
-    const nodes = walk(render(orbit, [[watcher('a/b')], true, { x: 180, y: 700 }]))
+    const nodes = walk(render(orbit, [[watcher('a/b')], null, true, { x: 180, y: 700 }]))
     const panel = nodes.find((n) => n.props && n.props.role === 'dialog')
     assert.ok(panel, '弹层没渲染')
     assert.equal(panel.props.style.width, 344, '360 视口下应该是 344（360-16）')
@@ -1352,7 +1352,7 @@ test('弹层副行显示会话标题（不是只有 8 位 ID）', () => {
   const { registrations, render } = loadClient()
   const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
   const list = [watcher('a/b', { title: '修复登录过期', intervalSec: 60 })]
-  const nodes = walk(render(orbit, [list, true, { x: 700, y: 800 }]))
+  const nodes = walk(render(orbit, [list, null, true, { x: 700, y: 800 }]))
   const subs = nodes.filter((n) => n.props && n.props.className === 'sa-dock-sub').map((n) => (n.props.children || []).join(''))
   assert.ok(subs.length === 1, '应有一行副标题')
   assert.ok(subs[0].includes('修复登录过期'), '先给客户认得出的会话名：' + subs[0])
@@ -1363,7 +1363,7 @@ test('弹层指标用官方「数值强 + 单位弱」两段（不是一句 1 / 
   const { registrations, render } = loadClient()
   const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
   const list = [watcher('a/b', { id: 'a/b#s1', enabled: true }), watcher('c/d', { id: 'c/d#s2', enabled: false })]
-  const nodes = walk(render(orbit, [list, true, { x: 700, y: 800 }]))
+  const nodes = walk(render(orbit, [list, null, true, { x: 700, y: 800 }]))
   // 0.9.155 起不再自造 sa-dock-metric-main/-unit，直接用官方 dt-stat / dt-stat-value
   const stat = nodes.find((n) => n.props && String(n.props.className || '') === 'dt-stat sa-dock-metric')
   assert.ok(stat, '指标要用官方 dt-stat')
@@ -1446,7 +1446,7 @@ test('弹层副行不出现「秒前前」这种重复后缀（真机看到过�
     id: 'a/b#s1', title: '修个 bug', intervalSec: 60,
     lastPoll: new Date(Date.now() - 76000).toISOString(), activeHours: '09:00-23:00',
   })]
-  const nodes = walk(render(orbit, [list, true, { x: 700, y: 800 }]))
+  const nodes = walk(render(orbit, [list, null, true, { x: 700, y: 800 }]))
   const subs = nodes.filter((n) => n.props && n.props.className === 'sa-dock-sub').map((n) => (n.props.children || []).join(''))
   assert.equal(subs.length, 1)
   assert.ok(!subs[0].includes('前前'), '重复后缀：' + subs[0])
@@ -1641,4 +1641,25 @@ test('页签点哪一项就切到哪一项（T38 M6：把 onChange 改成空函�
   const calls = stateCalls()
   assert.equal(calls.length, 1, '点页签应当触发一次 setter')
   assert.ok(['queue', 'judge', 'trace', 'trigger', 'settings'].includes(calls[0].next), '应当写入页签名，实际 ' + JSON.stringify(calls[0].next))
+})
+
+test('弹层按锚点定位，并在窗口边缘夹住（T38：这 5 个 if 从来没执行过，因为 anchor 恒为 null）', async () => {
+  const { loadClient, walk, watcher } = await import('./fixtures/panel-harness.mjs')
+  const { registrations, render, setViewport } = loadClient()
+  const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
+  const list = [watcher('a/b')]
+  const leftOf = (anchor, width) => {
+    setViewport(width)
+    const nodes = walk(render(orbit, [list, null, true, anchor]))
+    const panel = nodes.find((n) => n.props && n.props.style && n.props.style.left !== undefined)
+    return panel ? Number(panel.props.style.left) : NaN
+  }
+  const mid = leftOf({ x: 600, y: 500 }, 1200)
+  assert.ok(Number.isFinite(mid) && mid > 0, '有锚点时要算出 left（不是默认的 8），实际 ' + mid)
+  // 锚点贴右边：必须夹在视口内
+  const right = leftOf({ x: 1195, y: 500 }, 1200)
+  assert.ok(right + 240 <= 1200, '贴右边时不能溢出（left=' + right + '）')
+  // 锚点贴左边：也不能溢出
+  const leftEdge = leftOf({ x: 3, y: 500 }, 1200)
+  assert.ok(leftEdge >= 8, '贴左边时 left 不能小于 8，实际 ' + leftEdge)
 })
