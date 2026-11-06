@@ -2,6 +2,14 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased] —— 品牌与默认 ack 可配置（issue #11，@modusensus）
+
+- 新增 `Config`：`brandName`、`defaultAckLabel`、`defaultAckLabelGitee`，默认值与 0.10.0 逐字相同。
+- 唤醒抬头/合并抬头、面板主标题与关键空态、默认 ack 派生（watch_start/watch_ack//state）统一读配置。
+- `/state` 下发 `brandName` 与 `defaultAckLabels`；client 三处重复回落字面量改为读它。
+- 已有 watcher 的显式 `ackLabel` 不被覆盖；非法 Gitee 标签回落默认。
+- 验证：689/689、UI 11/11、Chromium 47/47。
+
 ## [0.10.0] - 2026-11-06 —— 功能稳定版
 
 这是严格审查后收口的功能稳定版。上一轮 11 项必须修、18 项值得改全部处理，终审新增 N1/N2/N3 也已修复。

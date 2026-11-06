@@ -103,6 +103,32 @@ https://gitee.com/owner/name        # 直接粘地址栏（.git 结尾也行）
 
 Gitee 私有仓库要在「设置 → 凭证」填私人令牌；公开仓库不填也能读，但打不了 ack 标签。
 
+## 配置：品牌与默认 ack 标签（issue #11）
+
+插件行配置支持三项，都有默认值；不配就是原来的行为：
+
+| 键 | 默认 | 作用 |
+|---|---|---|
+| `brandName` | `主理鱼` | 唤醒抬头 `【品牌】…`、合并抬头、面板标题与关键空态 |
+| `defaultAckLabel` | `主理鱼:已处理` | 新建 **GitHub** 守的默认 ack 标签 |
+| `defaultAckLabelGitee` | `主理鱼-已处理` | 新建 **Gitee** 守的默认 ack 标签 |
+
+配置写在 profile 的插件行里（`cordis.patch.yml` 中该行的 `config:`，或宿主提供的插件配置项），例如：
+
+```yaml
+config:
+  brandName: 夜莺
+  defaultAckLabel: '夜莺:已处理'
+  defaultAckLabelGitee: 夜莺-已处理
+```
+
+规则：
+
+- 只影响**新建**的守，以及历史数据里**没有写** `ackLabel` 的守；已有 watcher 的显式 `ackLabel` 不会被覆盖。
+- `brandName` 只改抬头与面板标题，唤醒消息的结构（`【品牌】<repo> 有 N 条新动态：`）不变。
+- `defaultAckLabelGitee` 按 Gitee 的标签规则校验（汉字/字母/数字/`. _ - / \`，2–20 字，**不能有半角冒号**）；非法值回落到默认 —— 否则每次 `watch_ack` 都会 404，而错误看起来像仓库问题。
+- 配置在插件 `apply()` 时读取，改完要重载宿主才生效。`/state` 顶层会下发 `brandName` 与 `defaultAckLabels { github, gitee }`，面板据此显示；老客户端没有这两个字段时仍按原样回落到 `主理鱼` 与旧标签。
+
 ## 一次真实运行长什么样
 
 1. `watch_start` 登记 watcher（状态存 `~/.dsh/state/session-superagent/watchers.json`）；
@@ -148,7 +174,7 @@ Gitee 私有仓库要在「设置 → 凭证」填私人令牌；公开仓库不
 ## 开发
 
 ```sh
-npm test             # 675 项单测（带离线开关；裸 node --test 会真去 spawn gh，两分半）
+npm test             # 689 项单测（带离线开关；裸 node --test 会真去 spawn gh，两分半）
 ```
 
 ### 工具输出：文本给人和 agent，JSON 给程序
@@ -208,7 +234,7 @@ dsh plugin --profile <profile> add dsh-session-superagent@latest
 
 
 ```bash
-npm test                    # 675 项单测（带离线开关，约 1.6 秒）
+npm test                    # 689 项单测（带离线开关，约 1.6 秒）
 node scripts/ui-audit.mjs   # 11 项 UI 指标（写死颜色 / 自造 token / 官方结构采用 …）
 node scripts/preflight.mjs  # 41 项门禁（含上面两条，外加 profile 一致性、路由面、包内容）
 node scripts/render-preview.mjs preview.html   # 双主题静态预览，直接浏览器打开

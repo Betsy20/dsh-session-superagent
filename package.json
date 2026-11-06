@@ -100,5 +100,8 @@
   },
   "devDependencies": {
     "semver": "7.8.6"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "3.18.5"
   }
 }

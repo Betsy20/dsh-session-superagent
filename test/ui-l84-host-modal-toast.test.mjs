@@ -323,7 +323,7 @@ test('卫星环删除确认即使 DSH 可用也保留本地 Modal，确认仍只
     fetch: async (...args) => { calls.push(args); return response({ watchers: [] }) },
   })
   const list = stateWith().body.watchers
-  const nodes = walk(client.render(orbitOf(client), [list, null, true, anchor, true, false]))
+  const nodes = walk(client.render(orbitOf(client), [list, null, true, anchor, '主理鱼', true, false]))
   assert.equal(nodes.filter((node) => node.type === HOST.Modal).length, 0)
   const modal = one(localModals(nodes), 'orbit 必须保留本地 Modal')
   assert.equal(modal.props.role, 'dialog')

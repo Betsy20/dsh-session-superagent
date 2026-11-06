@@ -109,7 +109,7 @@ test('L84 ConfirmButton：主面板与卫星环都不是 armed，且触发按钮
   const client = loadClient()
   const base = deskQueue(stateWith(list))
   const main = rendered(client.render, deskOf(client), [...base, false, false])
-  const satellite = rendered(client.render, orbitOf(client), [list, null, true, anchor, false, false])
+  const satellite = rendered(client.render, orbitOf(client), [list, null, true, anchor, '主理鱼', false, false])
   const mainDelete = deleteTrigger(main)
   const satelliteDelete = deleteTrigger(satellite)
 
@@ -139,7 +139,7 @@ test('L84 ConfirmButton：点击只开官方 Modal；取消与背板不调用 ac
   assert.equal(calls.filter(([, init]) => init?.method === 'POST').length, 0, '打开确认框不能发写请求')
 
   const main = rendered(client.render, deskOf(client), [...base, true, false])
-  const satellite = rendered(client.render, orbitOf(client), [list, null, true, anchor, true, false])
+  const satellite = rendered(client.render, orbitOf(client), [list, null, true, anchor, '主理鱼', true, false])
   assert.deepEqual(shape(deleteTrigger(main)), shape(deleteTrigger(satellite)), '打开后两处触发按钮仍同 DOM')
   assert.deepEqual(shape(modal(main)), shape(modal(satellite)), '两处必须复用同一 Modal DOM')
   const dialog = modal(main)
@@ -236,12 +236,14 @@ test('L84 ConfirmButton：卫星环确认走同一个 Modal action，成功只�
       return response({ watchers: [] })
     },
   })
-  const tree = rendered(client.render, orbitOf(client), [list, null, true, anchor, true, false])
+  const tree = rendered(client.render, orbitOf(client), [list, null, true, anchor, '主理鱼', true, false])
   const done = await button(modal(tree), '确认删除').props.onClick()
   assert.equal(done, true)
   assert.equal(writes.length, 1)
   assert.deepEqual(JSON.parse(writes[0].init.body), { action: 'delete', id: 'a/b#s1' })
-  assert.ok(client.stateCalls().some((call) => call.index === 4 && call.next === false), '卫星环成功后也关闭同一个 ConfirmButton Modal')
+  // 位置槽：0 watchers / 1 orbitError / 2 open / 3 anchor / 4 brandName（0.10.x 追加）
+  // / 5 ConfirmButton.open / 6 ConfirmDialog.busy
+  assert.ok(client.stateCalls().some((call) => call.index === 5 && call.next === false), '卫星环成功后也关闭同一个 ConfirmButton Modal')
 })
 
 test('L84 Modal：Escape 与焦点恢复采用官方稳定 close ref（当前 harness 的源码级回归）', () => {
