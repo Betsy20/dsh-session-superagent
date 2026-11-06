@@ -2124,3 +2124,151 @@ test('无 pending 新输入的成功保存仍在 GET 后清凭证并标 goal cle
   await control(nodesOf(client, goal, { sessionId: 's1' }), '保存 goal').props.onClick()
   assert.ok(client.stateCalls().some((call) => call.index === 6 && call.next === false), '成功回读后应标 goal clean')
 })
+
+function draftGuardQueue() {
+  const state = snapshot()
+  state.body.watchers = [
+    watcher('a/b', { id: 'a/b#s1', sessionId: 's1', intervalSec: 60, note: '已经保存的规则' }),
+    watcher('c/d', { id: 'c/d#s2', sessionId: 's2', intervalSec: 120, note: '另一条已保存规则' }),
+  ]
+  return deskQueue(state, 'a/b#s1', { intervalSec: '90', goal: '尚未保存的草稿' })
+}
+
+function watcherTitle(nodes, repo) {
+  return one(nodes.filter((node) => node.type === 'button' && hasClass(node, 'dt-open') && nodeText(node) === repo),
+    '找不到 watcher 标题 ' + repo)
+}
+
+function applyRootCalls(queue, client) {
+  return applyCalls(queue, client.stateCalls().filter((call) => call.index < 23))
+}
+
+test('dirty 折叠：取消与 Escape 保留草稿和 touched 表单，确认放弃才收起且全程零 POST', async () => {
+  const requests = []
+  const client = loadClient({
+    primitives: HOST,
+    fetch: async (url, init) => { requests.push([url, init]); return response({}) },
+  })
+  const queue = draftGuardQueue()
+  client.resetStateCalls()
+  watcherTitle(nodesOf(client, queue), 'a/b').props.onClick()
+  assert.equal(client.stateCalls().some((call) => call.index === 8 && call.next !== null), false,
+    'dirty 折叠只能挂起 editing，不能切到别的 watcher')
+  assert.equal(client.stateCalls().some((call) => call.index === 9), false, 'dirty 折叠不能直接重置 draft')
+
+  const confirming = applyRootCalls(queue, client)
+  const opened = nodesOf(client, confirming)
+  assert.equal(opened.filter((node) => node.type === 'form' && node.props['data-mode'] === 'edit').length, 1,
+    '确认期间原 dirty 表单必须继续挂载')
+  const modal = hostModal(opened)
+  assert.equal(modal.props.open, true)
+  assert.equal(modal.props.title, '放弃未保存的修改？')
+  assert.ok(modal.props.description.includes('收起'), '折叠确认必须说明实际动作')
+  const footer = walk(modal.props.footer)
+  control(footer, '放弃并收起')
+  assert.equal(postsOf(requests).length, 0, '打开 dirty 确认不能发 POST')
+
+  client.resetStateCalls()
+  modal.props.onClose() // DSH Modal 的 Escape / 遮罩 / 关闭共用此入口。
+  const escaped = applyRootCalls(confirming, client)
+  assert.equal(escaped[8], 'a/b#s1')
+  assert.strictEqual(escaped[9], confirming[9], 'Escape 必须原样保留 dirty draft')
+  assert.equal(escaped[11], false)
+  assert.equal(one(nodesOf(client, escaped).filter((node) => node.type === HOST.Input
+    && node.props.type === 'number' && node.props.value === '90'), 'Escape 后 dirty 表单必须仍显示未保存值').props.value, '90')
+  assert.ok(textOf(nodesOf(client, escaped)).includes('未保存'), 'Escape 后 touched/dirty SaveBar 不能消失')
+
+  client.resetStateCalls()
+  watcherTitle(nodesOf(client, escaped), 'a/b').props.onClick()
+  const reopened = applyRootCalls(escaped, client)
+  const reopenedModal = hostModal(nodesOf(client, reopened))
+  client.resetStateCalls()
+  reopenedModal.props.onClose()
+  const cancelled = applyRootCalls(reopened, client)
+  assert.strictEqual(cancelled[9], reopened[9], '取消必须保留同一份草稿')
+
+  client.resetStateCalls()
+  watcherTitle(nodesOf(client, cancelled), 'a/b').props.onClick()
+  const discardQueue = applyRootCalls(cancelled, client)
+  const discardModal = hostModal(nodesOf(client, discardQueue))
+  const confirm = control(walk(discardModal.props.footer), '放弃并收起')
+  client.resetStateCalls()
+  const first = confirm.props.onClick()
+  assert.equal(await confirm.props.onClick(), false, '确认连点必须被同一 busy 锁挡住')
+  assert.equal(await first, true)
+  const closed = applyRootCalls(discardQueue, client)
+  assert.equal(closed[8], null, '只有确认放弃才收起')
+  assert.equal(closed[11], false)
+  assert.equal(nodesOf(client, closed).filter((node) => node.type === 'form'
+    && node.props['data-mode'] === 'edit').length, 0, '确认收起后编辑表单必须卸载')
+  assert.equal(postsOf(requests).length, 0, '折叠确认/取消/连点都不能产生意外 POST')
+})
+
+test('dirty 切换：取消留在原 dirty 表单，确认才载入目标 watcher 的干净快照且零 POST', async () => {
+  const requests = []
+  const client = loadClient({
+    primitives: HOST,
+    fetch: async (url, init) => { requests.push([url, init]); return response({}) },
+  })
+  const queue = draftGuardQueue()
+  client.resetStateCalls()
+  watcherTitle(nodesOf(client, queue), 'c/d').props.onClick()
+  assert.equal(client.stateCalls().some((call) => call.index === 8), false, 'dirty 切换不能直接换 editing')
+  assert.equal(client.stateCalls().some((call) => call.index === 9), false, 'dirty 切换不能直接覆盖 draft')
+
+  const confirming = applyRootCalls(queue, client)
+  const modal = hostModal(nodesOf(client, confirming))
+  assert.ok(modal.props.description.includes('c/d'), '切换确认必须点出目标 watcher')
+  const cancel = control(walk(modal.props.footer), '取消')
+  client.resetStateCalls()
+  cancel.props.onClick()
+  const cancelled = applyRootCalls(confirming, client)
+  assert.equal(cancelled[8], 'a/b#s1')
+  assert.strictEqual(cancelled[9], confirming[9], '取消切换必须保留原 dirty draft')
+  const cancelledNodes = nodesOf(client, cancelled)
+  assert.ok(one(cancelledNodes.filter((node) => node.type === HOST.Input
+    && node.props.value === '尚未保存的草稿'), '取消后原 goal 草稿必须仍在'))
+  assert.ok(textOf(cancelledNodes).includes('未保存'), '取消后 touched/dirty 状态必须一致保留')
+
+  client.resetStateCalls()
+  watcherTitle(cancelledNodes, 'c/d').props.onClick()
+  const retryQueue = applyRootCalls(cancelled, client)
+  const retryModal = hostModal(nodesOf(client, retryQueue))
+  client.resetStateCalls()
+  assert.equal(await control(walk(retryModal.props.footer), '放弃并切换').props.onClick(), true)
+  const switched = applyRootCalls(retryQueue, client)
+  assert.equal(switched[8], 'c/d#s2', '确认后才切到目标 watcher')
+  assert.equal(switched[9].intervalSec, '120', '切到目标后必须载入目标原值，不能带旧 dirty 数字')
+  assert.equal(switched[9].goal, '另一条已保存规则', '切回/切换后的文案必须来自目标快照')
+  assert.equal(switched[11], false)
+  const switchedNodes = nodesOf(client, switched)
+  assert.ok(one(switchedNodes.filter((node) => node.type === HOST.Input
+    && node.props.value === '另一条已保存规则'), '目标 watcher 的已保存文案必须显示'))
+  assert.equal(switchedNodes.filter((node) => node.type === HOST.Input && node.props.value === '尚未保存的草稿').length, 0,
+    '确认放弃后旧草稿不能泄漏到目标 watcher')
+  assert.equal(postsOf(requests).length, 0, '切换确认与取消都不能产生意外 POST')
+})
+
+test('无 dirty 折叠与切换保持原直达行为，不弹确认也不发 POST', () => {
+  const requests = []
+  const client = loadClient({
+    primitives: HOST,
+    fetch: async (url, init) => { requests.push([url, init]); return response({}) },
+  })
+  const queue = draftGuardQueue()
+  queue[9] = {}
+
+  client.resetStateCalls()
+  watcherTitle(nodesOf(client, queue), 'c/d').props.onClick()
+  const switched = applyRootCalls(queue, client)
+  assert.equal(switched[8], 'c/d#s2')
+  assert.equal(switched[11], false, 'clean 切换不能打开确认')
+  assert.equal(nodesOf(client, switched).filter((node) => node.type === HOST.Modal).length, 0)
+
+  client.resetStateCalls()
+  watcherTitle(nodesOf(client, switched), 'c/d').props.onClick()
+  const closed = applyRootCalls(switched, client)
+  assert.equal(closed[8], null)
+  assert.equal(closed[11], false, 'clean 折叠不能打开确认')
+  assert.equal(postsOf(requests).length, 0)
+})
