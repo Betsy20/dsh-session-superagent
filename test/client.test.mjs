@@ -1975,6 +1975,86 @@ test('Orbit 首次 loading/error 不显示零统计或空态，旧列表失败�
   assert.ok(empty.includes('0 / 0') && empty.includes('还没有。在「主理鱼」标签页'), '成功返回真空才显示零统计与空态')
 })
 
+test('N2：上一次删除失败不得残留到下一次删除确认框，本次失败仍在框内可见', async () => {
+  // 终审 N2：A 删除失败 → 取消 → 点 B 的「删除」，新确认框一打开就带着「删除失败：A …」，
+  // 而 B 还没发任何请求。修法是「打开删除确认时清掉删除失败（保留读取错误）」。
+  const writes = []
+  const { registrations, render, stateCalls } = loadClient({
+    fetch: async (url, init) => {
+      if (init && init.method === 'POST') {
+        writes.push(JSON.parse(init.body))
+        return writes.length === 1
+          ? { ok: false, status: 500, headers: { get: () => null }, text: async () => JSON.stringify({ error: 'A denied' }) }
+          : { ok: true, status: 200, headers: { get: () => null }, text: async () => '{"ok":true}' }
+      }
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        text: async () => JSON.stringify({ watchers: [watcher('a/b', { id: 'a/b#s1' }), watcher('c/d', { id: 'c/d#s2' })] }),
+      }
+    },
+  })
+  const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
+  const list = [watcher('a/b', { id: 'a/b#s1' }), watcher('c/d', { id: 'c/d#s2' })]
+  const labelOf = (node) => walk(node).filter((n) => n.type === '#text').map((n) => n.text).join('')
+  // 子树的文本（walk 只展开一层数组，弹层内部要重新走一遍）
+  const textOf = (node) => labelOf(node)
+  const modalText = (nodes) => modals(nodes).map(labelOf).join(' | ')
+  const modals = (nodes) => nodes.filter((n) => n.type === 'div'
+    && String(n.props.className || '').split(/\s+/).includes('dt-modal'))
+  const buttons = (nodes, text) => nodes.filter((n) => n.type === 'button' && labelOf(n) === text)
+  const take = (from) => stateCalls().slice(from)
+  const applyCallsTo = (base, calls) => {
+    const next = [...base]
+    for (const call of calls) next[call.index] = call.next
+    return next
+  }
+
+  let queue = [list, null, true, { x: 700, y: 800 }]
+  let nodes = walk(render(orbit, queue))
+  assert.equal(buttons(nodes, '删除').length, 2, '两条守各一个删除按钮')
+
+  // 1) A 删除失败：错误必须留在当前确认框里（本次失败可见）
+  let mark = stateCalls().length
+  buttons(nodes, '删除')[0].props.onClick()
+  queue = applyCallsTo(queue, take(mark))
+  let opened = walk(render(orbit, queue))
+  assert.equal(modals(opened).length, 1, '点删除必须打开确认框')
+  mark = stateCalls().length
+  await buttons(opened, '确认删除')[0].props.onClick()
+  queue = applyCallsTo(queue, take(mark))
+  nodes = walk(render(orbit, queue))
+  assert.equal(modals(nodes).length, 1, '删除失败后确认框必须保留供重试')
+  assert.ok(modalText(nodes).includes('删除失败：A denied'), '本次失败必须在框内可见：' + modalText(nodes))
+
+  // 2) 取消后用 B 的删除重开：旧失败必须先被清掉
+  mark = stateCalls().length
+  buttons(nodes, '取消')[0].props.onClick()
+  queue = applyCallsTo(queue, take(mark))
+  assert.equal(modals(walk(render(orbit, queue))).length, 0, '取消必须关闭确认框')
+  assert.equal(queue[1], '删除失败：A denied', '前置条件：旧错误还在状态里，才测得出打开时有没有清')
+
+  mark = stateCalls().length
+  buttons(walk(render(orbit, queue)), '删除')[1].props.onClick()
+  const opening = take(mark)
+  assert.ok(opening.some((call) => call.index === 1 && call.next === null),
+    '打开删除确认时必须清掉上一次的删除失败：' + JSON.stringify(opening))
+  queue = applyCallsTo(queue, opening)
+  nodes = walk(render(orbit, queue))
+  assert.equal(modals(nodes).length, 1, 'B 的确认框必须打开')
+  assert.ok(!modalText(nodes).includes('删除失败'), 'B 还没发请求，不得显示 A 的删除失败：' + modalText(nodes))
+
+  // 3) B 删除成功：错误与确认框一起消失
+  mark = stateCalls().length
+  assert.equal(await buttons(nodes, '确认删除')[0].props.onClick(), true, 'B 删除成功必须返回 true')
+  queue = applyCallsTo(queue, take(mark))
+  nodes = walk(render(orbit, queue))
+  assert.equal(modals(nodes).length, 0, '成功后确认框关闭')
+  assert.equal(queue[1], null, '成功后不得残留删除失败')
+  assert.deepEqual(writes.map((write) => write.action), ['delete', 'delete'])
+})
+
 test('首次 loading/error 不渲染零统计、Onboarding 或业务页；旧快照失败仍保留', () => {
   const { registrations, render } = loadClient()
   const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
@@ -2277,6 +2357,131 @@ test('/state 并发：旧失败不得覆盖较新的 200 成功与清错结果',
   await oldRequest
   assert.equal(panel.snap().body.marker, 'newest')
   assert.equal(panel.snap().error, null, '旧失败不能重新写回错误')
+})
+
+test('N1：保存回读被刷新的新请求顶掉时等最新快照，不得假报回读失败', async () => {
+  // 终审 N1 的真实时序：POST 已成功 → run() 发起回读 GET#1 → 用户点「刷新」→ GET#2（新序号）
+  // → GET#1 先回、被 loadSeqRef 判为旧请求丢弃 → run() 拿到 null，误报「回读失败，请重试」。
+  // 正确语义：被顶掉不是失败，等最新那次的结果；POST200+GET500 仍必须报错（见后面的用例）。
+  for (const scenario of [
+    { label: '保存 goal', success: 'goal 已保存', section: 'goal', setup: (queue) => { queue[5] = '新 goal'; queue[6] = true } },
+    { label: '保存凭证', success: '凭证已保存', section: 'creds', setup: (queue) => { queue[4] = 'github-secret' } },
+  ]) {
+    const post = raceDeferred()
+    const reads = []
+    const queue = deskQueue(raceSnapshot(), null, {}, 'settings')
+    queue[14] = scenario.section
+    scenario.setup(queue)
+    const panel = loadStatefulPanel({
+      queue,
+      fetch: (url, init) => {
+        if (init && init.method === 'POST') return post.promise
+        if (!new URL(url, 'http://fixture.local').pathname.endsWith('/state')) return Promise.resolve(raceResponse({ ok: true }))
+        // 只把前两次读取卡住；修复前会多打一次（失败分支的回读），给它一个立即结果，让用例干净失败
+        if (reads.length >= 2) return Promise.resolve(raceResponse({ watchers: [watcher('a/b')] }))
+        const read = raceDeferred()
+        reads.push(read)
+        return read.promise
+      },
+    })
+
+    const saved = panel.button(scenario.label).props.onClick()
+    assert.equal(reads.length, 0, scenario.label + '：POST 未返回前不该回读')
+    post.resolve(raceResponse({ ok: true }))
+    await new Promise((resolve) => setImmediate(resolve))
+    assert.equal(reads.length, 1, scenario.label + '：POST 成功后必须回读一次')
+
+    const refreshed = panel.button('刷新').props.onClick()
+    assert.equal(reads.length, 2, scenario.label + '：保存回读与刷新必须并发')
+
+    // 保存那次（旧序号）先回：数据其实已经成功，但落进「被顶掉」的那一支
+    reads[0].resolve(raceResponse({ watchers: [watcher('a/b')] }))
+    await new Promise((resolve) => setImmediate(resolve))
+    // 最新那次（刷新）后回：保存必须等它，并按成功处理
+    reads[1].resolve(raceResponse({ watchers: [watcher('a/b')] }))
+    assert.equal(await saved, true, scenario.label + '：被顶掉不是失败，保存必须成功返回')
+    await refreshed
+
+    const text = panel.nodes().filter((node) => node.type === '#text').map((node) => node.text).join(' | ')
+    assert.ok(text.includes(scenario.success), scenario.label + '：必须 Toast 成功：' + text.slice(0, 300))
+    assert.ok(!text.includes('回读失败'), scenario.label + '：不得出现红色回读失败提示：' + text.slice(0, 300))
+  }
+})
+
+test('N3：条件请求的 ETag 按作用域分开，圆环的 /state 不得串给会话面板，两个会话互不复用', async () => {
+  // 终审 N3：模块级 stateEtag 被 Orbit（全局 /state）与主面板（/state?sessionId=…）共用，
+  // 服务端 etag 按整份 body 求值，两个作用域必然对不上 → 面板的条件请求永远打不中 304。
+  const etags = {
+    '/session-superagent/state': 'W/"global-1"',
+    '/session-superagent/state?sessionId=s1': 'W/"s1-1"',
+    '/session-superagent/state?sessionId=s2': 'W/"s2-1"',
+  }
+  const calls = []
+  const client = loadClient({
+    fetch: async (url, init) => {
+      const parsed = new URL(url, 'http://fixture.local')
+      // 客户端还会写 client-note 探针（与 etag 无关），别混进作用域断言
+      if (!parsed.pathname.endsWith('/state')) {
+        return { ok: true, status: 200, headers: { get: () => null }, text: async () => '{}' }
+      }
+      const scope = parsed.pathname + parsed.search
+      const etag = (init && init.headers && init.headers['if-none-match']) || null
+      calls.push({ scope, etag })
+      const current = etags[scope]
+      assert.ok(current, '意外的 /state 作用域：' + scope)
+      if (etag && etag === current) {
+        return { ok: false, status: 304, headers: { get: () => current }, text: async () => '' }
+      }
+      return { ok: true, status: 200, headers: { get: () => current }, text: async () => JSON.stringify({ watchers: [] }) }
+    },
+  })
+  const desk = client.registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snapshot = { loading: false, error: null, body: { sessionGoal: null, sessionTitle: 'x', credentials: {}, watchers: [] } }
+  const refreshOf = (props) => {
+    const nodes = walk(client.render(desk, deskQueue(snapshot), props))
+    const found = nodes.find((node) => node.props && typeof node.props.onClick === 'function'
+      && walk(node).some((child) => child.type === '#text' && child.text === '刷新'))
+    assert.ok(found, '面板上找不到刷新按钮')
+    return found.props.onClick
+  }
+
+  // 1) 圆环作用域（无 sessionId）：老行为保留 —— 自己的 etag 能命中 304
+  await refreshOf({})()
+  assert.equal(calls.at(-1).etag, null, '首次拉取不带条件头')
+  const globalRetry = await refreshOf({})()
+  assert.equal(calls.at(-1).etag, 'W/"global-1"', '无 sessionId 的老行为：同一作用域复用自己的 etag')
+  assert.equal(Boolean(globalRetry && globalRetry.notModified), true, '同作用域第二次必须命中 304')
+
+  // 2) 会话面板：不得沿用圆环的 etag（沿用就永远打不中 304）
+  await refreshOf({ sessionId: 's1' })()
+  assert.equal(calls.at(-1).etag, null, '会话面板不得携带圆环作用域的 etag')
+
+  // 3) 同一会话第二次：用自己的 etag → 304，且不产生新 body
+  client.resetStateCalls()
+  const s1Retry = await refreshOf({ sessionId: 's1' })()
+  assert.equal(calls.at(-1).etag, 'W/"s1-1"', '同一会话必须复用自己的 etag')
+  assert.equal(Boolean(s1Retry && s1Retry.notModified), true, '同一会话第二次必须命中 304')
+  const snapCalls = client.stateCalls().filter((call) => call.index === 0)
+  assert.ok(snapCalls.length === 0 || snapCalls.every((call) => call.next === snapshot),
+    '304 不得产生新的 body：' + JSON.stringify(snapCalls))
+
+  // 4) 另一个会话：不得复用 s1 的 etag
+  await refreshOf({ sessionId: 's2' })()
+  assert.equal(calls.at(-1).etag, null, '两个会话不得复用同一个 etag')
+
+  // 5) 圆环作用域不受会话面板影响
+  const globalAgain = await refreshOf({})()
+  assert.equal(calls.at(-1).etag, 'W/"global-1"')
+  assert.equal(Boolean(globalAgain && globalAgain.notModified), true)
+
+  assert.deepEqual(calls.map((call) => call.scope), [
+    '/session-superagent/state',
+    '/session-superagent/state',
+    '/session-superagent/state?sessionId=s1',
+    '/session-superagent/state?sessionId=s1',
+    '/session-superagent/state?sessionId=s2',
+    '/session-superagent/state',
+  ], '每次请求都必须落在自己的作用域上')
 })
 
 test('W2：仅重新打开与重新打开加报错都计入问题数和问题筛选，健康守仍排除', () => {

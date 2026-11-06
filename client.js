@@ -515,8 +515,19 @@ window.__ModuleLoader__.load({
 
     const POLL_MS = 5000
 
-    // 上一次 /state 的 ETag：带上它，没变化时服务端回 304，省掉整份 JSON
-    let stateEtag = null
+    // 上一次 /state 的 ETag：带上它，没变化时服务端回 304，省掉整份 JSON。
+    // 必须按作用域分开存（终审 N3）：状态栏圆环拉的是全局 /state，主面板拉的是 /state?sessionId=…；
+    // 服务端 etag 对整份 body 求值，两个作用域 body 不同 —— 共用一个 etag 会让面板的条件请求永远打不中 304。
+    // 不带 sessionId 时仍然只有一个键，与旧行为一致。
+    const stateEtags = new Map()
+    const readStateEtag = (path) => (typeof path === 'string' && path.startsWith('/state')
+      ? (stateEtags.get(path) || null)
+      : null)
+    const writeStateEtag = (path, etag) => {
+      if (typeof path !== 'string' || !path.startsWith('/state')) return
+      if (etag) stateEtags.set(path, etag)
+      else stateEtags.delete(path)
+    }
 
     async function call(path, options, retried) {
       const init = {
@@ -551,11 +562,11 @@ window.__ModuleLoader__.load({
       // 304：内容没变（服务端带 ETag）。不是错误，也没有正文。
       if (res.status === 304) {
         const etag = res.headers && res.headers.get ? res.headers.get('etag') : null
-        if (etag) stateEtag = etag
+        if (etag) writeStateEtag(path, etag)
         return { notModified: true }
       }
       const freshEtag = res.headers && res.headers.get ? res.headers.get('etag') : null
-      if (freshEtag && path.startsWith('/state')) stateEtag = freshEtag
+      if (freshEtag && path.startsWith('/state')) writeStateEtag(path, freshEtag)
       const text = await res.text()
       let body = null
       try { body = text ? JSON.parse(text) : null } catch { body = { raw: text } }
@@ -1449,7 +1460,7 @@ window.__ModuleLoader__.load({
     }
 
     /** 官方 ConfirmButton 动线：触发按钮只开 Modal，取消不执行，确认期间 busy 防重复。 */
-    function ConfirmButton({ label, confirmLabel = '确定执行', title = confirmLabel, message, onConfirm, variant = 'ghost', icon, size, modalContext = 'panel', ButtonComponent = Btn, danger = true, preventDismissOnBusy = false, error = null, busyLabel = confirmLabel, busyHint }) {
+    function ConfirmButton({ label, confirmLabel = '确定执行', title = confirmLabel, message, onConfirm, variant = 'ghost', icon, size, modalContext = 'panel', ButtonComponent = Btn, danger = true, preventDismissOnBusy = false, error = null, busyLabel = confirmLabel, busyHint, onOpen }) {
       const [open, setOpen] = useState(false)
       const close = useCallback(() => setOpen(false), [])
       return h(React.Fragment, null,
@@ -1459,7 +1470,11 @@ window.__ModuleLoader__.load({
           icon,
           'aria-label': label,
           'aria-haspopup': 'dialog',
-          onClick: () => setOpen(true),
+          onClick: () => {
+            // 打开前先跑调用方的清理（例如清掉上一次「删除失败」）；打开行为本身不变。
+            if (typeof onOpen === 'function') onOpen()
+            setOpen(true)
+          },
         }, label),
         h(ConfirmDialog, { open, label, confirmLabel, title, message, onConfirm, onClose: close, modalContext, ButtonComponent, danger, preventDismissOnBusy, error, busyLabel, busyHint }))
     }
@@ -1678,7 +1693,8 @@ window.__ModuleLoader__.load({
         orbitRef: btnRef,
         onCloseOrbit: () => setOpen(false),
         // DSH 路径复用旧 anchor 槽保存待删 watcher；fallback 仍只保存手算坐标，状态槽位不变。
-        onRequestConfirm: ({ watcher }) => setAnchor(watcher),
+        // 打开时先清掉上一次的「删除失败：…」，否则新确认框一打开就带着别人的错误。
+        onRequestConfirm: ({ watcher }) => openDeleteConfirm(watcher),
       })
 
       const isReadError = (value) => typeof value === 'string'
@@ -1716,6 +1732,16 @@ window.__ModuleLoader__.load({
       // 弹层每次打开都把样式表钉一遍：宿主热重载可能把 <style> 清掉，
       // 而弹层是"一开就要好看"的东西，不能等到下次渲染才发现没样式
       useEffect(() => { if (open) ensurePortedCss(true) }, [open])
+
+      // 终审 N2：删除失败只属于「那一次确认框」。打开新的删除确认时必须先清掉它，
+      // 否则 A 的失败会跟着 B 的确认框一起出现（B 还没发任何请求）。读取错误属于列表状态，不能一起清。
+      const clearDeleteError = () => setOrbitError((current) =>
+        typeof current === 'string' && current.startsWith('删除失败：') ? null : current)
+      const openDeleteConfirm = (watcher) => {
+        // 先选中待删 watcher（保持原有 state 调用顺序），再清旧错误；两者同批渲染。
+        setAnchor(watcher)
+        clearDeleteError()
+      }
 
       useEffect(() => {
         // 仅旧路径保留 capture mousedown / 手算焦点；DSH 由 OrbitPopover 与宿主 dismiss hook 接管。
@@ -1808,7 +1834,7 @@ window.__ModuleLoader__.load({
         // 新数组只触发一次渲染，watcher 内容不变；可见 pending 直接读取同步锁集合。
         setWatchers((current) => Array.isArray(current) ? [...current] : current)
         if (action === 'delete') {
-          setOrbitError((current) => typeof current === 'string' && current.startsWith('删除失败：') ? null : current)
+          clearDeleteError()
         }
         try {
           // 删除只走 ConfirmButton + Modal；不要再叠一层原生确认框（同一动作问两次）。
@@ -1833,6 +1859,8 @@ window.__ModuleLoader__.load({
       // fallback 完全保留原提前返回；DSH 即使 orbit 已关，也要继续渲染由本组件持有的确认 Modal。
       if (!open && !hostOrbit) return button
       const closeConfirm = () => {
+        // 关掉确认框等于放弃这一次删除：错误跟着走，不要留在弹层里冒充「刚发生的失败」。
+        clearDeleteError()
         setAnchor(null)
         orbitConfirm.onConfirmClose()
       }
@@ -1904,6 +1932,8 @@ window.__ModuleLoader__.load({
             : h(ConfirmButton, {
               label: '删除', confirmLabel: '确认删除', variant: 'ghost', size: 'sm', modalContext: 'orbit',
               icon: h(Icon, { name: 'trash' }),
+              // 打开确认框时清掉上一次的删除失败（读取错误不动）；本次失败由 act() 重新写入。
+              onOpen: clearDeleteError,
               onConfirm: () => act(w, 'delete'), error: deleteError,
               preventDismissOnBusy: true, busyLabel: '删除中…', busyHint: '删除进行中，完成后才能关闭',
             }))
@@ -2195,8 +2225,8 @@ window.__ModuleLoader__.load({
       // 建议规则弹层：给"叫醒了没回音"一个下一步动作（只提供可复制的规则，不替客户写仓库文件）
 
       // 「我现在手上有没有能渲染的数据」。判断依据必须是**当前 snap**，不是"以前拿到过一次" ——
-      // 状态栏圆环每 5 秒全量拉一次 /state 并刷新模块级 stateEtag；面板首次挂载时正好带着这个
-      // etag 去问，首帧必然 304。旧代码在 304 分支直接 return、从不 setSnap，于是面板永远停在
+      // 会话作用域的 etag 只属于本会话；面板挂载时如果带着一份自己以前留下的 etag（快照已丢），
+      // 首帧会 304。旧代码在 304 分支直接 return、从不 setSnap，于是面板永远停在
       // {loading:true, body:null}：统计条全 0、列表空态、底下还挂着「正在读取…」（真机现象：2 条显示 0 条）。
       const hasBodyRef = useRef(false)
       hasBodyRef.current = Boolean(snap.body)
@@ -2204,38 +2234,49 @@ window.__ModuleLoader__.load({
       // 审核 M1：四条路径（轮询 / 工具栏刷新 / 错误卡重试 / run() 成功后）都能并发，
       // 没有序号时「后到的旧响应」会覆盖新数据。序号只认最新的那次。
       const loadSeqRef = useRef(0)
-      const load = useCallback(async () => {
+      // 终审 N1：被更新的一次 load 顶掉时，旧的那次不能把「成功」当失败 ——
+      // run() 的 requireReload 会因此假报「回读失败，请重试」（数据其实已经取到了）。
+      // 记下最新一次的 promise：被顶掉就等它，用最新快照回话；它真失败时仍然按失败返回。
+      const latestLoadRef = useRef(null)
+      const load = useCallback(() => {
         const seq = ++loadSeqRef.current
-        const statePath = sessionId ? '/state?sessionId=' + encodeURIComponent(String(sessionId)) : '/state'
-        try {
-          const payload = await call(statePath, stateEtag ? { headers: { 'if-none-match': stateEtag } } : undefined)
-          if (seq !== loadSeqRef.current) return null // 已经有更新的一次请求在飞：这次结果作废
-          // 304：内容没变，前提是本地已经有一份能渲染的 body
-          if (payload && payload.notModified) {
-            // 有本地快照时，304 也是一次成功回读；清掉此前的 500/网络错误。
-            // 正常且无旧错时返回原 state，避免每次条件轮询都重渲染。
-            if (hasBodyRef.current) {
-              setSnap((prev) => prev.error || prev.loading
-                ? { loading: false, error: null, body: prev.body }
-                : prev)
-              return payload
+        const job = (async () => {
+          const statePath = sessionId ? '/state?sessionId=' + encodeURIComponent(String(sessionId)) : '/state'
+          const etag = readStateEtag(statePath)
+          try {
+            const payload = await call(statePath, etag ? { headers: { 'if-none-match': etag } } : undefined)
+            // 已经有更新的一次请求在飞：等它的结果，别把自己的成功报成失败
+            if (seq !== loadSeqRef.current) return await (latestLoadRef.current || null)
+            // 304：内容没变，前提是本地已经有一份能渲染的 body
+            if (payload && payload.notModified) {
+              // 有本地快照时，304 也是一次成功回读；清掉此前的 500/网络错误。
+              // 正常且无旧错时返回原 state，避免每次条件轮询都重渲染。
+              if (hasBodyRef.current) {
+                setSnap((prev) => prev.error || prev.loading
+                  ? { loading: false, error: null, body: prev.body }
+                  : prev)
+                return payload
+              }
+              // 本地没有数据：这次 304 是被同一作用域旧 etag 带出来的，清掉它重取一次全量
+              writeStateEtag(statePath, null)
+              return load()
             }
-            // 本地没有数据：这次 304 是被状态栏的 etag 带出来的，清掉 etag 重取一次全量
-            stateEtag = null
-            return load()
+            const body = payload
+            setSnap({ loading: false, error: null, body })
+            return body
+          } catch (error) {
+            // 旧请求的失败同样不盖新数据：等最新那次的结果（它失败就一并按失败返回）
+            if (seq !== loadSeqRef.current) return await (latestLoadRef.current || null)
+            const message = String((error && error.message) || error)
+            // 同文轮询失败复用同一 snap/alert DOM；显式重试成功仍会清错，错误文本变化仍会通知。
+            setSnap((prev) => prev.error === message && !prev.loading
+              ? prev
+              : { loading: false, error: message, body: prev.body })
+            return null
           }
-          const body = payload
-          setSnap({ loading: false, error: null, body })
-          return body
-        } catch (error) {
-          if (seq !== loadSeqRef.current) return null // 旧请求的失败也别盖掉新数据
-          const message = String((error && error.message) || error)
-          // 同文轮询失败复用同一 snap/alert DOM；显式重试成功仍会清错，错误文本变化仍会通知。
-          setSnap((prev) => prev.error === message && !prev.loading
-            ? prev
-            : { loading: false, error: message, body: prev.body })
-          return null
-        }
+        })()
+        latestLoadRef.current = job
+        return job
       }, [sessionId])
 
       useEffect(() => { ensurePortedCss() }, [])
