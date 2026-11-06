@@ -17,6 +17,7 @@ const HOST = Object.freeze({
   Tag: 'dsh-host-tag',
   StateDot: 'dsh-host-state-dot',
   Pill: 'dsh-host-pill',
+  DisclosureRow: 'dsh-host-disclosure-row',
   IconWarningOutlineMedium: 'dsh-host-warning-icon',
 })
 const MAIN_TABS = Object.freeze([
@@ -117,6 +118,11 @@ function loadClient(options = {}) {
     source = source.replace('    /** 官方 SegmentedControl', '    window.__PillForTest = Pill\n    /** 官方 SegmentedControl')
     assert.notEqual(source, before, '必须捕获真实 Pill，不能测试手写复制品')
   }
+  if (options.captureCollapsibleList) {
+    const before = source
+    source = source.replace('    /** DSH Pill', '    window.__CollapsibleListForTest = CollapsibleList\n    /** DSH Pill')
+    assert.notEqual(source, before, '必须捕获真实 CollapsibleList，不能测试手写复制品')
+  }
   vm.runInContext(source, sandbox)
   assert.ok(mod, 'client.js 必须调用 __ModuleLoader__.load')
 
@@ -193,6 +199,7 @@ function loadClient(options = {}) {
     Tag: sandbox.window.__TagForTest,
     StateDot: sandbox.window.__StateDotForTest,
     Pill: sandbox.window.__PillForTest,
+    CollapsibleList: sandbox.window.__CollapsibleListForTest,
     stateCalls: () => stateCalls,
     resetStateCalls: () => { stateCalls.length = 0 },
   }
@@ -739,6 +746,138 @@ test('Tag 与 StateDot 缺导出互不影响：各自回退，另一个仍委托
   assert.equal(fallbackDot.type, 'span')
   assert.equal(fallbackDot.props['data-state'], 'idle')
   assert.ok(hasClass(fallbackDot, 'dt-dot'))
+})
+
+const COLLAPSIBLE_ITEMS = Object.freeze([
+  '#7 机器人提的依赖升级 — 机器人：0123456789abcdefghijklmnopqrstuvwxyz',
+  '#8 草稿 — 草稿 PR',
+])
+
+function renderCollapsible(client, open) {
+  return client.render({
+    Component: client.CollapsibleList,
+    opts: { id: 'collapsible-list-test' },
+  }, [open], { title: '看被过滤的条目', items: COLLAPSIBLE_ITEMS })
+}
+
+function collapsibleRow(nodes) {
+  return one(nodes.filter((node) => hasClass(node, 'dt-disclosure-row')), '缺唯一本地 CollapsibleList 行')
+}
+
+test('CollapsibleList 官方委托：整行可展开、标题计数、折叠摘要与 ul 列表全部保留', () => {
+  const client = loadClient({ primitives: HOST, captureCollapsibleList: true })
+  assert.equal(typeof client.CollapsibleList, 'function')
+  const closed = renderCollapsible(client, false)
+  assert.equal(closed.type, HOST.DisclosureRow, '有官方导出时必须直接委托，不能先渲染本地 DisclosureRow')
+  assert.equal(closed.props.title, '看被过滤的条目（2）')
+  assert.equal(closed.props.open, false)
+  assert.equal(closed.props.expandable, true)
+  assert.equal(closed.props.expandOnRowClick, true)
+  assert.equal(typeof closed.props.onToggle, 'function')
+  assert.equal(closed.props.bodyId, undefined, '官方不收 bodyId，不得伪造高级区关联参数')
+  assert.equal(closed.props['aria-controls'], undefined)
+  assert.equal(closed.props.keepContentWhenOpen, undefined, '展开后摘要由官方默认卸载')
+  assert.equal(closed.props.onClick, undefined, '点击与键盘必须交给官方整行实现')
+  assert.equal(closed.props.onKeyDown, undefined)
+
+  const summary = closed.props.collapsedContent
+  assert.equal(summary.type, 'span')
+  assert.ok(hasClass(summary, 'dt-hint'))
+  assert.equal(nodeText(summary), COLLAPSIBLE_ITEMS[0].slice(0, 40))
+  assert.equal(nodeText(summary).length, 40, '摘要仍严格截到 40 个字符')
+  const list = one(closed.props.children.filter((node) => node.type === 'ul'), '官方 children 缺唯一 ul')
+  assert.ok(hasClass(list, 'dt-plain-list'))
+  assert.deepEqual(list.props.children.map((node) => node.type), ['li', 'li'])
+  assert.deepEqual(list.props.children.map(nodeText), COLLAPSIBLE_ITEMS)
+
+  client.resetStateCalls()
+  closed.props.onToggle()
+  assert.deepEqual(client.stateCalls().map((call) => [call.index, call.next]), [[0, true]], '官方 onToggle 必须展开原状态槽')
+  const opened = renderCollapsible(client, true)
+  assert.equal(opened.type, HOST.DisclosureRow)
+  assert.equal(opened.props.open, true)
+  assert.equal(opened.props.expandable, true)
+  assert.equal(opened.props.expandOnRowClick, true)
+  client.resetStateCalls()
+  opened.props.onToggle()
+  assert.deepEqual(client.stateCalls().map((call) => [call.index, call.next]), [[0, false]], '再次 onToggle 必须收起')
+})
+
+test('CollapsibleList 回退：缺导出或整个 primitives 时保留本地结构、摘要与语义列表', () => {
+  for (const primitives of [undefined, {}, { ...HOST, DisclosureRow: undefined }]) {
+    const client = loadClient({ primitives, captureCollapsibleList: true })
+    const closed = walk(renderCollapsible(client, false))
+    const closedRow = collapsibleRow(closed)
+    assert.equal(closedRow.props.role, 'button')
+    assert.equal(closedRow.props.tabIndex, 0, '回退行必须仍在键盘 Tab 顺序中')
+    assert.equal(closedRow.props['aria-expanded'], false)
+    assert.equal(closedRow.props['aria-controls'], undefined, '普通过滤清单不虚构 body 关联')
+    assert.ok(nodeText(closedRow).includes('看被过滤的条目（2）'))
+    assert.ok(nodeText(closedRow).includes(COLLAPSIBLE_ITEMS[0].slice(0, 40)))
+    assert.equal(closed.filter((node) => node.type === 'ul' && hasClass(node, 'dt-plain-list')).length, 0,
+      '收起时 ul 不挂载')
+
+    const opened = walk(renderCollapsible(client, true))
+    const openedRow = collapsibleRow(opened)
+    assert.equal(openedRow.props['aria-expanded'], true)
+    assert.ok(!nodeText(openedRow).includes(COLLAPSIBLE_ITEMS[0].slice(0, 40)), '展开后摘要必须卸载')
+    const list = one(opened.filter((node) => node.type === 'ul' && hasClass(node, 'dt-plain-list')), '展开缺唯一 ul')
+    assert.deepEqual(list.props.children.map((node) => node.type), ['li', 'li'])
+    assert.deepEqual(list.props.children.map(nodeText), COLLAPSIBLE_ITEMS)
+  }
+})
+
+test('CollapsibleList 回退键盘与点击：click/Enter/Space 开合且焦点入口不丢', () => {
+  for (const primitives of [undefined, {}, { ...HOST, DisclosureRow: undefined }]) {
+    const client = loadClient({ primitives, captureCollapsibleList: true })
+    client.resetStateCalls()
+    collapsibleRow(walk(renderCollapsible(client, false))).props.onClick()
+    assert.deepEqual(client.stateCalls().map((call) => [call.index, call.next]), [[0, true]], 'click 必须展开')
+
+    client.resetStateCalls()
+    const openedRow = collapsibleRow(walk(renderCollapsible(client, true)))
+    assert.equal(openedRow.props.tabIndex, 0)
+    let enterPrevented = 0
+    openedRow.props.onKeyDown({ key: 'Enter', preventDefault: () => { enterPrevented += 1 } })
+    assert.equal(enterPrevented, 1)
+    assert.deepEqual(client.stateCalls().map((call) => [call.index, call.next]), [[0, false]], 'Enter 必须收起')
+
+    client.resetStateCalls()
+    const closedRow = collapsibleRow(walk(renderCollapsible(client, false)))
+    assert.equal(closedRow.props.tabIndex, 0)
+    let spacePrevented = 0
+    closedRow.props.onKeyDown({ key: ' ', preventDefault: () => { spacePrevented += 1 } })
+    assert.equal(spacePrevented, 1)
+    assert.deepEqual(client.stateCalls().map((call) => [call.index, call.next]), [[0, true]], 'Space 必须展开')
+  }
+})
+
+test('CollapsibleList 唯一业务调用点委托官方，WatcherForm 高级区仍是唯一显式本地 DisclosureRow', () => {
+  assert.equal([...SOURCE.matchAll(/h\(CollapsibleList,/g)].length, 1, '过滤清单业务调用点不得增删')
+  assert.equal([...SOURCE.matchAll(/h\(DisclosureRow,/g)].length, 1,
+    '唯一显式本地 DisclosureRow 调用必须留给 WatcherForm 高级区')
+
+  const client = loadClient({ primitives: HOST })
+  const state = snapshot()
+  state.body.watchers = [watcher('a/b', {
+    id: 'a/b#s1', sessionId: 's1', filteredLog: [
+      { number: 7, title: '机器人提的依赖升级', reason: '机器人' },
+      { number: 8, title: '草稿', reason: '草稿 PR' },
+    ],
+  })]
+  const overview = nodesOf(client, deskQueue(state))
+  const official = one(overview.filter((node) => node.type === HOST.DisclosureRow), '总览缺唯一官方 CollapsibleList')
+  assert.equal(official.props.title, '看被过滤的条目（2）')
+  assert.equal(official.props.expandable, true)
+  assert.equal(official.props.expandOnRowClick, true)
+
+  const trigger = nodesOf(client, deskQueue(state, null, {}, 'trigger'), { sessionId: 's1' })
+  assert.equal(trigger.filter((node) => node.type === HOST.DisclosureRow).length, 0,
+    'WatcherForm 高级区不得误走不支持 aria-controls 的官方组件')
+  const advanced = one(trigger.filter((node) => hasClass(node, 'dt-disclosure-row') && nodeText(node).includes('高级设置')),
+    '新增表单缺本地高级区')
+  assert.equal(advanced.props['aria-controls'], 'watcher-new-advanced-body')
+  assert.equal(advanced.props['aria-expanded'], false)
 })
 
 test('WatcherForm 高级区：新增/编辑 bodyId 唯一，aria-controls 关联且 Enter/Space 开合不改草稿', () => {

@@ -359,6 +359,7 @@ window.__ModuleLoader__.load({
     let hostTag = null
     let hostStateDot = null
     let hostPill = null
+    let hostCollapsibleRow = null
     let hostTooltip = null
     let hostOrbit = null
     let hostOrbitRow = null
@@ -377,6 +378,8 @@ window.__ModuleLoader__.load({
       hostStateDot = primitives.StateDot || null
       // Pill 同样独立探测：缺导出时完整保留下方本地胶囊，不影响其它原语。
       hostPill = primitives.Pill || null
+      // 仅供 CollapsibleList：WatcherForm 高级区需要 bodyId/aria-controls，必须继续走本地 DisclosureRow。
+      hostCollapsibleRow = primitives.DisclosureRow || null
       if (primitives && primitives.Modal && primitives.Toast && primitives.IconWarningOutlineMedium) {
         hostUi = createHostUi({ React, primitives })
         // Tooltip 独立探测：缺少它只回退 InfoTip，不把已接入的 Modal/Toast 一起降级。
@@ -391,6 +394,7 @@ window.__ModuleLoader__.load({
       hostTag = null
       hostStateDot = null
       hostPill = null
+      hostCollapsibleRow = null
       hostTooltip = null
     }
 
@@ -883,15 +887,17 @@ window.__ModuleLoader__.load({
         h(Hint, null, '想先看看效果？在「触发」页勾上「仅观察」：它只记录本会唤醒哪几条，不会真打扰你。'))
     }
 
-    /** 官方 DisclosureRow 的实际用法：默认收起，点开看明细。 */
+    /** 官方 DisclosureRow 承载过滤清单；缺导出时完整保留本地键盘与焦点行为。 */
     function CollapsibleList({ title, items }) {
       const [open, setOpen] = useState(false)
-      return h(DisclosureRow, {
+      const rowProps = {
         title: title + '（' + items.length + '）',
-        open, onToggle: () => setOpen(!open),
+        open, onToggle: () => setOpen((current) => !current),
         icon: h(Icon, { name: 'question', size: 14 }),
         collapsedContent: h('span', { className: 'dt-hint' }, items[0] ? String(items[0]).slice(0, 40) : ''),
-      },
+      }
+      return h(hostCollapsibleRow || DisclosureRow,
+        hostCollapsibleRow ? { ...rowProps, expandable: true, expandOnRowClick: true } : rowProps,
         h('ul', { className: 'dt-plain-list' },
           items.map((text, index) => h('li', { key: index }, text))))
     }
