@@ -2033,6 +2033,7 @@ window.__ModuleLoader__.load({
       const createTouchedRef = useRef(new Set())
       const createSnapshotRef = useRef({ ...CREATE_WATCHER_VALUES })
       const editSnapshotRef = useRef(null)
+      const watcherDraftConfirmedRef = useRef(false)
       // 保存期间仍可输入：旧响应只能清理它提交的那份草稿，不能覆盖 pending 后的新输入。
       const credentialsDraftVersionRef = useRef(0)
       const credentialsSaveSeqRef = useRef(0)
@@ -2052,6 +2053,7 @@ window.__ModuleLoader__.load({
         setForm({ ...form, [key]: value })
       }
       const [search, setSearch] = useState('')
+      // 面板弹层共用既有状态槽：术语/规则使用 boolean/string，dirty 编辑确认使用对象。
       const [glossary, setGlossary] = useState(false)
       // 版本检查结果（只读）：面板里直接告诉客户「有没有新版本、该跑什么命令」
       const [update, setUpdate] = useState(null)
@@ -2125,6 +2127,65 @@ window.__ModuleLoader__.load({
       // 默认值提示从后端读：写死 12/3/6 会在常量变化后变成谎话（JSON Schema 的 default 也是这个用法）
       const DEFAULTS = body.defaults || {}
       const watchers = body.watchers || []
+      // 行内编辑只有这一条入口：clean 维持原直达行为；dirty 先确认，取消绝不重置 draft/touched。
+      const applyWatcherEditor = (watcher, nextKey) => {
+        const values = watcherValuesFrom(watcher)
+        setEditing(nextKey)
+        touchedRef.current = new Set()
+        editSnapshotRef.current = nextKey ? { key: nextKey, values } : null
+        setDraft({
+          intervalSec: watcherNumberText(watcher.intervalSec ?? 60),
+          labels: (watcher.filters && watcher.filters.labels ? watcher.filters.labels : []).join(','),
+          ignoreLabels: (watcher.filters && watcher.filters.ignoreLabels ? watcher.filters.ignoreLabels : []).join(','),
+          assignee: (watcher.filters && watcher.filters.assignee) || '',
+          activeHours: watcher.activeHours || '',
+          // `watcher.goal` 可能是 goalView 对象；输入框只能接收已展开的字符串。
+          goal: watcher.note || (typeof watcher.goal === 'string' ? watcher.goal : (watcher.goal && watcher.goal.objective) || ''),
+          ackLabel: watcher.ackLabel || (watcher.provider === 'gitee' ? '主理鱼-已处理' : '主理鱼:已处理'),
+          onlyAssigned: !!(watcher.filters && watcher.filters.onlyAssigned),
+          allowAuthors: (watcher.filters && watcher.filters.allowAuthors ? watcher.filters.allowAuthors : []).join(', '),
+          observe: !!watcher.observe,
+          isolated: !!watcher.isolated,
+          workdir: watcher.workdir || '',
+          batchLimit: watcherNumberText(watcher.batchLimit),
+          maxWakesPerHour: watcherNumberText(watcher.maxWakesPerHour),
+          sessionMaxWakes: watcherNumberText(watcher.sessionMaxWakes),
+          isolateKeepDays: watcherNumberText(watcher.isolateKeepDays),
+          maxIsolated: watcherNumberText(watcher.maxIsolated),
+          priorityReopened: (watcher.priority && watcher.priority.reopened) !== false,
+          priorityComments: (watcher.priority && watcher.priority.comments) !== false,
+          priorityLabels: (watcher.priority && watcher.priority.labels) !== false,
+          priorityUnassigned: Boolean(watcher.priority && watcher.priority.unassigned) === true,
+          priorityStale: Boolean(watcher.priority && watcher.priority.stale) === true,
+        })
+      }
+      const editingWatcher = watchers.find((watcher) => watcher.repo + '#' + watcher.sessionId === editing)
+      const editingOpening = editSnapshotRef.current && editSnapshotRef.current.key === editing
+        ? editSnapshotRef.current.values
+        : editingWatcher ? watcherValuesFrom(editingWatcher) : null
+      const editingDirty = Boolean(editing && editingOpening && (
+        touchedRef.current.size > 0 || watcherDirty({ ...editingOpening, ...draft }, editingOpening)))
+      const pendingCollapseKey = glossary && glossary.type === 'watcher-draft' && !glossary.nextKey
+        ? glossary.fromKey : null
+      // dirty 折叠在确认期间挂起 editing id，但原表单仍挂载；取消/确认之前绝不清它的 draft。
+      const displayedEditing = editing || pendingCollapseKey
+      const toggleWatcherEditor = (watcher) => {
+        const key = watcher.repo + '#' + watcher.sessionId
+        const nextKey = editing === key ? null : key
+        if (editing && editingDirty) {
+          watcherDraftConfirmedRef.current = false
+          setGlossary({ type: 'watcher-draft', watcher, nextKey, fromKey: editing })
+          if (!nextKey) setEditing(null)
+          return
+        }
+        applyWatcherEditor(watcher, nextKey)
+      }
+      const dismissWatcherDraft = () => {
+        if (glossary && glossary.type === 'watcher-draft' && !glossary.nextKey
+          && !watcherDraftConfirmedRef.current) setEditing(glossary.fromKey)
+        watcherDraftConfirmedRef.current = false
+        setGlossary(false)
+      }
       const sessionGoal = body.sessionGoal || null
       const credentials = body.credentials || { token: 'none', sshKeyPath: 'none' }
 
@@ -2400,38 +2461,7 @@ window.__ModuleLoader__.load({
           h('div', { className: 'dt-row-title' },
             h('button', {
               type: 'button', className: 'dt-open', title: '展开或收起这条主理鱼的设置',
-              'aria-expanded': editing === key, onClick: () => {
-                setEditing(editing === key ? null : key)
-                touchedRef.current = new Set()
-                editSnapshotRef.current = editing === key ? null : { key, values: watcherValuesFrom(watcher) }
-                setDraft({
-                  intervalSec: watcherNumberText(watcher.intervalSec ?? 60),
-                  labels: (watcher.filters && watcher.filters.labels ? watcher.filters.labels : []).join(','),
-                  ignoreLabels: (watcher.filters && watcher.filters.ignoreLabels ? watcher.filters.ignoreLabels : []).join(','),
-                  assignee: (watcher.filters && watcher.filters.assignee) || '',
-                  activeHours: watcher.activeHours || '',
-                  // 审核 T26 M2：`watcher.goal` 是**对象**（goalView），当字符串塞进输入框会显示
-                  // [object Object]；保存时后端只收 string，于是静默无效而 Toast 说「已保存」。
-                  goal: watcher.note || (typeof watcher.goal === 'string' ? watcher.goal : (watcher.goal && watcher.goal.objective) || ''),
-                  ackLabel: watcher.ackLabel || (watcher.provider === 'gitee' ? '主理鱼-已处理' : '主理鱼:已处理'),
-                  onlyAssigned: !!(watcher.filters && watcher.filters.onlyAssigned),
-                  allowAuthors: (watcher.filters && watcher.filters.allowAuthors ? watcher.filters.allowAuthors : []).join(', '),
-                  // 下面这些以前没填 —— 打开一条隔离执行的守再直接保存，会把 isolated 写回 false
-                  observe: !!watcher.observe,
-                  isolated: !!watcher.isolated,
-                  workdir: watcher.workdir || '',
-                  batchLimit: watcherNumberText(watcher.batchLimit),
-                  maxWakesPerHour: watcherNumberText(watcher.maxWakesPerHour),
-                  sessionMaxWakes: watcherNumberText(watcher.sessionMaxWakes),
-                  isolateKeepDays: watcherNumberText(watcher.isolateKeepDays),
-                  maxIsolated: watcherNumberText(watcher.maxIsolated),
-                  priorityReopened: (watcher.priority && watcher.priority.reopened) !== false,
-                  priorityComments: (watcher.priority && watcher.priority.comments) !== false,
-                  priorityLabels: (watcher.priority && watcher.priority.labels) !== false,
-                  priorityUnassigned: Boolean(watcher.priority && watcher.priority.unassigned) === true,
-                  priorityStale: Boolean(watcher.priority && watcher.priority.stale) === true,
-                })
-              },
+              'aria-expanded': displayedEditing === key, onClick: () => toggleWatcherEditor(watcher),
             }, watcher.repo)),
           pauseNote(watcher),
           h('div', { className: 'dt-row-meta dt-ticket-meta' },
@@ -2522,7 +2552,7 @@ window.__ModuleLoader__.load({
           ? editSnapshotRef.current.values
           : watcherValuesFrom(watcher)
         const editorValue = { ...opening, ...draft }
-        const editor = editing === key
+        const editor = displayedEditing === key
           ? h(WatcherForm, {
             mode: 'edit', idPrefix: 'watcher-edit-' + encodeURIComponent(key),
             value: editorValue, snapshot: opening, defaults: DEFAULTS, sessionId,
@@ -3394,6 +3424,21 @@ window.__ModuleLoader__.load({
         snap.body && tab === 'settings' ? h('div', {
           id: 'sa-main-panel-settings', role: 'tabpanel', 'aria-labelledby': 'sa-main-tab-settings', className: 'dt-tabpanel',
         }, settings) : null,
+        glossary && glossary.type === 'watcher-draft' ? h(ConfirmDialog, {
+          open: true,
+          label: '放弃未保存的修改',
+          title: '放弃未保存的修改？',
+          confirmLabel: glossary.nextKey ? '放弃并切换' : '放弃并收起',
+          message: glossary.nextKey
+            ? '当前 watcher 有未保存的修改。切换到 ' + glossary.watcher.repo + ' 会丢弃这些修改；取消会继续编辑当前草稿。'
+            : '当前 watcher 有未保存的修改。收起会丢弃这些修改；取消会继续编辑当前草稿。',
+          onClose: dismissWatcherDraft,
+          onConfirm: () => {
+            watcherDraftConfirmedRef.current = true
+            applyWatcherEditor(glossary.watcher, glossary.nextKey)
+            return true
+          },
+        }) : null,
         typeof glossary === 'string' ? h(PanelModal, {
           open: true,
           title: '建议追加到 ' + String(glossary).replace('rules:', '') + ' 的 AGENTS.md',
