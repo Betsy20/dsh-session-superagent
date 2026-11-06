@@ -2,7 +2,7 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased] —— 品牌与默认 ack 可配置（issue #11，@modusensus）
+## [0.10.1] - 2026-11-06 —— 品牌与默认 ack 可配置（issue #11，@modusensus）
 
 - 新增 `Config`：`brandName`、`defaultAckLabel`、`defaultAckLabelGitee`，默认值与 0.10.0 逐字相同。
 - 唤醒抬头/合并抬头、面板主标题与关键空态、默认 ack 派生（watch_start/watch_ack//state）统一读配置。
