@@ -348,6 +348,7 @@ window.__ModuleLoader__.load({
     let hostButton = null
     let hostTooltip = null
     let hostOrbit = null
+    let hostOrbitRow = null
     try {
       const primitives = require('@deepseek-ai/dsh-client-ui-primitives')
       // Button 独立探测：老宿主缺 Modal/Toast 时仍可复用官方按钮；缺 Button 时所有 variant 完整回退旧 Btn。
@@ -363,19 +364,23 @@ window.__ModuleLoader__.load({
       hostTooltip = null
     }
 
-    // Orbit 独立探测：缺 MenuSurface/定位/外点 hook 或 react-dom.createPortal 任一能力，完整保留旧 StatusOrbit。
+    // Orbit 独立探测：容器用官方 MenuSurface，watcher 行用官方 DisclosureRow。
+    // 没有通用 Popover/Card/List 导出；DockLayout/FloatLayer 是带分栏/拖拽动作的标签坞，不冒充本弹层。
+    // 缺任一实际用到的能力（含 react-dom.createPortal）都完整保留旧 StatusOrbit，不做半套原生结构。
     try {
       const primitives = require('@deepseek-ai/dsh-client-ui-primitives')
-      if (primitives && primitives.MenuSurface
+      if (primitives && primitives.MenuSurface && primitives.DisclosureRow
         && typeof primitives.useAnchoredPosition === 'function'
         && typeof primitives.useDismissOnOutsidePointer === 'function') {
         const reactDom = require('react-dom')
         if (reactDom && typeof reactDom.createPortal === 'function') {
           hostOrbit = createOrbitPopover({ React: { ...React, createPortal: reactDom.createPortal }, primitives })
+          hostOrbitRow = primitives.DisclosureRow
         }
       }
     } catch {
       hostOrbit = null
+      hostOrbitRow = null
     }
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
@@ -579,12 +584,17 @@ window.__ModuleLoader__.load({
 .sa-dock-bar > span[data-tone='ok'] { background: var(--dsw-alias-state-success-primary); }
 .sa-dock-bar > span[data-tone='warn'] { background: var(--dsw-alias-border-l4); }
 .sa-dock-bar > span[data-tone='err'] { background: var(--dsw-alias-state-error-primary); }
-.sa-dock-rows { display: flex; flex-direction: column; gap: 2px; padding: 0 6px 4px; max-height: 264px; overflow: auto; }
+.sa-dock-rows { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0 6px 4px; max-height: 264px; overflow: auto; list-style: none; }
 .sa-dock-row { display: flex; align-items: flex-start; gap: 8px; padding: 7px 8px; border-radius: 10px; }
 .sa-dock-row:hover, .sa-dock-row:focus-within { background: var(--dsw-alias-interactive-bg-hover); }
 .sa-dock-row > .dt-state-dot { margin-top: 5px; }
 .sa-dock-body { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
 .sa-dock-line { display: flex; align-items: center; gap: 6px; min-width: 0; }
+/* DSH DisclosureRow 承载行头；sa-dock-* 只补 watcher 的多行详情与动作布局，不冒充官方类名。 */
+.sa-dock-official-row { flex-direction: column; align-items: stretch; gap: 2px; }
+.sa-dock-official-row .sa-dock-content { display: block; width: 100%; }
+.sa-dock-official-row .sa-dock-name { flex: 0 1 auto; }
+.sa-dock-official-row .sa-dock-body { margin-left: 22px; }
 .sa-dock-session { flex: none; font-size: 11px; line-height: 18px; color: var(--dsw-alias-label-tertiary); }
 .sa-dock-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; line-height: 18px; font-weight: 500; color: var(--dsw-alias-label-primary); }
 .sa-dock-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dsw-alias-label-tertiary); }
@@ -1639,40 +1649,67 @@ window.__ModuleLoader__.load({
         w.lastError || '',
       ].filter(Boolean).join('\n')
 
+      const noRowToggle = () => {}
       const rows = list.map((w) => {
         const state = orbitStateOf(w)
         const dotState = state === 'active' ? 'done' : state === 'paused' ? 'warning' : state === 'error' ? 'error' : 'idle'
         const tone = state === 'active' ? 'success' : state === 'paused' ? 'neutral' : state === 'error' ? 'danger' : 'quiet'
-        return h('div', {
-          key: String(w.repo || '') + '#' + String(w.sessionId || ''),
-          className: 'sa-dock-row',
-          title: detailTitle(w),
-        },
-          h('span', { className: 'dt-state-dot', 'data-state': dotState }),
+        const key = String(w.repo || '') + '#' + String(w.sessionId || '')
+        const statusDot = h('span', { className: 'dt-state-dot', 'data-state': dotState })
+        const statusTag = h('span', { className: 'dt-tag', 'data-tone': tone }, STATE_TEXT[state])
+        const detailContent = h(React.Fragment, null,
+          h('div', { className: 'sa-dock-sub' }, shortSub(w)),
+          w.lastError
+            ? h('div', { className: 'sa-dock-err' }, splitErrorText(w.lastError).main)
+            : null)
+        const details = h('div', { className: 'sa-dock-body' }, detailContent)
+        const actions = h('div', { className: 'sa-dock-actions' },
+          h(Btn, { size: 'sm', variant: 'ghost', onClick: () => act(w, 'poll') }, '立刻'),
+          h(Btn, { size: 'sm', variant: 'ghost', onClick: () => act(w, w.enabled ? 'pause' : 'resume') },
+            w.enabled ? '暂停' : '恢复'),
+          hostOrbit
+            ? h(Btn, {
+              variant: 'ghost', size: 'sm', icon: h(Icon, { name: 'trash' }),
+              'aria-label': '删除', 'aria-haspopup': 'dialog',
+              // 适配器保证先 onCloseOrbit，再由 onRequestConfirm 选中待删 watcher。
+              onClick: () => orbitConfirm.onRequestConfirm({ watcher: w }),
+            }, '删除')
+            : h(ConfirmButton, {
+              label: '删除', confirmLabel: '确认删除', variant: 'ghost', size: 'sm', modalContext: 'orbit',
+              icon: h(Icon, { name: 'trash' }),
+              onConfirm: () => act(w, 'delete'),
+            }))
+
+        if (hostOrbitRow) {
+          // 官方非展开 DisclosureRow：状态/仓库/状态标签走行头，三个独立动作走 headerAccessory。
+          // 语义列表沿用 conversation QueueDock 的 ul>li；watcher 详情是官方无同物的 derived 内容。
+          return h('li', { key, className: 'sa-dock-row sa-dock-official-row', title: detailTitle(w) },
+            h(hostOrbitRow, {
+              icon: statusDot,
+              title: String(w.repo || '?'),
+              open: false,
+              expandable: false,
+              previewChevron: false,
+              onToggle: noRowToggle,
+              collapsedContent: statusTag,
+              headerAccessory: actions,
+              className: 'sa-dock-disclosure',
+              contentClassName: 'sa-dock-content',
+              contentLayoutClassName: 'sa-dock-line',
+              titleClassName: 'sa-dock-name',
+            }),
+            details)
+        }
+
+        // 旧宿主完整回退：不改 DOM、不依赖 DisclosureRow 或语义列表。
+        return h('div', { key, className: 'sa-dock-row', title: detailTitle(w) },
+          statusDot,
           h('div', { className: 'sa-dock-body' },
             h('div', { className: 'sa-dock-line' },
               h('span', { className: 'sa-dock-name' }, String(w.repo || '?')),
-              h('span', { className: 'dt-tag', 'data-tone': tone }, STATE_TEXT[state])),
-            h('div', { className: 'sa-dock-sub' }, shortSub(w)),
-            w.lastError
-              ? h('div', { className: 'sa-dock-err' }, splitErrorText(w.lastError).main)
-              : null),
-          h('div', { className: 'sa-dock-actions' },
-            h(Btn, { size: 'sm', variant: 'ghost', onClick: () => act(w, 'poll') }, '立刻'),
-            h(Btn, { size: 'sm', variant: 'ghost', onClick: () => act(w, w.enabled ? 'pause' : 'resume') },
-              w.enabled ? '暂停' : '恢复'),
-            hostOrbit
-              ? h(Btn, {
-                variant: 'ghost', size: 'sm', icon: h(Icon, { name: 'trash' }),
-                'aria-label': '删除', 'aria-haspopup': 'dialog',
-                // 适配器保证先 onCloseOrbit，再由 onRequestConfirm 选中待删 watcher。
-                onClick: () => orbitConfirm.onRequestConfirm({ watcher: w }),
-              }, '删除')
-              : h(ConfirmButton, {
-                label: '删除', confirmLabel: '确认删除', variant: 'ghost', size: 'sm', modalContext: 'orbit',
-                icon: h(Icon, { name: 'trash' }),
-                onConfirm: () => act(w, 'delete'),
-              })))
+              statusTag),
+            detailContent),
+          actions)
       })
 
       // 比例条：和官方的「上下文已用」同一种表达（一眼看出多少在跑）
@@ -1690,7 +1727,7 @@ window.__ModuleLoader__.load({
         bar,
         list.length === 0
           ? h('div', { className: 'sa-dock-empty' }, '还没有。在「主理鱼」标签页填 owner/name 加一条。')
-          : h('div', { className: 'sa-dock-rows' }, rows),
+          : h(hostOrbitRow ? 'ul' : 'div', { className: 'sa-dock-rows' }, rows),
         // 写操作的失败必须出现在弹层里（M4）：以前两层空 catch，点了没反应也没提示
         orbitError ? h('div', { className: 'sa-dock-err', role: 'alert' }, '操作失败：' + orbitError) : null,
         list.length > 0
