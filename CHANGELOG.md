@@ -2,6 +2,14 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.10.3] - 2026-11-07 —— 可配置门禁 + 语义复审
+
+- 新增 `gates/default.json` 与 `lib/gates.js`：默认/用户全局/项目/本地四层合并，同 id 覆盖。
+- 新增 `/session-superagent/gates`、`/gates/preview`、`/gates/optimize`、`/gates/models` 四条路由。
+- 确定性门禁覆盖脱敏、本机路径、本机版本、后台任务、内部 ID、无关引用、未发布版本承诺、破坏性操作。
+- 语义复审只允许 release / merge，默认关闭；支持模型选择、提示词润色、超时放行。
+- 验证：697/697、preflight 41/41。
+
 ## [0.10.2] - 2026-11-07 —— 304 不再吞评论（issue #11 复审）
 
 - 修复 watcher 信任 GitHub issues 列表 ETag 导致新增评论被 304 吞掉：超过 10 分钟没有全量刷新就丢弃 ETag，下一轮强制重取。

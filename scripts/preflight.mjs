@@ -182,7 +182,7 @@ if (!FAST) {
 {
   const res = tryRun('node', ['scripts/audit-routes.mjs'], { timeout: 60000 })
   const line = (String(res.stdout || '').trim().split(String.fromCharCode(10))[0] || '无输出')
-  record('路由面（9 条）', res.status === 0, line.replace(/^(PASS|FAIL) 路由面（9 条）\s*/, ''))
+  record('路由面（13 条）', res.status === 0, line.replace(/^(PASS|FAIL) 路由面（13 条）\s*/, ''))
 }
 
 // ⑥ 打包内容（脚本独立，注入验证也能单独跑它）
