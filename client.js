@@ -346,6 +346,7 @@ window.__ModuleLoader__.load({
     // 老宿主没有这个映射时 require 会抛错；可选探测失败必须完整保留本地实现。
     let hostUi = null
     let hostButton = null
+    let hostInput = null
     let hostSegmentedTabs = null
     let hostTooltip = null
     let hostOrbit = null
@@ -354,6 +355,8 @@ window.__ModuleLoader__.load({
       const primitives = require('@deepseek-ai/dsh-client-ui-primitives')
       // Button 独立探测：老宿主缺 Modal/Toast 时仍可复用官方按钮；缺 Button 时所有 variant 完整回退旧 Btn。
       hostButton = primitives.Button || null
+      // Input 同样独立探测：缺导出只回退共享输入框，不影响 Button/Tabs 等其它原语。
+      hostInput = primitives.Input || null
       // SegmentedTabs 同样独立探测：缺导出时完整保留下方 SegTabs，不影响其它原语。
       hostSegmentedTabs = primitives.SegmentedTabs || null
       if (primitives && primitives.Modal && primitives.Toast && primitives.IconWarningOutlineMedium) {
@@ -364,6 +367,7 @@ window.__ModuleLoader__.load({
     } catch {
       hostUi = null
       hostButton = null
+      hostInput = null
       hostSegmentedTabs = null
       hostTooltip = null
     }
@@ -753,10 +757,16 @@ window.__ModuleLoader__.load({
       }, item.label)))
     }
 
-    function Input({ icon, ...rest }) {
+    function Input({ icon, className, ...rest }) {
+      if (hostInput) {
+        // 官方 className 作用于唯一 wrapper；保留 dt-input 让现有 Field/Search 布局选择器继续命中。
+        // icon 只交给官方渲染，ref 随 rest 交给官方 forwardRef，不能再包本地 span 或复刻 icon。
+        return h(hostInput, { ...rest, icon, className: cx('dt-input', className) })
+      }
+      // 老宿主完整保留 superagent 同源结构；ref 与全部原生 input 属性仍落在真正的 input 上。
       return h('span', { className: 'dt-input' },
         icon !== undefined ? h('span', { className: 'dt-input-icon' }, icon) : null,
-        h('input', rest))
+        h('input', { ...rest, className }))
     }
 
     function Toggle({ checked, onChange, label, id, disabled }) {
