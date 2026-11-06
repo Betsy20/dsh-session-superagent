@@ -2,6 +2,14 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.10.4] - 2026-11-07 —— 304 在 gh exit 1 路径上也生效
+
+- 修复 `gh api --include` 把 304 当 exit 1：原年龄检查只在 `parsed.status === 304`，GitHub 路径永远走不到。
+- 两条 304 入口统一走 `settleNotModified()`；超过 10 分钟未全量刷新就删 ETag，下一轮重取。
+- 行为测试改为直接断言 `etag-stale` / `unchanged`，不再只匹配源码字符串。
+- `@deepseek-ai/schemastery` 依赖从精确 `3.18.5` 放宽为 `^3.18.5`（实测 3.19.0 下 697/697）。
+- 验证：697/697、preflight 41/41。
+
 ## [0.10.3] - 2026-11-07 —— 可配置门禁 + 语义复审
 
 - 新增 `gates/default.json` 与 `lib/gates.js`：默认/用户全局/项目/本地四层合并，同 id 覆盖。
