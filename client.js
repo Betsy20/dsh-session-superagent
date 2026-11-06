@@ -1306,7 +1306,7 @@ window.__ModuleLoader__.load({
     const PanelModal = hostUi ? hostUi.Modal : Modal
 
     /** 确认层与触发器分离：DSH orbit 关闭后，同一个本地 Modal 仍能由 StatusOrbit 持有。 */
-    function ConfirmDialog({ open, label, confirmLabel = '确定执行', title = confirmLabel, message, onConfirm, onClose, modalContext = 'panel', ButtonComponent = Btn, danger = true, preventDismissOnBusy = false }) {
+    function ConfirmDialog({ open, label, confirmLabel = '确定执行', title = confirmLabel, message, onConfirm, onClose, modalContext = 'panel', ButtonComponent = Btn, danger = true, preventDismissOnBusy = false, error = null, busyLabel = confirmLabel, busyHint = '安装进行中，完成后才能关闭' }) {
       const [busy, setBusy] = useState(false)
       const busyRef = useRef(false)
       const dismiss = () => {
@@ -1331,6 +1331,11 @@ window.__ModuleLoader__.load({
       }
       // orbit 删除明确保留 superagent 同源 Modal；普通主面板删除仍走 PanelModal，不换 RiskConfirmation。
       const ModalView = modalContext === 'orbit' ? Modal : PanelModal
+      const feedback = error || (preventDismissOnBusy && busy)
+        ? h(React.Fragment, null,
+          error ? h('div', { className: 'dt-error', role: 'alert' }, error) : null,
+          preventDismissOnBusy && busy ? h(Hint, null, busyHint) : null)
+        : null
       return h(ModalView, {
         open,
         title,
@@ -1345,12 +1350,12 @@ window.__ModuleLoader__.load({
             'aria-label': confirmLabel,
             'aria-busy': busy ? 'true' : undefined,
             onClick: confirm,
-          }, confirmLabel)),
-      }, preventDismissOnBusy && busy ? h(Hint, null, '安装进行中，完成后才能关闭') : null)
+          }, busy ? busyLabel : confirmLabel)),
+      }, feedback)
     }
 
     /** 官方 ConfirmButton 动线：触发按钮只开 Modal，取消不执行，确认期间 busy 防重复。 */
-    function ConfirmButton({ label, confirmLabel = '确定执行', title = confirmLabel, message, onConfirm, variant = 'ghost', icon, size, modalContext = 'panel', ButtonComponent = Btn, danger = true, preventDismissOnBusy = false }) {
+    function ConfirmButton({ label, confirmLabel = '确定执行', title = confirmLabel, message, onConfirm, variant = 'ghost', icon, size, modalContext = 'panel', ButtonComponent = Btn, danger = true, preventDismissOnBusy = false, error = null, busyLabel = confirmLabel, busyHint }) {
       const [open, setOpen] = useState(false)
       const close = useCallback(() => setOpen(false), [])
       return h(React.Fragment, null,
@@ -1362,10 +1367,11 @@ window.__ModuleLoader__.load({
           'aria-haspopup': 'dialog',
           onClick: () => setOpen(true),
         }, label),
-        h(ConfirmDialog, { open, label, confirmLabel, title, message, onConfirm, onClose: close, modalContext, ButtonComponent, danger, preventDismissOnBusy }))
+        h(ConfirmDialog, { open, label, confirmLabel, title, message, onConfirm, onClose: close, modalContext, ButtonComponent, danger, preventDismissOnBusy, error, busyLabel, busyHint }))
     }
 
     const watcherId = (w) => (w && w.id) || String((w && w.repo) || '') + '#' + String((w && w.sessionId) || '')
+    const orbitActionKey = (w, action) => JSON.stringify([watcherId(w), action])
     const short = (value, width = 19) => (typeof value === 'string' && value.length > width ? value.slice(0, width - 1) + '…' : (value ?? '—'))
     const when = (iso) => (typeof iso === 'string' ? iso.replace('T', ' ').replace('Z', '').slice(5, 19) : '—')
 
@@ -1571,6 +1577,9 @@ window.__ModuleLoader__.load({
       const [anchor, setAnchor] = useState(null)
       const btnRef = useRef(null)
       const panelRef = useRef(null)
+      const actionLocks = useRef(new Set())
+      const stateSequence = useRef(0)
+      const orbitAlive = useRef(true)
       const orbitConfirm = useOrbitConfirm({
         orbitRef: btnRef,
         onCloseOrbit: () => setOpen(false),
@@ -1578,28 +1587,36 @@ window.__ModuleLoader__.load({
         onRequestConfirm: ({ watcher }) => setAnchor(watcher),
       })
 
+      const isReadError = (value) => typeof value === 'string'
+        && (value.startsWith('读取失败：') || value.startsWith('写成功了，但刷新列表失败：'))
+      // 定时轮询与写后回读共用同一个代际：只允许最后一次请求改 watchers/读取错误。
+      const loadState = async (failurePrefix = '读取失败：') => {
+        const sequence = ++stateSequence.current
+        try {
+          const body = await call('/state')
+          if (!orbitAlive.current || sequence !== stateSequence.current) return { applied: false, ok: true }
+          setWatchers(Array.isArray(body && body.watchers) ? body.watchers : [])
+          setOrbitError((current) => isReadError(current) ? null : current)
+          return { applied: true, ok: true }
+        } catch (error) {
+          if (orbitAlive.current && sequence === stateSequence.current) {
+            setOrbitError(failurePrefix + String((error && error.message) || error).slice(0, 160))
+          }
+          return { applied: orbitAlive.current && sequence === stateSequence.current, ok: false }
+        }
+      }
+
       // 弹层的样式（DOCK_CSS）挂在 PORTED_CSS 同一张 <style> 里，而那张表以前只有「主理鱼」面板挂载时才注入。
       // 用户从没打开过面板就直接点状态栏圆环时，弹层就是一堆无样式的裸文字（真机复现过）。
       useEffect(() => { ensurePortedCss() }, [])
 
       useEffect(() => {
-        let alive = true
+        orbitAlive.current = true
         noteOnce('orbit-mount', 'ok')
-        const load = async () => {
-          try {
-            const body = await call('/state')
-            if (alive) {
-              setWatchers(Array.isArray(body && body.watchers) ? body.watchers : [])
-              setOrbitError((current) => typeof current === 'string' && current.startsWith('读取失败：') ? null : current)
-            }
-          } catch (error) {
-            // null=尚未读到，[]=成功读到空列表；首次失败不能伪造成“还没有主理鱼”。
-            if (alive) setOrbitError('读取失败：' + String((error && error.message) || error).slice(0, 160))
-          }
-        }
+        const load = () => loadState()
         load()
         const timer = setInterval(load, POLL_MS)
-        return () => { alive = false; clearInterval(timer) }
+        return () => { orbitAlive.current = false; clearInterval(timer) }
       }, [])
 
       // 弹层每次打开都把样式表钉一遍：宿主热重载可能把 <style> 清掉，
@@ -1634,7 +1651,7 @@ window.__ModuleLoader__.load({
       }, [open])
 
       const list = watchers || []
-      const readError = typeof orbitError === 'string' && orbitError.startsWith('读取失败：') ? orbitError : null
+      const readError = isReadError(orbitError) ? orbitError : null
       // Never hide the entry: with nothing being watched it stays as a grey
       // ring, so the affordance is always findable in the dock row.
       const running = list.filter((w) => orbitStateOf(w) === 'active').length
@@ -1683,24 +1700,33 @@ window.__ModuleLoader__.load({
       const bottom = !hostOrbit && anchor ? Math.max(8, (window.innerHeight || 800) - anchor.y + 8) : 64
 
       const act = async (w, action) => {
-        // 删除只走 ConfirmButton + Modal；不要再叠一层原生确认框（同一动作问两次）。
-        // 审核 M4：两层空 catch 让写操作遇 409/404/503/断网时**完全静默** ——
-        // 界面不变、无提示，客户以为按钮坏了。失败必须说出来。
-        try {
-          await call('/watch', { method: 'POST', body: JSON.stringify({ action, id: watcherId(w) }) })
-        } catch (error) {
-          setOrbitError(String((error && error.message) || error).slice(0, 160))
-          return false
+        const key = orbitActionKey(w, action)
+        if (actionLocks.current.has(key)) return false
+        actionLocks.current.add(key)
+        // 不新增根 useState：旧 fallback 的位置化 hook 契约必须保持不变。
+        // 新数组只触发一次渲染，watcher 内容不变；可见 pending 直接读取同步锁集合。
+        setWatchers((current) => Array.isArray(current) ? [...current] : current)
+        if (action === 'delete') {
+          setOrbitError((current) => typeof current === 'string' && current.startsWith('删除失败：') ? null : current)
         }
         try {
-          const body = await call('/state')
-          setWatchers(Array.isArray(body && body.watchers) ? body.watchers : [])
+          // 删除只走 ConfirmButton + Modal；不要再叠一层原生确认框（同一动作问两次）。
+          try {
+            await call('/watch', { method: 'POST', body: JSON.stringify({ action, id: watcherId(w) }) })
+          } catch (error) {
+            const message = String((error && error.message) || error).slice(0, 160)
+            setOrbitError(action === 'delete' ? '删除失败：' + message : message)
+            return false
+          }
+          // 写已成功：清掉上一代操作/读取错误；回读失败会由 loadState 写入新的可见错误。
           setOrbitError(null)
-        } catch (error) {
-          setOrbitError('写成功了，但刷新列表失败：' + String((error && error.message) || error).slice(0, 120))
+          await loadState('写成功了，但刷新列表失败：')
+          // 刷新失败不等于删除失败：动作已成功，确认框仍应关闭。
+          return true
+        } finally {
+          actionLocks.current.delete(key)
+          setWatchers((current) => Array.isArray(current) ? [...current] : current)
         }
-        // 刷新失败不等于删除失败：动作已成功，确认框仍应关闭。
-        return true
       }
 
       // fallback 完全保留原提前返回；DSH 即使 orbit 已关，也要继续渲染由本组件持有的确认 Modal。
@@ -1709,6 +1735,8 @@ window.__ModuleLoader__.load({
         setAnchor(null)
         orbitConfirm.onConfirmClose()
       }
+      const deleteError = typeof orbitError === 'string' && orbitError.startsWith('删除失败：') ? orbitError : null
+      const actionPending = (w, action) => actionLocks.current.has(orbitActionKey(w, action))
 
       // 悬浮面板也走移植来的 dt-* 设计系统（以前这里是一套自成体系的 inline style，
       // 和原生界面放在一起能看出断层；ui-audit ⑥ 就是在盯这件事）。
@@ -1745,6 +1773,9 @@ window.__ModuleLoader__.load({
         const key = String(w.repo || '') + '#' + String(w.sessionId || '')
         const statusDot = h('span', { className: 'dt-state-dot', 'data-state': dotState })
         const statusTag = h('span', { className: 'dt-tag', 'data-tone': tone }, STATE_TEXT[state])
+        const pollPending = actionPending(w, 'poll')
+        const toggleAction = w.enabled ? 'pause' : 'resume'
+        const togglePending = actionPending(w, toggleAction)
         const detailContent = h(React.Fragment, null,
           h('div', { className: 'sa-dock-sub' }, shortSub(w)),
           w.lastError
@@ -1752,9 +1783,16 @@ window.__ModuleLoader__.load({
             : null)
         const details = h('div', { className: 'sa-dock-body' }, detailContent)
         const actions = h('div', { className: 'sa-dock-actions' },
-          h(Btn, { size: 'sm', variant: 'ghost', onClick: () => act(w, 'poll') }, '立刻'),
-          h(Btn, { size: 'sm', variant: 'ghost', onClick: () => act(w, w.enabled ? 'pause' : 'resume') },
-            w.enabled ? '暂停' : '恢复'),
+          h(Btn, {
+            size: 'sm', variant: 'ghost', disabled: pollPending,
+            className: cx(pollPending && 'dt-btn-busy'), 'aria-busy': pollPending ? 'true' : undefined,
+            onClick: () => act(w, 'poll'),
+          }, pollPending ? '轮询中…' : '立刻'),
+          h(Btn, {
+            size: 'sm', variant: 'ghost', disabled: togglePending,
+            className: cx(togglePending && 'dt-btn-busy'), 'aria-busy': togglePending ? 'true' : undefined,
+            onClick: () => act(w, toggleAction),
+          }, togglePending ? (toggleAction === 'pause' ? '暂停中…' : '恢复中…') : (w.enabled ? '暂停' : '恢复')),
           hostOrbit
             ? h(Btn, {
               variant: 'ghost', size: 'sm', icon: h(Icon, { name: 'trash' }),
@@ -1765,7 +1803,8 @@ window.__ModuleLoader__.load({
             : h(ConfirmButton, {
               label: '删除', confirmLabel: '确认删除', variant: 'ghost', size: 'sm', modalContext: 'orbit',
               icon: h(Icon, { name: 'trash' }),
-              onConfirm: () => act(w, 'delete'),
+              onConfirm: () => act(w, 'delete'), error: deleteError,
+              preventDismissOnBusy: true, busyLabel: '删除中…', busyHint: '删除进行中，完成后才能关闭',
             }))
 
         if (hostOrbitRow) {
@@ -1855,6 +1894,10 @@ window.__ModuleLoader__.load({
           modalContext: 'orbit',
           onConfirm: () => act(anchor, 'delete'),
           onClose: closeConfirm,
+          error: deleteError,
+          preventDismissOnBusy: true,
+          busyLabel: '删除中…',
+          busyHint: '删除进行中，完成后才能关闭',
         })
         : null
 
