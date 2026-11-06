@@ -1,31 +1,34 @@
-// 真实 Chromium + 安装版 DSH React/primitives + 完整 session-superagent-desk 面板验收。
+// 真实 Chromium + 安装版 DSH React/primitives + 完整 session-superagent-desk / orbit / Modal 验收。
 // 运行：ego-browser nodejs < scripts/verify-panel-chromium.mjs
 // 独立 loopback fake API；不进入真实 DSH Web GUI，不访问 GitHub/npm，不执行更新、删除或其他真实写操作。
 
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { appendFileSync, readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import http from 'node:http'
 
-const REPO = 'D:/主工作区/projects/dsh-session-superagent-panel-browser'
+const REPO = 'D:/主工作区/projects/dsh-session-superagent-full-orbit'
 const ASAR = 'D:/DeepSeek Harness/Desktop/resources/app.asar'
 const ELECTRON = 'D:/DeepSeek Harness/Desktop/DeepSeek Harness.exe'
 const FRONTEND = `${ASAR}/dsh/node_modules/@deepseek-ai/dsh-web-frontend`
 const THEME_CLIENT = `${ASAR}/dsh/node_modules/@deepseek-ai/dsh-client-ui-theme/lib/client.js`
 const SCREENSHOTS = `${REPO}/docs/assets`
 const SESSION_ID = 'session-panel-chromium-fixture'
-const SPACE_NAME = 'dsh-full-panel-chromium-0.9.273'
+const SPACE_NAME = 'dsh-full-panel-chromium-full-orbit-0.9.276'
 const results = []
 const observations = []
 const artifacts = []
+const deskCaptures = []
+// 本机两次真实运行分别死在 desk raw CDP 与 Orbit page.screenshot 内，异常不会回到页面侧 catch。
+// 本轮强制 SKIP 截图；需要重试通道时只改此 harness 开关，不触碰生产代码。
+const CAPTURE_SCREENSHOTS = false
 const apiLog = []
-const DEBUG_LOG = 'C:/Users/Administrator/AppData/Local/Temp/panel-chromium-internal.log'
-writeFileSync(DEBUG_LOG, '')
-const debug = (line) => appendFileSync(DEBUG_LOG, line + '\n')
+const debugLines = []
+const debug = (line) => debugLines.push(line)
 const unverified = [
-  '未进入需要真实会话与凭证的 DSH Web GUI；本脚本验证独立 loopback 页面中真实 client.js 的 slot 注册与 desk Component 挂载。',
-  'Orbit/Modal 不在本阶段验收范围内；只捕获 session-superagent-orbit 注册，不渲染或点击。',
-  '未执行保存、安装更新、删除、暂停、恢复或真实轮询；所有 mutation 路由均固定返回只读拒绝。',
+  '未进入需要真实会话与凭证的 DSH Web GUI；本脚本验证独立 loopback 页面中真实 client.js 的 slot 注册以及 desk/orbit Component 挂载。',
+  '真实 StatusOrbit 签名无 props；sessionId 传给 desk，Orbit watcher 数据由同一 fixture /state API 提供，不虚构 ctx/slot 参数。',
+  '未执行真实保存、安装更新、删除、暂停、恢复或 watcher 轮询；唯一 POST 是末尾显式 fixture 防写探针，必须由 loopback 返回 403。',
   '未验物理读屏、触摸、IME、真实 GitHub/Gitee 响应与真实 watcher 状态变化。',
 ]
 
@@ -143,6 +146,7 @@ html, body { margin: 0; min-height: 100%; background: var(--dsw-alias-bg-base, #
 body { color: var(--dsw-alias-label-primary, #f4f4f5); font-family: var(--dsw-font-family, system-ui, sans-serif); }
 #root { display: none !important; }
 #app { height: 100vh; min-height: 640px; }
+#orbit-app { position: fixed; right: 32px; bottom: 32px; z-index: 20; }
 button, input, textarea { font: inherit; }
 `
 
@@ -180,18 +184,23 @@ try {
   };
   plugin.apply(ctx);
   const desk = window.__registrations['session-superagent-desk'];
+  const orbit = window.__registrations['session-superagent-orbit'];
   if (!desk || typeof desk.Component !== 'function') throw new Error('slots.register 未捕获 session-superagent-desk Component');
+  if (!orbit || typeof orbit.Component !== 'function') throw new Error('slots.register 未捕获 session-superagent-orbit Component');
   window.__verifyMeta = {
     reactVersion: React.version,
     primitiveExportCount: Object.keys(primitives).length,
     moduleNames: Object.keys(modules),
     primitivesIdentity: primitives === modules['@deepseek-ai/dsh-client-ui-primitives'],
     clientModuleId: window.__clientModuleId,
-    desk: { ...desk.options, componentType: typeof desk.Component },
-    orbit: window.__registrations['session-superagent-orbit']?.options || null,
+    desk: { ...desk.options, componentType: typeof desk.Component, arity: desk.Component.length },
+    orbit: { ...orbit.options, componentType: typeof orbit.Component, arity: orbit.Component.length },
+    fixture: { deskProps: { sessionId: ${JSON.stringify(SESSION_ID)} }, orbitProps: null, stateApi: '/session-superagent/state' },
     slotEvents: window.__slotEvents,
   };
   ReactDOM.createRoot(document.getElementById('app')).render(React.createElement(desk.Component, { sessionId: ${JSON.stringify(SESSION_ID)} }));
+  // 真实 StatusOrbit() 没有 props； watcher fixture 由 /state API 加载，不能伪造一个 props 适配层。
+  ReactDOM.createRoot(document.getElementById('orbit-app')).render(React.createElement(orbit.Component));
   window.__harnessReady = true;
 } catch (error) {
   window.__harnessError = String(error && error.stack || error);
@@ -205,12 +214,12 @@ function htmlFor(installed) {
   if (!entry) throw new Error('安装 dist/index.html 中没有入口 JS')
   return `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>session-superagent-desk 真实 Chromium 验收</title>
+<title>session-superagent desk/orbit/Modal 真实 Chromium 验收</title>
 ${styles.map((name) => `<link rel="stylesheet" href="/${name}">`).join('\n')}
 <style>${Object.values(installed.themeStyles).join('\n')}</style>
 <style>${HARNESS_CSS}</style>
 <script>${CAPTURE_FACADE}</script>
-</head><body data-ds-dark-theme="true"><div id="root"></div><div id="app"></div>
+</head><body data-ds-dark-theme="true"><div id="root"></div><div id="app"></div><div id="orbit-app"></div>
 <script type="module" src="/${entry}"></script>
 <script type="module">${HARNESS_MODULE.replaceAll('</script', '<\\/script')}</script>
 </body></html>`
@@ -362,6 +371,10 @@ try {
   if (harnessError) throw new Error(harnessError)
   await page.waitForFunction(() => document.querySelector('.dt-page h1')?.textContent === '主理鱼'
     && !document.body.innerText.includes('正在读取…'), undefined, { timeout: 15000 })
+  await page.waitForFunction(() => {
+    const trigger = document.querySelector('#orbit-app .sa-orbit-trigger')
+    return trigger && !trigger.classList.contains('is-loading') && trigger.getAttribute('aria-label')?.includes('共 2 条')
+  }, undefined, { timeout: 15000 })
   const browser = await page.evaluate(async () => ({
     userAgent: navigator.userAgent,
     highEntropy: navigator.userAgentData ? await navigator.userAgentData.getHighEntropyValues(['fullVersionList']) : null,
@@ -375,6 +388,11 @@ try {
   check('slots.register 捕获 session-superagent-desk', meta.desk.name === 'conversation.view'
     && meta.desk.id === 'session-superagent-desk' && meta.desk.order === 30
     && meta.desk.label === '主理鱼' && meta.desk.componentType === 'function', meta.desk)
+  check('slots.register 捕获并真实挂载 session-superagent-orbit', meta.orbit.name === 'conversation.composer.dock'
+    && meta.orbit.id === 'session-superagent-orbit' && meta.orbit.order === -10
+    && meta.orbit.componentType === 'function' && meta.orbit.arity === 0
+    && meta.fixture.deskProps.sessionId === SESSION_ID && meta.fixture.stateApi === '/session-superagent/state',
+  { orbit: meta.orbit, fixture: meta.fixture })
   const overview = await page.evaluate(() => ({
     title: document.querySelector('.dt-page h1')?.textContent,
     tabs: [...document.querySelectorAll('[role=tab]')].map((node) => ({ text: node.textContent, selected: node.getAttribute('aria-selected') })),
@@ -387,11 +405,26 @@ try {
     && overview.tabs[0]?.selected === 'true' && overview.watchers === 2 && overview.stats >= 4,
   { title: overview.title, tabs: overview.tabs, watchers: overview.watchers, stats: overview.stats })
   const shot = async (name) => {
-    const path = `${SCREENSHOTS}/panel-chromium-${name}.png`
+    const persist = name.startsWith('orbit')
+    const path = persist ? `${SCREENSHOTS}/panel-chromium-${name}.png` : null
+    if (!CAPTURE_SCREENSHOTS) {
+      const reason = 'Ego/CDP 截图通道已证实在 API 内部终止进程；本轮跳过，DOM/焦点验收继续'
+      console.log(`SKIP 截图 ${name} ${JSON.stringify(reason)}`)
+      observe(`${name} 截图跳过（通道不可用）`, { path, reason })
+      return
+    }
     try {
-      await page.screenshot({ path, fullPage: true })
-      artifacts.push(path)
-      observe(`${name} 已截图`, { path: `docs/assets/panel-chromium-${name}.png` })
+      if (persist) {
+        // 本任务只落盘 panel-chromium-orbit*.png；既有 desk PNG 不覆盖。
+        await page.screenshot({ path, fullPage: true })
+        artifacts.push(path)
+        observe(`${name} 已截图`, { path: `docs/assets/panel-chromium-${name}.png` })
+      } else {
+        // 本任务不允许覆盖 desk PNG；已知 raw CDP 截图还可能长阻塞，因此明确 SKIP，不拖住 DOM/焦点验收。
+        const detail = { name, persisted: false, reason: 'write-scope: 仅允许落盘 panel-chromium-orbit*.png' }
+        console.log(`SKIP 截图 ${name} ${JSON.stringify(detail.reason)}`)
+        observe(`${name} 截图跳过（保留 desk 基线，功能检查继续）`, detail)
+      }
     } catch (error) {
       // Ego/CDP 截图通道偶发超时，不应把真实 DOM/交互验收误判为产品失败。
       const detail = String((error && error.message) || error)
@@ -425,6 +458,14 @@ try {
   // 行内编辑：只修改本地 React 草稿并放弃，绝不提交 /watch。
   await page.click('.dt-list .dt-open >> nth=0')
   await page.waitForSelector("form[data-mode='edit']", { state: 'visible', timeout: 5000 })
+  const editEntry = await page.evaluate(() => ({
+    expanded: document.querySelector('.dt-list .dt-open')?.getAttribute('aria-expanded'),
+    forms: document.querySelectorAll("form[data-mode='edit']").length,
+    activeIsOpener: document.activeElement === document.querySelector('.dt-list .dt-open'),
+    activeConnected: document.activeElement?.isConnected === true,
+  }))
+  check('overview 仓库按钮进入行内编辑且焦点不丢', editEntry.expanded === 'true'
+    && editEntry.forms === 1 && editEntry.activeIsOpener && editEntry.activeConnected, editEntry)
   await page.fill("form[data-mode='edit'] input[type='number'] >> nth=0", '90')
   const edited = await page.evaluate(() => ({
     value: document.querySelector("form[data-mode='edit'] input[type='number']")?.value,
@@ -488,6 +529,13 @@ try {
 
   // 设置总壳与五个分区全部真实点击。
   await openTab('设置')
+  const settingsEntry = await page.evaluate(() => ({
+    selected: document.querySelector('[role=tab][aria-selected=true]')?.textContent,
+    activeIsSelected: document.activeElement === document.querySelector('[role=tab][aria-selected=true]'),
+    activeConnected: document.activeElement?.isConnected === true,
+  }))
+  check('desk 设置按钮进入设置且焦点不丢', settingsEntry.selected === '设置'
+    && settingsEntry.activeIsSelected && settingsEntry.activeConnected, settingsEntry)
   const settingsNav = await page.evaluate(() => [...document.querySelectorAll('.dt-settings-link')].map((node) => node.textContent))
   check('settings 左 nav 恰好五个既定分区', JSON.stringify(settingsNav)
     === JSON.stringify(['来源', '凭证', '版本与更新', '分诊信号', '会话 goal']), settingsNav)
@@ -568,6 +616,132 @@ try {
   )))
   await shot('settings-goal')
 
+  // 第三阶段：同一真实 client.js 的 StatusOrbit 已由独立 root 挂载；只走只读打开、键盘与取消。
+  const orbitTrigger = '#orbit-app .sa-orbit-trigger'
+  const orbitPanel = '.sa-dock-panel[role="dialog"]'
+  const openOrbit = async () => {
+    await page.click(orbitTrigger)
+    await page.waitForSelector(orbitPanel, { state: 'visible', timeout: 5000 })
+    await page.waitForFunction((selector) => {
+      const panel = document.querySelector(selector)
+      return panel && getComputedStyle(panel).visibility === 'visible' && document.activeElement === panel
+    }, orbitPanel, { timeout: 5000 })
+  }
+  const waitOrbitClosed = async () => {
+    await page.waitForFunction((selector) => !document.querySelector(selector), orbitPanel, { timeout: 5000 })
+  }
+
+  await openOrbit()
+  const orbitOpened = await page.evaluate((selector) => {
+    const panel = document.querySelector(selector)
+    const trigger = document.querySelector('#orbit-app .sa-orbit-trigger')
+    const rect = panel?.getBoundingClientRect()
+    return {
+      expanded: trigger?.getAttribute('aria-expanded'),
+      label: panel?.getAttribute('aria-label'),
+      ariaModal: panel?.getAttribute('aria-modal'),
+      parent: panel?.parentElement?.tagName,
+      rows: panel?.querySelectorAll('.sa-dock-row').length,
+      repos: [...(panel?.querySelectorAll('.sa-dock-name') || [])].map((node) => node.textContent),
+      activeIsPanel: document.activeElement === panel,
+      activeConnected: document.activeElement?.isConnected === true,
+      style: panel ? { position: getComputedStyle(panel).position, visibility: getComputedStyle(panel).visibility, zIndex: getComputedStyle(panel).zIndex } : null,
+      rect: rect ? { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom } : null,
+      viewport: { width: innerWidth, height: innerHeight },
+    }
+  }, orbitPanel)
+  check('Orbit 真实打开且 fixture watcher DOM 完整', orbitOpened.expanded === 'true'
+    && orbitOpened.label?.includes('共 2 条') && orbitOpened.ariaModal === null && orbitOpened.parent === 'BODY'
+    && orbitOpened.rows === 2 && JSON.stringify(orbitOpened.repos) === JSON.stringify(['acme/widgets', 'acme/paused'])
+    && orbitOpened.style?.position === 'fixed' && orbitOpened.style?.visibility === 'visible'
+    && orbitOpened.rect?.left >= 0 && orbitOpened.rect?.top >= 0
+    && orbitOpened.rect?.right <= orbitOpened.viewport.width && orbitOpened.rect?.bottom <= orbitOpened.viewport.height, orbitOpened)
+  check('Orbit 初始焦点落在可见非 Modal surface', orbitOpened.activeIsPanel && orbitOpened.activeConnected, {
+    activeIsPanel: orbitOpened.activeIsPanel, activeConnected: orbitOpened.activeConnected,
+  })
+  await shot('orbit-open')
+
+  // 同一 trigger 真实点击关闭；点击本身会把焦点放在 trigger 上，关闭后不得丢到 body。
+  await page.click(orbitTrigger)
+  await waitOrbitClosed()
+  const orbitToggledClosed = await page.evaluate(() => ({
+    expanded: document.querySelector('#orbit-app .sa-orbit-trigger')?.getAttribute('aria-expanded'),
+    activeIsTrigger: document.activeElement === document.querySelector('#orbit-app .sa-orbit-trigger'),
+    activeConnected: document.activeElement?.isConnected === true,
+  }))
+  check('Orbit trigger 再次点击关闭且焦点不丢', orbitToggledClosed.expanded === 'false'
+    && orbitToggledClosed.activeIsTrigger && orbitToggledClosed.activeConnected, orbitToggledClosed)
+
+  await openOrbit()
+  await page.keyboard.press('Escape')
+  await waitOrbitClosed()
+  await page.waitForFunction(() => document.activeElement === document.querySelector('#orbit-app .sa-orbit-trigger'), undefined, { timeout: 3000 })
+  const orbitEscaped = await page.evaluate(() => ({
+    expanded: document.querySelector('#orbit-app .sa-orbit-trigger')?.getAttribute('aria-expanded'),
+    activeIsTrigger: document.activeElement === document.querySelector('#orbit-app .sa-orbit-trigger'),
+    activeConnected: document.activeElement?.isConnected === true,
+  }))
+  check('Orbit Escape 关闭并显式回焦圆环', orbitEscaped.expanded === 'false'
+    && orbitEscaped.activeIsTrigger && orbitEscaped.activeConnected, orbitEscaped)
+
+  // 删除只开到确认层并取消；不得触发 /watch mutation。
+  await openOrbit()
+  await page.click('.sa-dock-panel .sa-dock-row:first-child .sa-dock-actions button[aria-label="删除"]')
+  await page.waitForSelector('.dt-modal-root .dt-modal[role="dialog"][aria-modal="true"]', { state: 'visible', timeout: 5000 })
+  await page.waitForFunction(() => {
+    const modal = document.querySelector('.dt-modal-root .dt-modal[role="dialog"][aria-modal="true"]')
+    return modal && modal.contains(document.activeElement) && document.activeElement !== document.body
+  }, undefined, { timeout: 3000 })
+  const modalOpened = await page.evaluate(() => {
+    const modal = document.querySelector('.dt-modal-root .dt-modal[role="dialog"][aria-modal="true"]')
+    const root = document.querySelector('.dt-modal-root')
+    return {
+      title: modal?.getAttribute('aria-label'),
+      description: modal?.querySelector('.dt-modal-description')?.textContent,
+      footer: [...(modal?.querySelectorAll('.dt-modal-footer button') || [])].map((node) => node.textContent),
+      orbitPresent: Boolean(document.querySelector('.sa-dock-panel[role="dialog"]')),
+      activeInside: Boolean(modal?.contains(document.activeElement)),
+      activeLabel: document.activeElement?.getAttribute('aria-label') || document.activeElement?.textContent,
+      activeConnected: document.activeElement?.isConnected === true,
+      rootZIndex: root ? getComputedStyle(root).zIndex : null,
+    }
+  })
+  check('Orbit 删除先关 surface 再打开确认 Modal', !modalOpened.orbitPresent
+    && modalOpened.title === '确认删除' && modalOpened.description?.includes('删除')
+    && JSON.stringify(modalOpened.footer) === JSON.stringify(['取消', '确认删除']), modalOpened)
+  check('Orbit 确认 Modal 初始焦点进入 dialog 且不被 cleanup 抢走', modalOpened.activeInside
+    && modalOpened.activeConnected && modalOpened.activeLabel === '关闭', modalOpened)
+
+  const modalTabCycle = []
+  let modalFocusHeld = true
+  for (let index = 0; index < 3; index += 1) {
+    await page.keyboard.press('Tab')
+    const focus = await page.evaluate(() => {
+      const modal = document.querySelector('.dt-modal-root .dt-modal[role="dialog"][aria-modal="true"]')
+      return {
+        inside: Boolean(modal?.contains(document.activeElement)),
+        label: document.activeElement?.getAttribute('aria-label') || document.activeElement?.textContent,
+        connected: document.activeElement?.isConnected === true,
+      }
+    })
+    modalTabCycle.push(focus)
+    modalFocusHeld = modalFocusHeld && focus.inside && focus.connected
+  }
+  check('Orbit 确认 Modal Tab 焦点圈闭合且不丢焦', modalFocusHeld
+    && JSON.stringify(modalTabCycle.map((row) => row.label)) === JSON.stringify(['取消', '确认删除', '关闭']), modalTabCycle)
+  await shot('orbit-modal')
+  await page.click('.dt-modal-root .dt-modal-footer button:text-is("取消")')
+  await page.waitForFunction(() => !document.querySelector('.dt-modal-root .dt-modal[role="dialog"]'), undefined, { timeout: 5000 })
+  await page.waitForFunction(() => document.activeElement === document.querySelector('#orbit-app .sa-orbit-trigger'), undefined, { timeout: 3000 })
+  const modalCancelled = await page.evaluate(() => ({
+    orbitPresent: Boolean(document.querySelector('.sa-dock-panel[role="dialog"]')),
+    activeIsTrigger: document.activeElement === document.querySelector('#orbit-app .sa-orbit-trigger'),
+    activeConnected: document.activeElement?.isConnected === true,
+    expanded: document.querySelector('#orbit-app .sa-orbit-trigger')?.getAttribute('aria-expanded'),
+  }))
+  check('Orbit 确认 Modal 取消后回焦圆环且不重开 surface', !modalCancelled.orbitPresent
+    && modalCancelled.activeIsTrigger && modalCancelled.activeConnected && modalCancelled.expanded === 'false', modalCancelled)
+
   const errors = await page.evaluate(() => ({
     capture: window.__captureErrors.filter((event) => !String(event.message).includes('intentional-capture-stop')),
     network: window.__networkViolations,
@@ -580,11 +754,30 @@ try {
     && traceCalls.length === 1 && traceCalls[0].path === '/session-superagent/trace?number=42'
     && updateCalls.length >= 1 && updateCalls.every((row) => row.method === 'GET'), { traceCalls, updateCalls, origin })
   check('禁止真实 GitHub、更新、删除与全部 mutation', mutations.length === 0 && errors.network.length === 0, { mutations, external: errors.network })
-  if (artifacts.length === 8) {
-    check('四个主页面与五个设置分区截图共八张', true, artifacts.map((path) => path.replace(`${REPO}/`, '')))
+
+  // 功能走查保持 mutation=0 后，显式打一次独立 loopback 防写探针，证明 403 guard 本身仍有效。
+  // 这不是产品保存/删除动作，不会离开 127.0.0.1，也不会改变 fixture。
+  const guardProbe = await page.fetch('/session-superagent/watch', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ action: 'delete', id: 'fixture-read-only-guard-probe' }), timeout: 5000,
+  })
+  check('fixture mutation 防写 guard 真实返回 403', guardProbe.status === 403
+    && String(guardProbe.body).includes('fixture-read-only')
+    && apiLog.filter((row) => row.method !== 'GET').length === 1
+    && apiLog.at(-1)?.body.includes('fixture-read-only-guard-probe'),
+  { status: guardProbe.status, body: guardProbe.body, request: apiLog.at(-1) })
+
+  if (deskCaptures.length === 8) {
+    check('四个主页面与五个设置分区截图共八张', true, deskCaptures)
   } else {
-    console.log(`SKIP 截图总数 ${artifacts.length}/8；功能检查已完成，不把 CDP 截图通道记为产品 FAIL`)
-    observe('截图未齐，已有成功截图见仓库基线', artifacts.map((path) => path.replace(`${REPO}/`, '')))
+    console.log(`SKIP desk 截图总数 ${deskCaptures.length}/8；功能检查已完成，不把 CDP 截图通道记为产品 FAIL`)
+    observe('desk 截图未齐；既有仓库基线未覆盖', deskCaptures)
+  }
+  if (artifacts.length === 2) {
+    check('Orbit 与确认 Modal 截图共两张', true, artifacts.map((path) => path.replace(`${REPO}/`, '')))
+  } else {
+    console.log(`SKIP Orbit/Modal 截图总数 ${artifacts.length}/2；功能检查已完成，不把 CDP 截图通道记为产品 FAIL`)
+    observe('Orbit/Modal 截图未齐', artifacts.map((path) => path.replace(`${REPO}/`, '')))
   }
   completed = true
   if (results.some((row) => !row.pass)) process.exitCode = 1
@@ -614,11 +807,15 @@ try {
     scriptSha256,
     frontendVersion: installed.frontendVersion,
     asarSha256: installed.asarSha256,
+    exitCode: process.exitCode || 0,
+    checks: results,
     screenshots: artifacts.map((path) => ({
       path: path.replace(`${REPO}/`, ''),
       bytes: readFileSync(path).length,
       sha256: sha256(readFileSync(path)),
     })),
+    deskCaptures,
+    screenshotSkips: observations.filter((row) => row.name.includes('截图') && (row.detail?.error || row.detail?.reason)),
     apiLog,
     unverified,
   }
