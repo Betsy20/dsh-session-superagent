@@ -2,6 +2,12 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.276] - 2026-11-06 —— DSH 0.2.2-rc.1 显式兼容范围
+
+- `engines.dsh` 改为 `>=0.2.1-rc.5 <0.2.2-0 || >=0.2.2-rc.1 <0.3.0-0`：保留旧宿主支持，默认 semver 也覆盖 `0.2.2-rc.1`，并在 `includePrerelease: true` 下排除未验证的 `0.3.0` 预发布。
+- 新增 `test/dsh-engines.test.mjs`，使用官方 `semver@7.8.6` 覆盖默认模式与 `includePrerelease` 模式，并回归旧范围不自动覆盖 rc1 的边界。
+- 仅修改兼容 metadata、测试与版本文档；watcher、UI 行为和 `cordis.patch.yml` 未改。
+
 ## [0.9.275] - 2026-11-06 —— primary 全原生化 + 更新失败/忙碌边界
 
 ### 全部 primary 按钮接入官方 DSH Button

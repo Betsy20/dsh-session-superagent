@@ -28,6 +28,9 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
+      # engines 回归使用官方 node-semver；CI 不能假设仓库自带 node_modules。
+      - name: 安装测试依赖
+        run: npm ci --ignore-scripts --no-audit --no-fund
 
       # PR 分支跳过「维护一致性」：版本号已 bump，但 tag 要合并后才打，这条必然红。
       # 它改由下面那步只在 push 到 main 时跑。

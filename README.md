@@ -3,7 +3,7 @@
 <img src="assets/icon-180.png" width="88" height="88" alt="">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.9.275-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
+[![Version](https://img.shields.io/badge/version-0.9.276-green.svg)](https://github.com/MYCF711/dsh-session-superagent/releases)
 [![npm](https://img.shields.io/npm/v/dsh-session-superagent.svg)](https://www.npmjs.com/package/dsh-session-superagent)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-plugin-orange.svg)](https://github.com/topics/dsh-plugin)
 [![awesome](https://img.shields.io/badge/awesome-dsh--plugin-%E2%9C%93-success.svg)](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
@@ -55,7 +55,7 @@ UI 开发先读 `AGENTS.md` 的「原生 DSH 优先，最小自制」；`dsh-ses
 
 ## 环境要求
 
-- DSH ≥ 0.2.1-rc.5（`engines.dsh`）
+- DSH `>=0.2.1-rc.5 <0.2.2-0 || >=0.2.2-rc.1 <0.3.0-0`（含 0.2.2-rc.1，不含 0.3.0 预发布）
 - Node ≥ 22.19（宿主自带）
 - 已登录的 `gh` CLI（插件复用它取凭证；**不会**把 token 交给模型）
 - **pnpm**（只有开发流程用：`pnpm run sync:profile` 等；装插件不需要）
@@ -148,7 +148,7 @@ Gitee 私有仓库要在「设置 → 凭证」填私人令牌；公开仓库不
 ## 开发
 
 ```sh
-npm test             # 600 项单测（带离线开关；裸 node --test 会真去 spawn gh，两分半）
+npm test             # 601 项单测（带离线开关；裸 node --test 会真去 spawn gh，两分半）
 ```
 
 ### 工具输出：文本给人和 agent，JSON 给程序
@@ -208,7 +208,7 @@ dsh plugin --profile <profile> add dsh-session-superagent@latest
 
 
 ```bash
-npm test                    # 600 项单测（带离线开关，约 1.6 秒）
+npm test                    # 601 项单测（带离线开关，约 1.6 秒）
 node scripts/ui-audit.mjs   # 11 项 UI 指标（写死颜色 / 自造 token / 官方结构采用 …）
 node scripts/preflight.mjs  # 41 项门禁（含上面两条，外加 profile 一致性、路由面、包内容）
 node scripts/render-preview.mjs preview.html   # 双主题静态预览，直接浏览器打开
