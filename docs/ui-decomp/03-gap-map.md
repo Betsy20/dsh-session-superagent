@@ -48,6 +48,10 @@ Tooltip scroll-close 在独立模块与主面板同步保留 trigger 焦点，�
 
 全部 primary 委托官方 DSH Button；真实对比度 23/23，dark 18.0823/light 18.8965。更新失败 settle 后失效缓存、error 脱敏、busy 禁止 dismiss。全量 **600/600**。
 
+## 实施回写（0.9.277）
+
+官方支持的 `primary/ghost/outline/toolbar` 全部委托 DSH Button，link 保留回退；真实对比度 23/23。完整 desk+Orbit 双 root、Modal 焦点圈与 Escape 验收 34/34。全量 **602/602**。
+
 ## 0. 基线、口径与复用边界
 
 | 来源 | 本次核对基线 | 用法 |

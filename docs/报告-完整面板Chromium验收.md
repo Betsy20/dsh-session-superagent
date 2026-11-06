@@ -130,3 +130,7 @@ SCREENSHOT_SKIP=10
 - 截图通道不可用，因此不对本轮 Orbit/Modal 的视觉截图或像素对比作通过声明。
 
 本任务只修改验收脚本和本报告，没有修改生产 `client.js`、适配器、`package/`、`lib/` 或版本文件，没有 commit / push。
+
+## 8. 0.9.277 主线复跑
+
+合并全部按钮原生化后，脚本改为动态 REPO 定位，并把 TaskSpace 创建移到 loopback listen 前。主线复跑全部功能项 PASS：34/34，含 Orbit/Modal 焦点与防写 403；截图仍按既定 SKIP。旧哈希仅对应任务分支交付快照，主线脚本/client 以 0.9.277 发布树为准。

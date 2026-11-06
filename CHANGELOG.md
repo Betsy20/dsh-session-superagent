@@ -2,6 +2,36 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.277] - 2026-11-06 —— 全部按钮原生化 + 完整 Orbit/Modal 验收
+
+### 全部按钮接入官方 Button
+
+`Btn` 现对官方支持的 `primary / ghost / outline / toolbar` 全部委托 DSH Button，默认 `ghost/md`。
+业务 `link` 没有官方同物，保留旧 `button.dt-btn-link`，未自造映射。
+业务 className、onClick、disabled、icon、size、aria、type、ref 全透传；缺 Button 或整个 primitives 时完整回退旧 DOM。
+
+真实 Chromium 全按钮对比度 **23/23，16/16 非禁用测量通过**：
+primary 深色 18.0823、浅色 18.8965；ghost/outline 对照也全部达标。
+
+### 完整 Orbit/Modal 验收
+
+真实 client.js UMD 双 root 分别挂载 desk 与 `StatusOrbit()`（无 props，fixture `/state` 提供两条守）。
+覆盖 Orbit 打开/关闭、初始焦点、Escape 回焦、进入设置/行内编辑、删除确认 Modal、Tab 焦点圈、取消回圆环。
+功能走查 mutation=0，独立防写探针真实返回 403。最终 **34/34**，主线复跑全 PASS。
+截图通道问题单列 SKIP，不阻断 DOM/焦点验收。
+
+### 证据
+
+```
+更新 UI 15/15；按钮联合 121/121
+完整 Orbit/Modal Chromium → 34/34
+全按钮对比度 → 23/23
+npm test → 602/602
+UI 体检 → 11/11（100 分）
+```
+
+未进入真实 DSH Web GUI；未执行真实保存、删除、更新或 watcher 轮询。按 Git 工作流保留本地候选。
+
 ## [0.9.276] - 2026-11-06 —— DSH 0.2.2-rc.1 显式兼容范围
 
 - `engines.dsh` 改为 `>=0.2.1-rc.5 <0.2.2-0 || >=0.2.2-rc.1 <0.3.0-0`：保留旧宿主支持，默认 semver 也覆盖 `0.2.2-rc.1`，并在 `includePrerelease: true` 下排除未验证的 `0.3.0` 预发布。

@@ -598,20 +598,20 @@ try {
       return button && !button.disabled
     }, undefined, { timeout: 5000 })
     await measure(theme, '新增表单 primary', 'primary', 'primary Btn（官方优先）', '#watcher-new .dt-savebar button[type="submit"]', '添加到当前会话')
-    await measure(theme, '新增表单普通 Btn 对照', 'control', 'local Btn ghost', '#watcher-new .dt-savebar .dt-btn-ghost', '放弃')
+    await measure(theme, '新增表单普通 Btn 对照', 'control', 'ghost Btn（官方优先）', '#watcher-new .dt-savebar button', '放弃')
     await shot(`${theme}-trigger`)
 
     await openTab('设置')
     await openSettings('凭证')
     await measure(theme, '设置保存凭证 primary', 'primary', 'primary Btn（官方优先）', '.dt-settings-body button', '保存凭证')
-    await measure(theme, '凭证普通 Btn 对照', 'control', 'local Btn ghost', '.dt-settings-body .dt-btn-ghost', '解绑 gh 账号目录')
+    await measure(theme, '凭证普通 Btn 对照', 'control', 'ghost Btn（官方优先）', '.dt-settings-body button', '解绑 gh 账号目录')
     await shot(`${theme}-settings-creds`)
 
     await openSettings('版本与更新')
     await page.waitForSelector("button[aria-label='安装更新']", { state: 'visible', timeout: 5000 })
     await measure(theme, '安装更新 primary', 'primary', 'installed DSH Button', ".dt-settings-body button[aria-label='安装更新']", '安装更新')
-    await measure(theme, '更新普通 Btn ghost 对照', 'control', 'local Btn ghost', '.dt-settings-body .dt-btn-ghost', '重新检查')
-    await measure(theme, '更新普通 Btn outline 对照', 'control', 'local Btn outline', '.dt-settings-body .dt-btn-outline', '复制诊断信息')
+    await measure(theme, '更新普通 Btn ghost 对照', 'control', 'ghost Btn（官方优先）', '.dt-settings-body button', '重新检查')
+    await measure(theme, '更新普通 Btn outline 对照', 'control', 'outline Btn（官方优先）', '.dt-settings-body button', '复制诊断信息')
     await shot(`${theme}-settings-update`)
 
     await openSettings('会话 goal')

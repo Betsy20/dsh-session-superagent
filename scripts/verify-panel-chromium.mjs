@@ -6,8 +6,13 @@ import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import http from 'node:http'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const REPO = 'D:/主工作区/projects/dsh-session-superagent-full-orbit'
+const REPO = process.env.DSH_SUPERAGENT_REPO
+  || (import.meta.url.startsWith('file:') && !import.meta.url.includes('[eval')
+    ? resolve(dirname(fileURLToPath(import.meta.url)), '..')
+    : 'D:/主工作区/projects/dsh-session-superagent')
 const ASAR = 'D:/DeepSeek Harness/Desktop/resources/app.asar'
 const ELECTRON = 'D:/DeepSeek Harness/Desktop/DeepSeek Harness.exe'
 const FRONTEND = `${ASAR}/dsh/node_modules/@deepseek-ai/dsh-web-frontend`
@@ -351,8 +356,8 @@ const clientSource = readFileSync(`${REPO}/client.js`, 'utf8')
 const fixture = makeFixture(repoPackage.version)
 const clientSha256 = sha256(clientSource)
 const scriptSha256 = sha256(readFileSync(`${REPO}/scripts/verify-panel-chromium.mjs`))
-const { server, origin } = await startServer(installed, clientSource, fixture)
 const task = await taskSpace(SPACE_NAME)
+const { server, origin } = await startServer(installed, clientSource, fixture)
 const page = task.page('p1')
 let completed = false
 let chromium = 'unknown'
