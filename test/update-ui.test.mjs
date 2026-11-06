@@ -12,6 +12,7 @@ const HOST = Object.freeze({
   Toast: 'dsh-host-toast',
   Button: 'dsh-host-button',
   Input: 'dsh-host-input',
+  Switch: 'dsh-host-switch',
   SegmentedTabs: 'dsh-host-segmented-tabs',
   IconWarningOutlineMedium: 'dsh-host-warning-icon',
 })
@@ -93,6 +94,11 @@ function loadClient(options = {}) {
     source = source.replace('    function Toggle({', '    window.__InputForTest = Input\n    function Toggle({')
     assert.notEqual(source, before, '必须捕获真实 Input，不能测试手写复制品')
   }
+  if (options.captureToggle) {
+    const before = source
+    source = source.replace('    function StateDot({', '    window.__ToggleForTest = Toggle\n    function StateDot({')
+    assert.notEqual(source, before, '必须捕获真实 Toggle，不能测试手写复制品')
+  }
   vm.runInContext(source, sandbox)
   assert.ok(mod, 'client.js 必须调用 __ModuleLoader__.load')
 
@@ -165,6 +171,7 @@ function loadClient(options = {}) {
     timers,
     Btn: sandbox.window.__BtnForTest,
     Input: sandbox.window.__InputForTest,
+    Toggle: sandbox.window.__ToggleForTest,
     stateCalls: () => stateCalls,
     resetStateCalls: () => { stateCalls.length = 0 },
   }
@@ -476,6 +483,144 @@ test('Input 真实调用面：搜索、repo/goal/数字、行内编辑与凭证�
   assert.equal(textarea.props.value, '会话 goal 原文')
   assert.equal(goalNodes.filter((node) => node.type === HOST.Input && node.props['aria-label'] !== '搜索').length, 0,
     '除顶部搜索外，会话 goal 的 textarea 不得被 Input 替换')
+})
+
+test('Toggle 官方委托：受控 props/title 直传，id 仅用无样式 span 保留', () => {
+  const client = loadClient({ primitives: HOST, captureToggle: true })
+  assert.equal(typeof client.Toggle, 'function')
+  const changes = []
+  const onChange = (next) => changes.push(next)
+  const wrapper = client.Toggle({
+    id: 'watcher-new-observe', checked: true, onChange,
+    label: '仅观察', disabled: true, title: '保存中',
+  })
+  assert.equal(wrapper.type, 'span', '官方不收 id 时只能增加最小 wrapper')
+  assert.equal(wrapper.props.id, 'watcher-new-observe')
+  assert.equal(wrapper.props.className, undefined, 'id wrapper 不得引入旧主题类或新视觉')
+  assert.equal(wrapper.props.role, undefined, 'wrapper 不得抢走官方 switch 语义')
+  assert.equal(wrapper.props.children.length, 1)
+  const control = wrapper.props.children[0]
+  assert.equal(control.type, HOST.Switch, '有官方导出时必须直接委托 DSH Switch')
+  assert.equal(control.props.checked, true)
+  assert.strictEqual(control.props.onChange, onChange, 'onChange(next) 回调不得被事件适配层替换')
+  assert.equal(control.props.label, '仅观察')
+  assert.equal(control.props.disabled, true)
+  assert.equal(control.props.title, '保存中')
+  assert.equal(control.props.id, undefined, '官方 Switch 没有 id API，不应伪造透传')
+  assert.equal(control.props.className, undefined, '不得把 dt-switch 拼回官方主题')
+  assert.equal(control.props.onClick, undefined, '点击与 next 计算由官方组件拥有')
+  control.props.onChange(false)
+  assert.deepEqual(changes, [false])
+
+  const direct = client.Toggle({ checked: false, onChange, label: '重开优先' })
+  assert.equal(direct.type, HOST.Switch, '无 id 时不需要任何 wrapper')
+  assert.equal(direct.props.checked, false)
+  assert.equal(direct.props.disabled, undefined)
+})
+
+test('Toggle 回退：缺导出或整个 primitives 时保留 button+thumb、id/aria/title 与 next', () => {
+  const scenarios = [undefined, {}, { ...HOST, Switch: undefined }]
+  for (const primitives of scenarios) {
+    const client = loadClient({ primitives, captureToggle: true })
+    for (const checked of [false, true]) {
+      const changes = []
+      const node = client.Toggle({
+        id: 'watcher-edit-isolated', checked, onChange: (next) => changes.push(next),
+        label: '隔离执行', disabled: checked, title: '隔离说明',
+      })
+      assert.equal(node.type, 'button')
+      assert.equal(node.props.id, 'watcher-edit-isolated')
+      assert.equal(node.props.type, 'button')
+      assert.equal(node.props.role, 'switch')
+      assert.equal(node.props['aria-checked'], checked)
+      assert.equal(node.props['aria-label'], '隔离执行')
+      assert.equal(node.props.disabled, checked)
+      assert.equal(node.props.title, '隔离说明')
+      assert.ok(hasClass(node, 'dt-switch'))
+      assert.equal(node.props.children.length, 1)
+      assert.equal(node.props.children[0].type, 'span')
+      assert.ok(hasClass(node.props.children[0], 'dt-switch-thumb'))
+      node.props.onClick()
+      assert.deepEqual(changes, [!checked], 'fallback 必须按当前 checked 发出 next')
+    }
+  }
+})
+
+test('Toggle 真实调用面：新增/行内编辑的普通与优先级开关全部委托且业务写回不变', () => {
+  const client = loadClient({ primitives: HOST })
+  const state = snapshot()
+  state.body.watchers = [watcher('a/b', {
+    id: 'a/b#s1', sessionId: 's1', observe: true,
+    filters: { onlyAssigned: false },
+    priority: { reopened: true, comments: true, labels: true, unassigned: false, stale: false },
+  })]
+  const createQueue = deskQueue(state, null, {}, 'trigger')
+  createQueue[3] = { ...createQueue[3], repo: 'acme/widgets', observe: true }
+  const scenarios = [
+    ['新增', createQueue, 3, 'watcher-new'],
+    ['行内编辑', deskQueue(state, 'a/b#s1'), 9, 'watcher-edit-' + encodeURIComponent('a/b#s1')],
+  ]
+  for (const [name, queue, stateIndex, idPrefix] of scenarios) {
+    const nodes = nodesOf(client, queue, { sessionId: 's1' })
+    const normals = [
+      ['onlyAssigned', '只看已指派', false],
+      ['observe', '仅观察', true],
+      ['isolated', '隔离执行', false],
+    ]
+    for (const [key, label, checked] of normals) {
+      const control = one(nodes.filter((node) => node.type === HOST.Switch && node.props.label === label),
+        name + '：缺官方开关 ' + label)
+      assert.equal(control.props.checked, checked, name + '：checked 错误 ' + label)
+      assert.equal(control.props.disabled, false)
+      assert.equal(control.props.className, undefined, name + '：官方路径不得带旧 dt-switch')
+      const wrapper = one(nodes.filter((node) => node.type === 'span' && node.props.id === idPrefix + '-' + key),
+        name + '：缺 id wrapper ' + key)
+      assert.deepEqual(wrapper.props.children, [control], name + '：id wrapper 必须只包对应官方 Switch')
+      assert.equal(wrapper.props.className, undefined)
+    }
+    assert.equal(nodes.filter((node) => node.type === 'button' && node.props.role === 'switch').length, 0,
+      name + '：官方路径不得再渲染本地 button.dt-switch')
+
+    client.resetStateCalls()
+    one(nodes.filter((node) => node.type === HOST.Switch && node.props.label === '只看已指派'),
+      name + '：缺唯一只看已指派').props.onChange(true)
+    assert.ok(client.stateCalls().some((call) => call.index === stateIndex && call.next?.onlyAssigned === true),
+      name + '：普通 Switch 的 next 必须写回既有表单槽位')
+
+    const advanced = one(nodes.filter((node) => hasClass(node, 'dt-disclosure-row') && nodeText(node).includes('高级设置')),
+      name + '：缺高级设置触发器')
+    client.resetStateCalls()
+    advanced.props.onClick()
+    const openedQueue = [...queue]
+    for (const call of client.stateCalls()) openedQueue[call.index] = call.next
+    const opened = nodesOf(client, openedQueue, { sessionId: 's1' })
+    const priorities = [
+      ['priorityReopened', '重开优先', true],
+      ['priorityComments', '评论优先', true],
+      ['priorityLabels', '标签优先', true],
+      ['priorityUnassigned', '未认领优先', false],
+      ['priorityStale', '积压优先', false],
+    ]
+    for (const [key, label, checked] of priorities) {
+      const control = one(opened.filter((node) => node.type === HOST.Switch && node.props.label === label),
+        name + '：缺优先级官方开关 ' + label)
+      assert.equal(control.props.checked, checked, name + '：优先级 checked 错误 ' + label)
+      assert.equal(control.props.disabled, false)
+      const wrapper = one(opened.filter((node) => node.type === 'span' && node.props.id === idPrefix + '-' + key),
+        name + '：缺优先级 id wrapper ' + key)
+      assert.deepEqual(wrapper.props.children, [control])
+    }
+    assert.equal(opened.filter((node) => node.type === HOST.Switch).length, 8,
+      name + '：两个 Toggle 调用面合计必须是 3 普通 + 5 优先级')
+    assert.equal(new Set(opened.filter((node) => node.type === 'span' && String(node.props.id || '').startsWith(idPrefix + '-'))
+      .map((node) => node.props.id)).size, 8, name + '：8 个开关 id 必须唯一')
+
+    client.resetStateCalls()
+    one(opened.filter((node) => node.type === HOST.Switch && node.props.label === '重开优先'),
+      name + '：缺唯一重开优先').props.onChange(false)
+    assert.ok(client.stateCalls().some((call) => call.index === stateIndex && call.next?.priorityReopened === false),
+      name + '：优先级 Switch 必须仍按 key,next 写回既有业务状态')
+  }
 })
 
 test('现有 8 个直接 Btn primary 场景全部委托；SaveBar 的 ghost 同样委托', () => {
