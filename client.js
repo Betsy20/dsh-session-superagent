@@ -851,7 +851,7 @@ window.__ModuleLoader__.load({
     function Section({ title, count, subtitle, hint, action, children }) {
       return h('section', { className: 'dt-section' },
         title
-          ? h('div', { className: 'dt-section-title' },
+          ? h('h2', { className: 'dt-section-title' },
             h('span', { className: 'dt-section-name' }, title),
             count !== undefined && count !== null ? h('span', { className: 'dt-count' }, String(count)) : null,
             subtitle ? h('span', { className: 'dt-section-sub' }, subtitle) : null,
@@ -937,15 +937,23 @@ window.__ModuleLoader__.load({
     }
 
     /** 官方 DisclosureRow：折叠行的标准写法（Enter / 空格可切换，带 aria-expanded）。 */
-    function DisclosureRow({ icon, title, open, onToggle, collapsedContent, bodyId, children }) {
+    function DisclosureRow({ icon, title, open, onToggle, collapsedContent, bodyId, busy = false, disabled = false, children }) {
       const content = Array.isArray(children) && children.length === 1 ? children[0] : children
+      const unavailable = Boolean(busy || disabled)
       return h('div', { className: 'dt-disclosure', 'data-open': open ? 'true' : undefined },
         h('div', {
-          className: 'dt-disclosure-row', role: 'button', tabIndex: 0, 'aria-expanded': !!open,
+          className: 'dt-disclosure-row', role: 'button', tabIndex: unavailable ? -1 : 0, 'aria-expanded': !!open,
           'aria-controls': bodyId,
-          onClick: onToggle,
+          'aria-disabled': unavailable,
+          'aria-busy': busy ? 'true' : undefined,
+          'aria-label': busy && typeof title === 'string' ? title + '（保存中，暂不可开合）' : undefined,
+          onClick: () => { if (!unavailable) onToggle() },
           onKeyDown: (event) => {
-            if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onToggle() }
+            if (event.key !== 'Enter' && event.key !== ' ') return
+            event.preventDefault()
+            // 长按只认第一次；busy/disabled 也必须在本层拦截，不能依赖调用方静默吞掉。
+            if (unavailable || event.repeat) return
+            onToggle()
           },
         },
           h('span', { className: 'dt-disclosure-lead' },
@@ -1087,6 +1095,31 @@ window.__ModuleLoader__.load({
         h(Btn, { size: 'sm', variant: 'primary', type: 'submit', disabled: !dirty || !!busy || !!disabled, onClick: onSave }, busy ? '保存中…' : saveLabel))
     }
 
+    /**
+     * SaveBar 消失后只在焦点仍属于这张表单时归还；用户已移到其它存活控件就不抢。
+     * 编辑保存会卸载整个 form，所以 opener 在提交前捕获；新增/放弃则回首个可编辑控件。
+     */
+    function restoreSaveBarFocus({ form, saveBar, opener, wasFocused = false, shouldRestore }) {
+      if (typeof document === 'undefined') return
+      const active = document.activeElement
+      const inSaveBar = (node) => Boolean(node && saveBar && typeof saveBar.contains === 'function' && saveBar.contains(node))
+      const lost = (node) => !node || node === document.body || node.isConnected === false
+      if (!inSaveBar(active) && !wasFocused) return
+      setTimeout(() => {
+        const current = document.activeElement
+        if (!inSaveBar(current) && !lost(current)) return
+        if (typeof shouldRestore === 'function' && !shouldRestore()) return
+        // busy=true 时 input 仍 disabled；必须等 finally 与 React commit 后再找可编辑控件。
+        const target = opener && opener.isConnected !== false
+          ? opener
+          : form && form.isConnected !== false && typeof form.querySelector === 'function'
+            ? form.querySelector('input:not(:disabled), textarea:not(:disabled), select:not(:disabled)')
+            : null
+        if (!target || target.isConnected === false || typeof target.focus !== 'function') return
+        try { target.focus({ preventScroll: true }) } catch { try { target.focus() } catch {} }
+      }, 0)
+    }
+
     /** derived HoursField：两个原生时间控件，Field 的 label 只关联起始控件。 */
     function HoursField({ value, onChange, id, disabled }) {
       const match = String(value || '').match(/^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})$/)
@@ -1144,10 +1177,24 @@ window.__ModuleLoader__.load({
       const [busy, setBusy] = useState(false)
       const [error, setError] = useState(null)
       const busyRef = useRef(false)
+      const formRef = useRef(null)
+      const formFocusedRef = useRef(false)
       const values = value || {}
       const opening = snapshot || values
       const dirty = watcherDirty(values, opening)
       const change = (key, next) => { setError(null); onChange(key, next) }
+      const captureFocus = () => {
+        const form = formRef.current
+        const active = typeof document === 'undefined' ? null : document.activeElement
+        const ticket = mode === 'edit' && form && typeof form.closest === 'function' ? form.closest('.dt-ticket') : null
+        return {
+          form,
+          saveBar: form && typeof form.querySelector === 'function' ? form.querySelector('.dt-savebar') : null,
+          opener: ticket && typeof ticket.querySelector === 'function' ? ticket.querySelector('.dt-open') : null,
+          wasFocused: formFocusedRef.current || Boolean(form && active && typeof form.contains === 'function' && form.contains(active)),
+          shouldRestore: () => formFocusedRef.current,
+        }
+      }
       const submit = async (event) => {
         if (event && typeof event.preventDefault === 'function') event.preventDefault()
         // 原生点击保存时仍执行 constraints；测试桩没有 form，直接走同一提交函数。
@@ -1160,12 +1207,14 @@ window.__ModuleLoader__.load({
         }
         if (busyRef.current || disabled || (mode === 'edit' && !dirty)) return false
         if (mode === 'create' && (!sessionId || !String(values.repo || '').trim())) return false
+        const focus = captureFocus()
         busyRef.current = true
         setBusy(true)
         setError(null)
         try {
           const result = await onSave(values)
           if (result === false) throw new Error('保存失败，请重试')
+          restoreSaveBarFocus(focus)
           return result
         } catch (failure) {
           setError(String((failure && failure.message) || failure || '保存失败，请重试'))
@@ -1177,8 +1226,10 @@ window.__ModuleLoader__.load({
       }
       const discard = () => {
         if (busyRef.current) return
+        const focus = captureFocus()
         setError(null)
         onDiscard(opening)
+        restoreSaveBarFocus({ ...focus, opener: null })
       }
       const renderField = (spec) => {
         if (spec.modes && !spec.modes.includes(mode)) return null
@@ -1220,12 +1271,21 @@ window.__ModuleLoader__.load({
           return h('span', { key: spec.key, className: 'dt-hint', placeholder }, spec.label + ' ' + placeholder)
         }))
       const submitFromClick = (event) => submit(event)
-      return h('form', { id: idPrefix, className: 'dt-form dt-card', 'data-mode': mode, onSubmit: submit },
+      return h('form', {
+        id: idPrefix, ref: formRef, className: 'dt-form dt-card', 'data-mode': mode, onSubmit: submit,
+        onFocusCapture: () => { formFocusedRef.current = true },
+        onBlurCapture: (event) => {
+          const next = event.relatedTarget
+          // disabled 让当前控件失焦时 relatedTarget 可能为空；保存 pending 不应因此丢掉回焦资格。
+          if ((!next || !event.currentTarget.contains(next)) && !(busyRef.current && !next)) formFocusedRef.current = false
+        },
+      },
         h(Fields, { disabled: busy || disabled },
           basic,
           h(DisclosureRow, {
             icon: h(Icon, { name: 'settings' }), title: '高级设置', open: advancedOpen,
-            onToggle: () => { if (!busy && !disabled) setAdvancedOpen(!advancedOpen) },
+            busy, disabled,
+            onToggle: () => { if (!busyRef.current && !busy && !disabled) setAdvancedOpen((current) => !current) },
             collapsedContent: collapsedAdvanced, bodyId: idPrefix + '-advanced-body',
           }, h('div', { className: 'dt-disclosure-body' }, advanced))),
         h(SaveBar, { dirty, busy, error, disabled, onDiscard: discard, onSave: submitFromClick, saveLabel: submitLabel }),
@@ -1976,7 +2036,7 @@ window.__ModuleLoader__.load({
     /** 判定页内联追溯时间线：结构化 traces 优先，旧服务端只有 text 时降级。 */
     function TraceTimeline({ payload }) {
       if (payload.loading) return h('p', { className: 'dt-hint' }, '正在追溯 #' + payload.number + '…')
-      if (payload.error) return h('p', { className: 'dt-error' }, '追溯失败：' + payload.error)
+      if (payload.error) return h('p', { className: 'dt-error', role: 'alert', 'aria-atomic': 'true' }, '追溯失败：' + payload.error)
       const traces = Array.isArray(payload.traces) ? payload.traces : []
       if (traces.length === 0) return h('p', { className: 'dt-hint' }, payload.text || '没有结果')
       return h('ol', { className: 'dt-timeline' }, traces.map((trace) => {
@@ -3132,7 +3192,9 @@ window.__ModuleLoader__.load({
         h(Section, { key: 'update', title: '版本与更新' },
           h(KeyValues, { rows: [
             ['当前版本', (update && update.current) || CLIENT_VERSION],
-            ['npm 最新', !update ? '检测中…' : update.error ? '检测失败 · ' + update.error : (update.latest || '未知')],
+            ['npm 最新', !update ? '检测中…' : update.error
+              ? h('span', { className: 'dt-error', role: 'alert', 'aria-atomic': 'true' }, '检测失败 · ' + update.error)
+              : (update.latest || '未知')],
             ['状态', updateResult && updateResult.resultUnknown
               ? UPDATE_UNKNOWN_HINT
               : updateAwaitingReload
@@ -3458,7 +3520,7 @@ window.__ModuleLoader__.load({
           ],
           value: tab, onChange: setTab, label: '主理鱼分区',
         }),
-        notice ? h('div', { className: 'dt-banner dt-danger' }, notice.text) : null,
+        notice ? h('div', { className: 'dt-banner dt-danger', role: 'alert', 'aria-atomic': 'true' }, notice.text) : null,
         // 有新版本时在顶部提示一次；已装到 latest 且等待重载时完全隐藏，避免重复安装入口。
         update && update.hasUpdate && !updateAwaitingReload
           ? h('div', { className: 'dt-banner dt-banner-actions' },
@@ -3469,7 +3531,7 @@ window.__ModuleLoader__.load({
         snap.error
           ? h('div', { className: 'dt-card dt-error-card', key: 'read-error' },
             h('div', { className: 'dt-card-head' }, h('span', { className: 'dt-card-title' }, '读不到面板数据')),
-            h('p', { className: 'dt-error' }, humanizeError(snap.error)),
+            h('p', { className: 'dt-error', role: 'alert', 'aria-atomic': 'true' }, humanizeError(snap.error)),
             h('div', { className: 'dt-actions' }, h(Btn, { size: 'sm', variant: 'primary', onClick: () => load() }, '重试')))
           : null,
         snap.loading && !snap.body ? h(Hint, null, '正在读取…') : null,

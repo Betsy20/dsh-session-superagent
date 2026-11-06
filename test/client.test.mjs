@@ -2460,3 +2460,192 @@ test('W8：搜索/非搜索筛选/零守空态分流，恢复按钮真实清除�
   assert.ok(zeroText.includes('三步让这个会话开始盯办'), '真正零守仍走上手引导')
   assert.ok(!zeroText.includes('没有匹配「」') && !zeroText.includes('清除全部筛选'), '无筛选零守不得伪装成筛选无结果')
 })
+
+// W11–W14：直接执行 client.js 内部的共享组件，避免只靠源码字符串判断可访问性。
+function loadA11yInternals(states = []) {
+  const source = readFileSync(new URL('../client.js', import.meta.url), 'utf8')
+  const needle = "    return {\n      inject: ['slots'],"
+  assert.ok(source.includes(needle), '找不到 client.js 的返回出口')
+  const instrumented = source.replace(needle,
+    "    window.__a11yInternals = { DisclosureRow, Section, TraceTimeline, WatcherForm, restoreSaveBarFocus: typeof restoreSaveBarFocus === 'function' ? restoreSaveBarFocus : null }\n"
+    + needle)
+  let mod = null
+  let stateCursor = 0
+  const timers = []
+  const stateCalls = []
+  const document = { activeElement: null, body: null }
+  const React = {
+    Fragment: Symbol('Fragment'),
+    createElement(type, props, ...children) {
+      const { key, ...rest } = props || {}
+      const node = { type, props: { ...rest, children: children.flat(Infinity).filter((child) => child !== null && child !== undefined && child !== false) } }
+      if (key !== undefined) node.key = key
+      return node
+    },
+    useState(initial) {
+      const index = stateCursor++
+      return [index < states.length ? states[index] : (typeof initial === 'function' ? initial() : initial),
+        (next) => stateCalls.push({ index, next })]
+    },
+    useRef: (current) => ({ current }),
+    useCallback: (fn) => fn,
+    useEffect() {},
+  }
+  const sandbox = {
+    window: { __ModuleLoader__: { load(value) { mod = value } } },
+    document,
+    setTimeout: (fn) => { timers.push(fn); return timers.length },
+    clearTimeout() {},
+    console,
+  }
+  vm.createContext(sandbox)
+  vm.runInContext(instrumented, sandbox)
+  assert.ok(mod, '可访问性内部组件测试也必须执行真实 client.js')
+  mod.factory((name) => {
+    if (name === 'react') return React
+    throw new Error('unexpected require: ' + name)
+  })
+  return {
+    internals: sandbox.window.__a11yInternals,
+    document,
+    timers,
+    stateCalls,
+    flushFocus: () => timers.splice(0).forEach((fn) => fn()),
+  }
+}
+
+function a11yText(node) {
+  return walk(node).filter((item) => item.type === '#text').map((item) => item.text).join('')
+}
+
+test('W11：新建/编辑放弃后回到仍存活的第一个可编辑控件', () => {
+  const { internals, document, flushFocus } = loadA11yInternals()
+  assert.equal(typeof internals.restoreSaveBarFocus, 'function', '缺少 SaveBar 焦点归还 helper')
+  for (const mode of ['create', 'edit']) {
+    const input = { name: mode + '-input', isConnected: true, focus() { document.activeElement = this } }
+    const discard = { name: mode + '-discard', isConnected: true }
+    const saveBar = { contains: (node) => node === discard }
+    const form = {
+      isConnected: true,
+      querySelector: (selector) => selector.startsWith('input:not(:disabled)') ? input : null,
+    }
+    document.body = { name: 'body', isConnected: true }
+    document.activeElement = discard
+    internals.restoreSaveBarFocus({ form, saveBar })
+    assert.equal(document.activeElement, discard, 'React commit 前不能抢焦点')
+    flushFocus()
+    assert.equal(document.activeElement, input, mode + ' 放弃后不能掉到 body')
+  }
+})
+
+test('W11：编辑保存关闭表单后回 opener；用户主动移走时不抢焦点', () => {
+  const { internals, document, flushFocus } = loadA11yInternals()
+  assert.equal(typeof internals.restoreSaveBarFocus, 'function')
+  const opener = { name: 'opener', isConnected: true, focus() { document.activeElement = this } }
+  const save = { name: 'save', isConnected: true }
+  const saveBar = { contains: (node) => node === save }
+  const form = { isConnected: false, querySelector: () => null }
+  document.body = { name: 'body', isConnected: true }
+  document.activeElement = save
+  internals.restoreSaveBarFocus({ form, saveBar, opener })
+  document.activeElement = document.body // React 卸载表单后浏览器自然回落
+  flushFocus()
+  assert.equal(document.activeElement, opener, '编辑保存卸载后应回行标题')
+
+  for (const moveTiming of ['before-schedule', 'after-schedule']) {
+    const elsewhere = { name: moveTiming, isConnected: true, focus() { document.activeElement = this } }
+    document.activeElement = moveTiming === 'before-schedule' ? elsewhere : save
+    internals.restoreSaveBarFocus({ form, saveBar, opener })
+    document.activeElement = elsewhere
+    flushFocus()
+    assert.equal(document.activeElement, elsewhere, moveTiming + ' 的主动焦点移动必须保留')
+  }
+})
+
+test('W12：busy Disclosure 不可聚焦且有 disabled/busy 语义，click/Enter/Space 均不切', () => {
+  const { internals, stateCalls } = loadA11yInternals([false, true, null])
+  const tree = internals.WatcherForm({
+    mode: 'edit', value: { intervalSec: '60' }, snapshot: { intervalSec: '60' },
+    onChange() {}, onSave: async () => true, onDiscard() {},
+  })
+  const row = walk(tree).find((node) => node.props && node.props.className === 'dt-disclosure-row')
+  assert.ok(row, 'WatcherForm 必须渲染高级 Disclosure')
+  assert.equal(row.props.tabIndex, -1, 'busy 时必须退出 Tab 顺序')
+  assert.equal(row.props['aria-disabled'], true)
+  assert.equal(row.props['aria-busy'], 'true')
+  const key = (key, repeat = false) => row.props.onKeyDown({ key, repeat, preventDefault() {} })
+  row.props.onClick()
+  key('Enter')
+  key(' ')
+  assert.equal(stateCalls.filter((call) => call.index === 0).length, 0, 'busy 不得调用 advancedOpen setter')
+
+  let toggles = 0
+  const direct = walk(internals.DisclosureRow({
+    title: '高级设置', open: false, busy: true, onToggle: () => { toggles += 1 },
+  })).find((node) => node.props && node.props.className === 'dt-disclosure-row')
+  direct.props.onClick()
+  direct.props.onKeyDown({ key: 'Enter', repeat: false, preventDefault() {} })
+  direct.props.onKeyDown({ key: ' ', repeat: false, preventDefault() {} })
+  assert.equal(toggles, 0, 'Disclosure 本层也必须吞掉 busy 操作，而不是只靠调用方 guard')
+})
+
+test('W12：普通 Disclosure 单键只切一次，重复 keydown 被忽略', () => {
+  const { internals } = loadA11yInternals()
+  let toggles = 0
+  const row = walk(internals.DisclosureRow({
+    title: '高级设置', open: false, onToggle: () => { toggles += 1 },
+  })).find((node) => node.props && node.props.className === 'dt-disclosure-row')
+  const key = (key, repeat) => row.props.onKeyDown({ key, repeat, preventDefault() {} })
+  key('Enter', true)
+  key(' ', true)
+  assert.equal(toggles, 0, '长按 repeat=true 不得反复开合')
+  key('Enter', false)
+  assert.equal(toggles, 1, '普通 Enter 必须只切一次')
+  key(' ', false)
+  assert.equal(toggles, 2, '普通 Space 必须只切一次')
+  assert.equal(row.props['aria-disabled'], false)
+  assert.equal(row.props.tabIndex, 0)
+})
+
+test('W13：总览/判定/触发/设置的每个 Section 标题都是 h2，视觉 class 保留', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((item) => item.opts.id === 'session-superagent-desk')
+  const snap = raceSnapshot()
+  const scenarios = [['overview'], ['judge'], ['trigger'], ...['source', 'creds', 'update', 'diagnose', 'goal'].map((section) => ['settings', section])]
+  for (const [tab, section] of scenarios) {
+    const queue = deskQueue(snap, null, {}, tab)
+    if (section) queue[14] = section
+    const nodes = walk(render(desk, queue))
+    const headings = nodes.filter((node) => node.props && node.props.className === 'dt-section-title')
+    assert.ok(headings.length > 0, tab + '/' + (section || '') + ' 至少有一个 Section')
+    assert.ok(headings.every((node) => node.type === 'h2'), tab + '/' + (section || '') + ' 存在非 h2 Section 标题')
+    assert.ok(nodes.some((node) => node.type === 'h1'), '页面必须保留 h1→h2 层级')
+  }
+})
+
+test('W14：追溯、首败/stale、持久操作与更新失败均有独立 alert，恢复后移除', () => {
+  const { internals } = loadA11yInternals()
+  const trace = walk(internals.TraceTimeline({ payload: { error: 'trace failed' } }))
+  assert.equal(trace[0].props.role, 'alert')
+  assert.equal(trace[0].props['aria-atomic'], 'true')
+
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((item) => item.opts.id === 'session-superagent-desk')
+  const queue = deskQueue({ ...raceSnapshot(), error: 'Failed to fetch' })
+  queue[2] = { ok: false, text: 'save failed' }
+  let nodes = walk(render(desk, queue))
+  for (const message of ['连不上宿主', 'save failed']) {
+    const alert = nodes.find((node) => node.props && node.props.role === 'alert' && a11yText(node).includes(message))
+    assert.ok(alert, '缺少持久错误 alert：' + message)
+    assert.equal(alert.props['aria-atomic'], 'true')
+  }
+  const page = nodes.find((node) => node.props && node.props.className === 'dt-page')
+  assert.equal(page.props['aria-live'], undefined, '不能把整页设为 live，轮询会反复播报')
+
+  const updateQueue = deskQueue(raceSnapshot(), null, {}, 'settings')
+  updateQueue[12] = { current: '0.9.286', latest: null, hasUpdate: false, error: 'npm failed' }
+  updateQueue[14] = 'update'
+  nodes = walk(render(desk, updateQueue))
+  const updateAlerts = nodes.filter((node) => node.props && node.props.role === 'alert' && a11yText(node).includes('npm failed'))
+  assert.equal(updateAlerts.length, 1, '同一次更新失败只能有一个 alert')
+})
