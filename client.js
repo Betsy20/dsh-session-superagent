@@ -358,6 +358,7 @@ window.__ModuleLoader__.load({
     let hostSegmentedTabs = null
     let hostTag = null
     let hostStateDot = null
+    let hostPill = null
     let hostTooltip = null
     let hostOrbit = null
     let hostOrbitRow = null
@@ -374,6 +375,8 @@ window.__ModuleLoader__.load({
       // Tag 与 StateDot 各自独立探测：任何一个缺导出都只回退自己，不影响另一个或其它原语。
       hostTag = primitives.Tag || null
       hostStateDot = primitives.StateDot || null
+      // Pill 同样独立探测：缺导出时完整保留下方本地胶囊，不影响其它原语。
+      hostPill = primitives.Pill || null
       if (primitives && primitives.Modal && primitives.Toast && primitives.IconWarningOutlineMedium) {
         hostUi = createHostUi({ React, primitives })
         // Tooltip 独立探测：缺少它只回退 InfoTip，不把已接入的 Modal/Toast 一起降级。
@@ -387,6 +390,7 @@ window.__ModuleLoader__.load({
       hostSegmentedTabs = null
       hostTag = null
       hostStateDot = null
+      hostPill = null
       hostTooltip = null
     }
 
@@ -892,10 +896,20 @@ window.__ModuleLoader__.load({
           items.map((text, index) => h('li', { key: index }, text))))
     }
 
-    /** 官方 Pill：可切换的小胶囊（用于「全部 / 只看失败」这类就地过滤）。 */
-    function Pill({ active, onClick, children }) {
+    /** DSH Pill：有 onClick 时是可切换按钮，否则是静态只读胶囊。 */
+    function Pill({ active = false, className, onClick, children, ...rest }) {
+      if (hostPill) {
+        // 官方没有 aria-pressed；只在交互形态最小补齐，不把只读 badge 变成按钮。
+        return h(hostPill, {
+          ...rest, active, className, onClick,
+          'aria-pressed': onClick ? !!active : undefined,
+        }, children)
+      }
+      if (!onClick) {
+        return h('span', { className: cx('dt-pill', active && 'dt-pill-active', className) }, children)
+      }
       return h('button', {
-        type: 'button', className: cx('dt-pill', active && 'dt-pill-active'),
+        type: 'button', ...rest, className: cx('dt-pill', active && 'dt-pill-active', className),
         'aria-pressed': !!active, onClick,
       }, children)
     }

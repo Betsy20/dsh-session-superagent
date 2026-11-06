@@ -16,6 +16,7 @@ const HOST = Object.freeze({
   SegmentedTabs: 'dsh-host-segmented-tabs',
   Tag: 'dsh-host-tag',
   StateDot: 'dsh-host-state-dot',
+  Pill: 'dsh-host-pill',
   IconWarningOutlineMedium: 'dsh-host-warning-icon',
 })
 const MAIN_TABS = Object.freeze([
@@ -111,6 +112,11 @@ function loadClient(options = {}) {
     source = source.replace('    function StateDot({', '    window.__StateDotForTest = StateDot\n    function StateDot({')
     assert.notEqual(source, before, '必须捕获真实 StateDot，不能测试手写复制品')
   }
+  if (options.capturePill) {
+    const before = source
+    source = source.replace('    /** 官方 SegmentedControl', '    window.__PillForTest = Pill\n    /** 官方 SegmentedControl')
+    assert.notEqual(source, before, '必须捕获真实 Pill，不能测试手写复制品')
+  }
   vm.runInContext(source, sandbox)
   assert.ok(mod, 'client.js 必须调用 __ModuleLoader__.load')
 
@@ -186,6 +192,7 @@ function loadClient(options = {}) {
     Toggle: sandbox.window.__ToggleForTest,
     Tag: sandbox.window.__TagForTest,
     StateDot: sandbox.window.__StateDotForTest,
+    Pill: sandbox.window.__PillForTest,
     stateCalls: () => stateCalls,
     resetStateCalls: () => { stateCalls.length = 0 },
   }
@@ -1455,4 +1462,198 @@ test('SegTabs 键盘：fallback Arrow/Home/End 循环且焦点跟随，官方路
   const tabs = one(nodes.filter((node) => node.type === HOST.SegmentedTabs), '缺官方 SegmentedTabs')
   assert.equal(tabs.props.onKeyDown, undefined, 'Arrow/Home/End 必须全部交给官方实现')
   assert.equal(nodes.filter((node) => node.props?.role === 'tablist').length, 0)
+})
+
+function pillState() {
+  const state = snapshot()
+  state.body.watchers = [
+    watcher('ok/one', {
+      id: 'ok/one#s1', sessionId: 's1',
+      repoAccess: { repo: 'ok/one', push: true, hasIssues: true },
+    }),
+    watcher('ro/two', {
+      id: 'ro/two#s2', sessionId: 's2', lastError: 'boom',
+      repoAccess: { repo: 'ro/two', push: false, hasIssues: true },
+      deferReason: 'cap-session', lastDeferred: '这条会话一小时内已被唤醒 12 次',
+      filterCounts: { 机器人: 1 },
+      filteredLog: [{ at: '2026-11-06T08:00:00.000Z', number: 40, title: '固定过滤条目', reason: '机器人' }],
+    }),
+  ]
+  return state
+}
+
+function officialPill(nodes, label) {
+  return one(nodes.filter((node) => node.type === HOST.Pill && nodeText(node) === label), '缺唯一官方 Pill「' + label + '」')
+}
+
+test('Pill 官方委托：active/className/children/onClick/rest 完整，交互补 aria-pressed，静态仍由官方处理', () => {
+  const client = loadClient({ primitives: HOST, capturePill: true })
+  assert.equal(typeof client.Pill, 'function')
+  for (const active of [false, true]) {
+    const clicks = []
+    const onClick = () => clicks.push(active)
+    const node = client.Pill({
+      active, className: 'business', onClick, children: '只看失败',
+      id: 'filter-failed', title: '切换失败过滤', 'data-reason': 'failed', key: 'failed-' + active,
+    })
+    assert.equal(node.type, HOST.Pill, '有官方导出时必须直接委托，不能先渲染本地 button')
+    assert.equal(node.props.active, active)
+    assert.equal(node.props.className, 'business')
+    assert.ok(!hasClass(node, 'dt-pill') && !hasClass(node, 'dt-pill-active'), '官方路径不得回填旧主题类')
+    assert.strictEqual(node.props.onClick, onClick)
+    assert.deepEqual(node.props.children, ['只看失败'])
+    assert.equal(node.props['aria-pressed'], active, '官方缺少的 aria-pressed 由调用方按 active 最小补齐')
+    assert.equal(node.props.id, 'filter-failed')
+    assert.equal(node.props.title, '切换失败过滤')
+    assert.equal(node.props['data-reason'], 'failed', 'ButtonHTMLAttributes rest 必须原样透传')
+    assert.equal(node.key, 'failed-' + active)
+    node.props.onClick()
+    assert.deepEqual(clicks, [active])
+  }
+
+  const staticNode = client.Pill({
+    active: true, className: 'business', children: '静态只读', id: 'readonly-badge', title: '只读状态',
+  })
+  assert.equal(staticNode.type, HOST.Pill, '无 onClick 也必须直接委托官方静态分支')
+  assert.equal(staticNode.props.active, true)
+  assert.equal(staticNode.props.className, 'business')
+  assert.deepEqual(staticNode.props.children, ['静态只读'])
+  assert.equal(staticNode.props.id, 'readonly-badge', 'rest 仍按官方合同转发，由官方决定静态分支是否消费')
+  assert.equal(staticNode.props.onClick, undefined)
+  assert.equal(staticNode.props.type, undefined, '适配层不得给静态 badge 自造 button type')
+  assert.equal(staticNode.props['aria-pressed'], undefined, '静态 badge 不应伪装成切换按钮')
+})
+
+test('Pill 回退：缺导出或整个 primitives 时交互保留 button.dt-pill，静态按官方语义渲染 span', () => {
+  const scenarios = [undefined, {}, { ...HOST, Pill: undefined }]
+  for (const primitives of scenarios) {
+    const client = loadClient({ primitives, capturePill: true })
+    for (const active of [false, true]) {
+      const onClick = () => {}
+      const node = client.Pill({
+        active, className: 'business', onClick, children: '清除筛选',
+        id: 'clear-filter', title: '清除', key: 'clear-' + active,
+      })
+      assert.equal(node.type, 'button', '交互回退必须保留原 button.dt-pill')
+      assert.equal(node.props.type, 'button')
+      assert.ok(hasClass(node, 'dt-pill') && hasClass(node, 'business'))
+      assert.equal(hasClass(node, 'dt-pill-active'), active)
+      assert.equal(node.props['aria-pressed'], active)
+      assert.strictEqual(node.props.onClick, onClick)
+      assert.deepEqual(node.props.children, ['清除筛选'])
+      assert.equal(node.props.id, 'clear-filter')
+      assert.equal(node.props.title, '清除')
+      assert.equal(node.key, 'clear-' + active)
+    }
+    const staticNode = client.Pill({ active: true, className: 'business', children: '只读' })
+    assert.equal(staticNode.type, 'span', '无 onClick 时连回退也不能把只读 badge 强行变按钮')
+    assert.ok(hasClass(staticNode, 'dt-pill') && hasClass(staticNode, 'dt-pill-active') && hasClass(staticNode, 'business'))
+    assert.equal(staticNode.props.type, undefined)
+    assert.equal(staticNode.props.onClick, undefined)
+    assert.equal(staticNode.props['aria-pressed'], undefined)
+    assert.deepEqual(staticNode.props.children, ['只读'])
+  }
+})
+
+test('Pill 真实 9 调用点：徽章/问题/暂停/跳过过滤委托官方，active 与 aria-pressed 同步且再点取消', () => {
+  assert.equal([...SOURCE.matchAll(/h\(Pill,/g)].length, 9, '共享适配不得增删 9 个业务调用点')
+  const client = loadClient({ primitives: HOST })
+  const state = pillState()
+  const base = deskQueue(state)
+  const overview = nodesOf(client, base)
+  const readOnly = officialPill(overview, '只读')
+  assert.equal(readOnly.props.active, false)
+  assert.equal(readOnly.props['aria-pressed'], false)
+  const problems = officialPill(overview, '只看有问题的 (1)')
+  assert.equal(problems.props.active, false)
+  assert.equal(overview.filter((node) => node.type === 'button' && hasClass(node, 'dt-pill')).length, 0,
+    '官方路径不得再出现自制 button.dt-pill')
+
+  client.resetStateCalls()
+  readOnly.props.onClick()
+  assert.deepEqual(client.stateCalls().filter((call) => call.index === 16).map((call) => call.next), ['只读'])
+  const badgeQueue = [...base]
+  badgeQueue[16] = '只读'
+  const badgeNodes = nodesOf(client, badgeQueue)
+  const activeBadge = officialPill(badgeNodes, '只读')
+  assert.equal(activeBadge.props.active, true)
+  assert.equal(activeBadge.props['aria-pressed'], true)
+  assert.deepEqual(badgeNodes.filter((node) => hasClass(node, 'dt-open')).map(nodeText), ['ro/two'], '徽章过滤必须仍只留只读仓库')
+  client.resetStateCalls()
+  activeBadge.props.onClick()
+  assert.deepEqual(client.stateCalls().filter((call) => call.index === 16).map((call) => call.next), [null], '已选徽章再点必须取消')
+
+  client.resetStateCalls()
+  problems.props.onClick()
+  assert.deepEqual(client.stateCalls().filter((call) => call.index === 17).map((call) => call.next), [true])
+  const problemQueue = [...base]
+  problemQueue[17] = true
+  const problemNodes = nodesOf(client, problemQueue)
+  const activeProblems = officialPill(problemNodes, '只看有问题的 (1)')
+  assert.equal(activeProblems.props.active, true)
+  assert.equal(activeProblems.props['aria-pressed'], true)
+  assert.deepEqual(problemNodes.filter((node) => hasClass(node, 'dt-open')).map(nodeText), ['ro/two'])
+  client.resetStateCalls()
+  officialPill(problemNodes, '全部').props.onClick()
+  assert.deepEqual(client.stateCalls().filter((call) => call.index === 17).map((call) => call.next), [false], '「全部」必须清除问题过滤')
+
+  const judgeBase = deskQueue(state, null, {}, 'judge')
+  const judge = nodesOf(client, judgeBase)
+  const defer = officialPill(judge, '撞会话上限 × 1')
+  const reason = officialPill(judge, '机器人 × 1')
+  assert.equal(defer.props.active, false)
+  assert.equal(reason.props.active, false)
+  client.resetStateCalls()
+  defer.props.onClick()
+  assert.deepEqual(client.stateCalls().filter((call) => call.index === 15).map((call) => call.next), ['defer:cap-session'])
+  const deferQueue = [...judgeBase]
+  deferQueue[15] = 'defer:cap-session'
+  const deferNodes = nodesOf(client, deferQueue)
+  const activeDefer = officialPill(deferNodes, '撞会话上限 × 1')
+  assert.equal(activeDefer.props.active, true)
+  assert.equal(activeDefer.props['aria-pressed'], true)
+  client.resetStateCalls()
+  officialPill(deferNodes, '清除').props.onClick()
+  assert.deepEqual(client.stateCalls().filter((call) => call.index === 15).map((call) => call.next), [null])
+
+  client.resetStateCalls()
+  reason.props.onClick()
+  assert.deepEqual(client.stateCalls().filter((call) => call.index === 15).map((call) => call.next), ['机器人'])
+  const reasonQueue = [...judgeBase]
+  reasonQueue[15] = '机器人'
+  const reasonNodes = nodesOf(client, reasonQueue)
+  const activeReason = officialPill(reasonNodes, '机器人 × 1')
+  assert.equal(activeReason.props.active, true)
+  assert.equal(activeReason.props['aria-pressed'], true)
+  assert.ok(textOf(reasonNodes).includes('#40'), '跳过原因过滤后的真实条目必须保留')
+  client.resetStateCalls()
+  officialPill(reasonNodes, '清除筛选').props.onClick()
+  assert.deepEqual(client.stateCalls().filter((call) => call.index === 15).map((call) => call.next), [null])
+})
+
+test('Pill 过滤汇总：单项清除与全部清除仍写回原状态槽，清除胶囊无 active 也不误报按下', () => {
+  const client = loadClient({ primitives: HOST })
+  const queue = deskQueue(pillState())
+  queue[16] = '只读'
+  queue[18] = 'error'
+  queue[10] = 'ro'
+  queue[17] = true
+  queue[15] = 'defer:cap-session'
+  const nodes = nodesOf(client, queue)
+  const clearBadge = officialPill(nodes, '只读 ✕')
+  const clearAll = officialPill(nodes, '全部清除')
+  assert.equal(clearBadge.props.active, false)
+  assert.equal(clearBadge.props['aria-pressed'], false)
+  assert.equal(clearAll.props.active, false)
+  assert.equal(clearAll.props['aria-pressed'], false)
+
+  client.resetStateCalls()
+  clearBadge.props.onClick()
+  assert.deepEqual(client.stateCalls().map((call) => [call.index, call.next]), [[16, null]], '单项清除只能清自己的过滤')
+
+  client.resetStateCalls()
+  clearAll.props.onClick()
+  assert.deepEqual(client.stateCalls().map((call) => [call.index, call.next]), [
+    [16, null], [18, null], [10, ''], [17, false], [15, null],
+  ], '全部清除必须保留徽章/状态/搜索/问题/暂停原因五类既有行为')
 })
