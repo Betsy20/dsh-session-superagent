@@ -232,72 +232,82 @@ function hookIndexes(base) {
   return { result: base.length, open: base.length + 1, busy: base.length + 2 }
 }
 
-test('Btn primary：直接委托 DSH Button，type/ref/key 与业务 props 原样保留，其它 variant 不迁移', () => {
+test('Btn 官方 variant：primary/ghost/outline/toolbar 全部委托，props 原样保留且 link 不自造映射', () => {
   const client = loadClient({ primitives: HOST, captureBtn: true })
   assert.equal(typeof client.Btn, 'function')
   const onClick = () => {}
   const ref = { current: null }
   const icon = { type: 'svg', props: { children: [] } }
-  const node = client.Btn({
-    variant: 'primary', size: 'sm', icon, children: '保存 goal',
-    className: 'dt-btn-busy dt-danger', type: 'submit', ref, key: 'goal-save',
-    disabled: true, 'aria-label': '保存 goal', 'aria-busy': 'true', onClick,
-  })
-  assert.equal(node.type, HOST.Button)
-  assert.equal(node.props.variant, 'primary')
-  assert.equal(node.props.size, 'sm')
-  assert.equal(node.props.type, 'submit', '显式 type=submit 必须覆盖默认 button')
-  assert.strictEqual(node.ref, ref, 'DSH forwardRef 的 ref 必须留在 element.ref')
-  assert.equal(node.key, 'goal-save')
-  assert.equal(node.props.key, undefined, 'key 不能被改写进 props')
-  assert.strictEqual(node.props.icon, icon)
-  assert.strictEqual(node.props.onClick, onClick)
-  assert.equal(node.props.disabled, true)
-  assert.equal(node.props['aria-label'], '保存 goal')
-  assert.equal(node.props['aria-busy'], 'true')
-  assert.equal(node.props.className, 'dt-btn-busy dt-danger')
-  assert.ok(!hasClass(node, 'dt-btn') && !hasClass(node, 'dt-btn-primary'), '宿主路径不得重新引入旧 primary CSS')
-  assert.deepEqual(node.props.children, ['保存 goal'], 'icon 交给宿主，不能复刻旧 span 结构')
-  assert.equal(client.Btn({ variant: 'primary', children: '保存' }).props.type, 'button')
+  for (const variant of ['primary', 'ghost', 'outline', 'toolbar']) {
+    const node = client.Btn({
+      variant, size: 'sm', icon, children: '保存 goal',
+      className: 'dt-btn-busy dt-danger business', type: 'submit', ref, key: variant + '-save',
+      disabled: true, 'aria-label': '保存 goal', 'aria-busy': 'true', onClick,
+    })
+    assert.equal(node.type, HOST.Button, variant + ' 必须委托 DSH Button')
+    assert.equal(node.props.variant, variant)
+    assert.equal(node.props.size, 'sm')
+    assert.equal(node.props.type, 'submit', variant + '：显式 type=submit 必须覆盖默认 button')
+    assert.strictEqual(node.ref, ref, variant + '：DSH forwardRef 的 ref 必须留在 element.ref')
+    assert.equal(node.key, variant + '-save')
+    assert.equal(node.props.key, undefined, variant + '：key 不能被改写进 props')
+    assert.strictEqual(node.props.icon, icon)
+    assert.strictEqual(node.props.onClick, onClick)
+    assert.equal(node.props.disabled, true)
+    assert.equal(node.props['aria-label'], '保存 goal')
+    assert.equal(node.props['aria-busy'], 'true')
+    assert.equal(node.props.className, 'dt-btn-busy dt-danger business')
+    assert.ok(!hasClass(node, 'dt-btn') && !hasClass(node, 'dt-btn-' + variant) && !hasClass(node, 'dt-btn-sm'),
+      variant + '：宿主路径不得重新引入旧 variant/size CSS')
+    assert.deepEqual(node.props.children, ['保存 goal'], variant + '：icon 交给宿主，不能复刻旧 span 结构')
+  }
 
-  const ghost = client.Btn({ variant: 'ghost', size: 'sm', icon, children: '取消', className: 'business' })
-  assert.equal(ghost.type, 'button')
-  assert.equal(ghost.props.type, 'button')
-  assert.ok(hasClass(ghost, 'dt-btn') && hasClass(ghost, 'dt-btn-ghost') && hasClass(ghost, 'dt-btn-sm'))
-  assert.ok(hasClass(ghost, 'business'))
-  assert.equal(ghost.props.children[0].props.className, 'dt-btn-icon')
+  const defaults = client.Btn({ children: '默认按钮' })
+  assert.equal(defaults.type, HOST.Button)
+  assert.equal(defaults.props.variant, 'ghost', '缺省 variant 必须对齐官方 ghost')
+  assert.equal(defaults.props.size, 'md', '缺省 size 必须对齐官方 md')
+  assert.equal(defaults.props.type, 'button')
+
+  const link = client.Btn({ variant: 'link', size: 'sm', icon, children: '看建议规则', className: 'business' })
+  assert.equal(link.type, 'button', '官方没有 link，必须保留旧 DOM 而不是映射成 toolbar/ghost')
+  assert.equal(link.props.type, 'button')
+  assert.ok(hasClass(link, 'dt-btn') && hasClass(link, 'dt-btn-link') && hasClass(link, 'dt-btn-sm'))
+  assert.ok(hasClass(link, 'business'))
+  assert.equal(link.props.children[0].props.className, 'dt-btn-icon')
 })
 
-test('Btn primary：老宿主缺 Button 或整个 primitives 时完整回退旧 DOM 与 props', () => {
+test('Btn 全 variant：老宿主缺 Button 或整个 primitives 时完整回退旧 DOM 与 props', () => {
   for (const primitives of [undefined, {}]) {
     const client = loadClient({ primitives, captureBtn: true })
     const onClick = () => {}
     const ref = { current: null }
     const icon = { type: 'svg', props: { children: [] } }
-    const node = client.Btn({
-      variant: 'primary', size: 'sm', icon, children: '确认删除',
-      className: 'dt-btn-busy dt-danger', type: 'submit', ref, key: 'delete-confirm',
-      disabled: true, 'aria-label': '确认删除', 'aria-busy': 'true', onClick,
-    })
-    assert.equal(node.type, 'button')
-    assert.equal(node.props.type, 'submit')
-    assert.strictEqual(node.ref, ref)
-    assert.equal(node.key, 'delete-confirm')
-    assert.equal(node.props.key, undefined)
-    assert.strictEqual(node.props.onClick, onClick)
-    assert.equal(node.props.disabled, true)
-    assert.equal(node.props['aria-label'], '确认删除')
-    assert.equal(node.props['aria-busy'], 'true')
-    for (const name of ['dt-btn', 'dt-btn-primary', 'dt-btn-sm', 'dt-btn-busy', 'dt-danger']) {
-      assert.ok(hasClass(node, name), 'fallback 缺 class：' + name)
+    for (const variant of ['primary', 'ghost', 'outline', 'toolbar', 'link']) {
+      const node = client.Btn({
+        variant, size: 'sm', icon, children: '确认删除',
+        className: 'dt-btn-busy dt-danger', type: 'submit', ref, key: variant + '-confirm',
+        disabled: true, 'aria-label': '确认删除', 'aria-busy': 'true', onClick,
+      })
+      assert.equal(node.type, 'button', variant + '：缺 Button 时必须回退原生 button')
+      assert.equal(node.props.type, 'submit')
+      assert.strictEqual(node.ref, ref)
+      assert.equal(node.key, variant + '-confirm')
+      assert.equal(node.props.key, undefined)
+      assert.strictEqual(node.props.onClick, onClick)
+      assert.equal(node.props.disabled, true)
+      assert.equal(node.props['aria-label'], '确认删除')
+      assert.equal(node.props['aria-busy'], 'true')
+      for (const name of ['dt-btn', 'dt-btn-' + variant, 'dt-btn-sm', 'dt-btn-busy', 'dt-danger']) {
+        assert.ok(hasClass(node, name), variant + '：fallback 缺 class：' + name)
+      }
+      assert.equal(node.props.children[0].props.className, 'dt-btn-icon')
+      assert.strictEqual(node.props.children[0].props.children[0], icon)
+      assert.equal(node.props.children[1], '确认删除')
     }
-    assert.equal(node.props.children[0].props.className, 'dt-btn-icon')
-    assert.strictEqual(node.props.children[0].props.children[0], icon)
-    assert.equal(node.props.children[1], '确认删除')
   }
 })
 
-test('现有 8 个直接 Btn primary 场景全部委托；SaveBar 的 ghost 仍保持旧 Btn', () => {
+test('现有 8 个直接 Btn primary 场景全部委托；SaveBar 的 ghost 同样委托', () => {
   const client = loadClient({ primitives: HOST })
   const empty = snapshot()
   let delegated = 0
@@ -333,8 +343,11 @@ test('现有 8 个直接 Btn primary 场景全部委托；SaveBar 的 ghost 仍�
   assert.equal(save.props.size, 'sm')
   assert.equal(save.props.disabled, false)
   const discard = control(nodesOf(client, dirty, { sessionId: 's1' }), '放弃')
-  assert.equal(discard.type, 'button', '非 primary 必须保留旧 Btn')
-  assert.ok(hasClass(discard, 'dt-btn') && hasClass(discard, 'dt-btn-ghost'))
+  assert.equal(discard.type, HOST.Button, 'SaveBar ghost 必须委托 DSH Button')
+  assert.equal(discard.props.variant, 'ghost')
+  assert.equal(discard.props.size, 'sm')
+  assert.equal(typeof discard.props.onClick, 'function')
+  assert.ok(!hasClass(discard, 'dt-btn') && !hasClass(discard, 'dt-btn-ghost') && !hasClass(discard, 'dt-btn-sm'))
 
   const creds = deskQueue(empty, null, {}, 'settings')
   creds[14] = 'creds'
@@ -361,7 +374,53 @@ test('现有 8 个直接 Btn primary 场景全部委托；SaveBar 的 ghost 仍�
   assert.equal(delegated, 8, '必须真实渲染并验收 8 个直接 primary 场景')
 })
 
-test('共享删除确认 primary 委托后仍透传 danger/busy/disabled/aria，取消保持旧 ghost', () => {
+test('普通 ghost/outline 的场景全部委托；业务 link 保留旧 variant 与完整 props', () => {
+  const client = loadClient({ primitives: HOST })
+  const state = snapshot()
+  state.body.watchers = [watcher('a/b', {
+    id: 'a/b#s1',
+    lastError: 'GitHub API 请求: EOF（网络抖动：已按退避自动重试）',
+    lastErrorKind: 'network',
+  })]
+  const overview = nodesOf(client, deskQueue(state))
+  for (const [label, variant] of [['立刻', 'outline'], ['暂停', 'ghost'], ['删除', 'ghost'], ['立刻重试', 'outline']]) {
+    const node = control(overview, label)
+    assert.equal(node.type, HOST.Button, label + ' 必须委托 DSH Button')
+    assert.equal(node.props.variant, variant)
+    assert.equal(node.props.size, 'sm')
+    assert.equal(node.props.type, 'button')
+    assert.equal(node.props.disabled, undefined)
+    assert.equal(node.props['aria-label'], label === '立刻重试' || label === '删除' ? label : undefined)
+    assert.equal(typeof node.props.onClick, 'function')
+    assert.ok(!hasClass(node, 'dt-btn') && !hasClass(node, 'dt-btn-' + variant) && !hasClass(node, 'dt-btn-sm'),
+      label + ' 不得带旧 variant/size CSS')
+  }
+  assert.ok(control(overview, '立刻').props.icon, 'outline 行内轮询必须保留 icon')
+  assert.ok(control(overview, '暂停').props.icon, 'ghost 暂停必须保留 icon')
+  assert.ok(control(overview, '删除').props.icon, 'ghost 删除触发器必须保留 icon')
+  assert.equal(control(overview, '删除').props['aria-haspopup'], 'dialog')
+
+  const update = nodesOf(client, updateQueue())
+  for (const [label, variant] of [['复制命令', 'ghost'], ['重新检查', 'ghost'], ['复制诊断信息', 'outline']]) {
+    const node = control(update, label)
+    assert.equal(node.type, HOST.Button, label + ' 必须委托 DSH Button')
+    assert.equal(node.props.variant, variant)
+    assert.equal(node.props.size, 'sm')
+    assert.equal(node.props.disabled, label === '重新检查' ? false : undefined)
+    assert.equal(typeof node.props.onClick, 'function')
+  }
+
+  const rules = snapshot()
+  rules.body.watchers = [watcher('a/b', { silentWakes: 3 })]
+  const link = control(nodesOf(client, deskQueue(rules)), '看建议规则')
+  assert.equal(link.type, 'button', '官方 Button 没有 link，不得自造 variant 映射')
+  assert.equal(link.props.type, 'button')
+  assert.equal(link.props['aria-label'], '看建议规则')
+  assert.equal(typeof link.props.onClick, 'function')
+  for (const name of ['dt-btn', 'dt-btn-link', 'dt-btn-sm']) assert.ok(hasClass(link, name), 'link 缺旧 class：' + name)
+})
+
+test('共享删除确认保留 danger/busy/disabled/aria，primary 确认与 ghost 取消都委托', () => {
   const client = loadClient({ primitives: HOST })
   const state = snapshot()
   state.body.watchers = [watcher('a/b', { id: 'a/b#s1' })]
@@ -369,8 +428,11 @@ test('共享删除确认 primary 委托后仍透传 danger/busy/disabled/aria，
   const opened = nodesOf(client, [...base, true, false])
   const footer = walk(hostModal(opened).props.footer)
   const cancel = control(footer, '取消')
-  assert.equal(cancel.type, 'button')
-  assert.ok(hasClass(cancel, 'dt-btn-ghost'))
+  assert.equal(cancel.type, HOST.Button)
+  assert.equal(cancel.props.variant, 'ghost')
+  assert.equal(cancel.props.size, 'md')
+  assert.equal(typeof cancel.props.onClick, 'function')
+  assert.ok(!hasClass(cancel, 'dt-btn') && !hasClass(cancel, 'dt-btn-ghost'))
   const confirm = control(footer, '确认删除')
   assert.equal(confirm.type, HOST.Button)
   assert.equal(confirm.props.type, 'button')
