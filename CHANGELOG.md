@@ -2,6 +2,41 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.10.0] - 2026-11-06 —— 功能稳定版
+
+这是严格审查后收口的功能稳定版。上一轮 11 项必须修、18 项值得改全部处理，终审新增 N1/N2/N3 也已修复。
+
+### 状态与数据正确性
+
+- 主面板 `/state` 携带 sessionId，goal/title/usage 正确；空会话不串值。
+- 首次 loading/失败不再渲染零统计和 Onboarding；Orbit 区分读取中、读取失败与真实空。
+- 保存使用草稿版本 + 保存序号；pending 后的新输入不被旧响应覆盖，回读成功才提示成功。
+- `/state` ETag 按作用域分开，圆环全局请求与会话面板不互相污染。
+- trace 使用请求代际，慢旧响应不覆盖新编号；200→500→304 清旧错误。
+
+### 表单、Orbit 与草稿
+
+- 校验失败调用 reportValidity 并聚焦无效控件，不发 POST。
+- 折叠/切换 dirty 表单先确认；取消、Escape、遮罩保留草稿，确认才丢弃。
+- Orbit 立刻/暂停/恢复/删除按 watcher+action 加锁；连点不重复 POST，删除失败在当前 Modal 可见且可重试。
+- 删除失败不会残留到下一次删除确认框；保存回读被刷新顶掉不再假报失败。
+
+### UI 与可访问性
+
+- CollapsibleList、Pill、Tag、StateDot 等继续使用 DSH 官方组件；无导出时完整回退。
+- 高级区补 aria-controls/body id；busy Disclosure 退出 Tab 顺序并忽略长按。
+- Section 标题改 h2；持久异步错误有 alert/live；SaveBar 关闭后合理回焦。
+- fallback Tooltip 支持 Escape 与 aria 关联；Modal 独占 Escape；Toast 用 id 重启。
+- 事件记录全局按时间倒序取最近 20，reopened 纳入问题计数；过滤空态给出真实恢复动作。
+
+### 验证
+
+- 全量 **675/675**。
+- UI 体检 **11/11=100**。
+- 真实 Chromium **47/47**（每次独立任务空间）。
+- 0.10.0 终审报告记录 11+18 项复核、N1/N2/N3 修复与未验边界。
+- 未验真实 DSH WebView、物理读屏、触摸/IME、真实 GitHub/Gitee 写操作。
+
 ## [0.9.286] - 2026-11-06 —— 切换中的 dirty 草稿保护
 
 ### 折叠/切换不再静默丢草稿
