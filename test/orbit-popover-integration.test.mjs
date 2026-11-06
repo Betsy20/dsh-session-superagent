@@ -6,6 +6,7 @@ import vm from 'node:vm'
 const SOURCE = readFileSync(new URL('../client.js', import.meta.url), 'utf8')
 const PRIMITIVES_MODULE = '@deepseek-ai/dsh-client-ui-primitives'
 const MENU_SURFACE = 'dsh-menu-surface'
+const DISCLOSURE_ROW = 'dsh-disclosure-row'
 const PORTAL = Symbol('react.portal')
 const FRAGMENT = Symbol('react.fragment')
 
@@ -217,6 +218,7 @@ function loadClient(options = {}) {
 
   const defaultPrimitives = {
     MenuSurface: MENU_SURFACE,
+    DisclosureRow: DISCLOSURE_ROW,
     useAnchoredPosition,
     useDismissOnOutsidePointer,
   }
@@ -259,6 +261,13 @@ function loadClient(options = {}) {
     if (typeof node !== 'object') return out
     if (typeof node.type === 'function') return expand(node.type(node.props || {}), out)
     out.push(node)
+    if (node.type === DISCLOSURE_ROW) {
+      // 宿主组件在 Node 桩里不执行；展开其实际 props 插槽，避免动作/状态只写在 headerAccessory 就漏测。
+      expand(node.props?.icon, out)
+      expand(node.props?.title, out)
+      expand(node.props?.collapsedContent, out)
+      expand(node.props?.headerAccessory, out)
+    }
     expand(node.props?.children, out)
     return out
   }
@@ -336,6 +345,7 @@ function ringOf(nodes) {
 test('可选探测缺任一能力都完整保留旧 StatusOrbit 定位、极大 z-index 与本地确认', () => {
   const full = {
     MenuSurface: MENU_SURFACE,
+    DisclosureRow: DISCLOSURE_ROW,
     useAnchoredPosition() {},
     useDismissOnOutsidePointer() {},
   }
@@ -344,6 +354,7 @@ test('可选探测缺任一能力都完整保留旧 StatusOrbit 定位、极大 
     { primitives: full, reactDom: undefined },
     { primitives: full, reactDom: {} },
     { primitives: { ...full, MenuSurface: undefined } },
+    { primitives: { ...full, DisclosureRow: undefined } },
     { primitives: { ...full, useAnchoredPosition: undefined } },
     { primitives: { ...full, useDismissOnOutsidePointer: undefined } },
   ]
@@ -374,6 +385,18 @@ test('DSH 主 surface portal 到 body，top/end/8/8，保留 rows/错误/动作�
   assert.equal(surface.props.tabIndex, -1)
   assert.equal(surface.props['aria-modal'], undefined)
   assert.equal(surface.props.className, 'dt-card sa-dock-panel')
+  const listNode = one(nodes.filter((node) => hasClass(node, 'sa-dock-rows')), 'DSH 缺 watcher 列表')
+  assert.equal(listNode.type, 'ul', 'DSH 列表必须采用 conversation QueueDock 的 ul 语义')
+  const rowNode = one(nodes.filter((node) => hasClass(node, 'sa-dock-row')), 'DSH 缺 watcher 行')
+  assert.equal(rowNode.type, 'li', 'DSH watcher 行必须使用 li')
+  assert.equal(rowNode.props.title.includes('poll failed'), true, '业务 title 不得因官方行组件丢失')
+  const officialRow = one(nodes.filter((node) => node.type === DISCLOSURE_ROW), 'DSH 缺真实 DisclosureRow')
+  assert.equal(officialRow.props.expandable, false)
+  assert.equal(officialRow.props.open, false)
+  assert.equal(officialRow.props.previewChevron, false)
+  assert.equal(officialRow.props.title, 'a/b')
+  assert.equal(officialRow.props.titleClassName, 'sa-dock-name')
+  assert.ok(officialRow.props.headerAccessory, '三个 watcher 动作必须留在官方 headerAccessory')
   assert.deepEqual({ ...surface.props.style }, {
     position: 'fixed', left: 32, top: 48, width: 368, zIndex: 1100, visibility: 'visible',
   })

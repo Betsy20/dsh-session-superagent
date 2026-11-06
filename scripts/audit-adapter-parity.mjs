@@ -550,7 +550,7 @@ function auditFallbacks(clientSource, audit) {
     const primitives = assignmentIf(statements, 'hostOrbit = createOrbitPopover', 'primitives.MenuSurface')
     const portal = assignmentIf(statements, 'hostOrbit = createOrbitPopover', 'reactDom.createPortal')
     audit.value('orbit.fallback.primitives', andTerms(primitives?.condition), [
-      'primitives', 'primitives.MenuSurface', 'typeofprimitives.useAnchoredPosition===\'function\'',
+      'primitives', 'primitives.DisclosureRow', 'primitives.MenuSurface', 'typeofprimitives.useAnchoredPosition===\'function\'',
       'typeofprimitives.useDismissOnOutsidePointer===\'function\'',
     ])
     audit.value('orbit.fallback.portal', andTerms(portal?.condition), [
