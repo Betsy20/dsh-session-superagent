@@ -72,6 +72,10 @@ Tooltip scroll-close 在独立模块与主面板同步保留 trigger 焦点，�
 
 CollapsibleList 接入官方 DisclosureRow；首败不再冒充空态，Orbit 区分读取失败；表单校验 reportValidity 并聚焦。全量 **630/630**。
 
+## 实施回写（0.9.283）
+
+凭证/goal 以草稿版本与保存序号防止旧响应覆盖；回读成功才 Toast，null 清干净草稿。专项 Chromium 52/52，全量 **637/637**。
+
 ## 0. 基线、口径与复用边界
 
 | 来源 | 本次核对基线 | 用法 |
