@@ -1898,3 +1898,56 @@ test('更新检查失败显示「检查失败」，不能误报「已是最新�
   assert.ok(text.includes('检查失败'), text)
   assert.ok(!text.includes('已是最新'), '失败不能显示成最新：' + text)
 })
+
+test('Orbit 首次 loading/error 不显示零统计或空态，旧列表失败仍保留并提示', () => {
+  const { registrations, render } = loadClient()
+  const orbit = registrations.find((r) => r.opts.id === 'session-superagent-orbit')
+  const anchor = { x: 720, y: 860 }
+  const textOf = (queue) => walk(render(orbit, queue)).filter((n) => n.type === '#text').map((n) => n.text).join(' | ')
+
+  const loading = textOf([null, null, true, anchor])
+  assert.ok(loading.includes('正在读取…'), '首次读取要显示加载状态：' + loading)
+  assert.ok(!loading.includes('0 / 0'), '未知状态不能显示零统计：' + loading)
+  assert.ok(!loading.includes('还没有。在「主理鱼」标签页'), '未知状态不能显示空列表指引：' + loading)
+
+  const failed = textOf([null, '读取失败：offline', true, anchor])
+  assert.ok(failed.includes('读取失败：offline'), '首次失败要显示真实错误：' + failed)
+  assert.ok(!failed.includes('0 / 0'), '首次失败不能显示零统计：' + failed)
+  assert.ok(!failed.includes('还没有。在「主理鱼」标签页'), '首次失败不能伪装成空态：' + failed)
+
+  const stale = textOf([[watcher('a/b')], '读取失败：offline', true, anchor])
+  assert.ok(stale.includes('a/b'), '刷新失败必须保留旧 watcher：' + stale)
+  assert.ok(stale.includes('读取失败：offline'), '旧 watcher 旁必须显示刷新错误：' + stale)
+  assert.ok(!stale.includes('操作失败：读取失败'), '读取失败不能误标成写操作失败：' + stale)
+
+  const empty = textOf([[], null, true, anchor])
+  assert.ok(empty.includes('0 / 0') && empty.includes('还没有。在「主理鱼」标签页'), '成功返回真空才显示零统计与空态')
+})
+
+test('首次 loading/error 不渲染零统计、Onboarding 或业务页；旧快照失败仍保留', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const scenarios = [
+    { snap: { loading: true, error: null, body: null }, expected: '正在读取…' },
+    { snap: { loading: false, error: 'Failed to fetch', body: null }, expected: '读不到面板数据' },
+  ]
+  for (const { snap, expected } of scenarios) {
+    const nodes = walk(render(desk, deskQueue(snap)))
+    const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' | ')
+    assert.ok(text.includes(expected), '缺状态文案：' + expected)
+    assert.ok(!text.includes('三步让这个会话开始盯办'), '首次未成功不能显示 Onboarding：' + text)
+    assert.ok(!text.includes('条主理鱼'), '首次未成功不能显示零统计：' + text)
+    assert.equal(nodes.filter((n) => n.props && n.props.role === 'tabpanel').length, 0, '没有 body 时不应渲染业务页')
+    assert.equal(nodes.filter((n) => n.props && String(n.props.className || '').includes('dt-stats')).length, 0, '没有 body 时不应渲染统计条')
+  }
+
+  const stale = {
+    loading: false, error: 'Failed to fetch',
+    body: { sessionGoal: null, sessionTitle: '旧快照', credentials: {}, watchers: [watcher('a/b')] },
+  }
+  const nodes = walk(render(desk, deskQueue(stale)))
+  const text = nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' | ')
+  assert.ok(text.includes('读不到面板数据'), '旧快照也要显示刷新失败')
+  assert.ok(text.includes('a/b') && text.includes('条主理鱼'), '刷新失败不能清掉旧数据：' + text)
+  assert.ok(!text.includes('三步让这个会话开始盯办'), '有旧 watcher 时不能显示空态')
+})
