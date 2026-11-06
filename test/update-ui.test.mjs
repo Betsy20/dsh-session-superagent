@@ -11,8 +11,15 @@ const HOST = Object.freeze({
   Modal: 'dsh-host-modal',
   Toast: 'dsh-host-toast',
   Button: 'dsh-host-button',
+  SegmentedTabs: 'dsh-host-segmented-tabs',
   IconWarningOutlineMedium: 'dsh-host-warning-icon',
 })
+const MAIN_TABS = Object.freeze([
+  ['overview', '总览'],
+  ['judge', '判定'],
+  ['trigger', '触发'],
+  ['settings', '设置'],
+])
 const UPDATE = Object.freeze({
   current: '0.9.270',
   latest: '0.9.271',
@@ -854,4 +861,119 @@ test('老宿主缺 Button/Modal/Toast 时保留完整本地 fallback，确认仍
     assert.ok(client.stateCalls().some((call) => call.index === 7 && call.next?.tone === 'success'))
     assert.equal(opened.filter((node) => node.type === HOST.Button || node.type === HOST.Modal || node.type === HOST.Toast).length, 0)
   }
+})
+
+test('SegTabs 官方委托：四项 items 带稳定 id/panelId，当前 panel 唯一且反向关联', () => {
+  const client = loadClient({ primitives: HOST })
+  for (const [value] of MAIN_TABS) {
+    const nodes = nodesOf(client, deskQueue(snapshot(), null, {}, value))
+    const tabs = one(nodes.filter((node) => node.type === HOST.SegmentedTabs), value + '：缺唯一官方 SegmentedTabs')
+    assert.equal(tabs.props.value, value)
+    assert.equal(tabs.props.label, '主理鱼分区')
+    assert.equal(tabs.props.items.length, 4)
+    assert.equal(tabs.props.className, undefined, '官方路径不得回填旧 dt-tabs 外观')
+    assert.equal(tabs.props.onKeyDown, undefined, '官方路径不得挂自制键盘处理')
+    assert.equal(nodes.filter((node) => node.props?.role === 'tablist').length, 0, '官方路径不得再渲染本地 tablist')
+    MAIN_TABS.forEach(([itemValue, itemLabel], index) => {
+      const item = tabs.props.items[index]
+      assert.equal(item.value, itemValue)
+      assert.equal(item.label, itemLabel)
+      assert.equal(item.id, 'sa-main-tab-' + itemValue)
+      assert.equal(item.panelId, 'sa-main-panel-' + itemValue)
+    })
+    const panel = one(nodes.filter((node) => node.props?.role === 'tabpanel'), value + '：只能渲染当前 tabpanel')
+    assert.equal(panel.props.id, 'sa-main-panel-' + value)
+    assert.equal(panel.props['aria-labelledby'], 'sa-main-tab-' + value)
+    assert.ok(hasClass(panel, 'dt-tabpanel'))
+  }
+})
+
+test('SegTabs 回退：缺导出或 primitives 时保留原 tablist、唯一 tab stop 与 panel 关联', () => {
+  const scenarios = [undefined, {}, { ...HOST, SegmentedTabs: undefined }]
+  for (const primitives of scenarios) {
+    const client = loadClient({ primitives })
+    const nodes = nodesOf(client, deskQueue(snapshot(), null, {}, 'overview'))
+    assert.equal(nodes.filter((node) => node.type === HOST.SegmentedTabs).length, 0)
+    const tablist = one(nodes.filter((node) => node.props?.role === 'tablist'), 'fallback 缺唯一 tablist')
+    assert.ok(hasClass(tablist, 'dt-tabs'))
+    assert.equal(tablist.props['aria-label'], '主理鱼分区')
+    assert.equal(tablist.props.style.gridTemplateColumns, 'repeat(4, minmax(0, 1fr))')
+    assert.equal(typeof tablist.props.onKeyDown, 'function')
+    const tabs = nodes.filter((node) => node.type === 'button' && node.props?.role === 'tab')
+    assert.equal(tabs.length, 4)
+    MAIN_TABS.forEach(([value, label], index) => {
+      const tab = tabs[index]
+      assert.equal(nodeText(tab), label)
+      assert.equal(tab.props.id, 'sa-main-tab-' + value)
+      assert.equal(tab.props['aria-controls'], 'sa-main-panel-' + value)
+      assert.equal(tab.props['aria-selected'], value === 'overview')
+      assert.equal(tab.props.tabIndex, value === 'overview' ? 0 : -1)
+      assert.ok(hasClass(tab, 'dt-tab'))
+    })
+    assert.equal(tabs.filter((tab) => tab.props.tabIndex === 0).length, 1, 'fallback 只能有一个 tab stop')
+    const panel = one(nodes.filter((node) => node.props?.role === 'tabpanel'), 'fallback 缺当前 tabpanel')
+    assert.equal(panel.props.id, tabs[0].props['aria-controls'])
+    assert.equal(panel.props['aria-labelledby'], tabs[0].props.id)
+  }
+})
+
+test('SegTabs 当前 tab 重置：官方收到同一 onChange，fallback 点击当前仍重发', () => {
+  const scenarios = [
+    ['official', HOST],
+    ['missing-export', { ...HOST, SegmentedTabs: undefined }],
+    ['missing-primitives', undefined],
+  ]
+  for (const [name, primitives] of scenarios) {
+    const client = loadClient({ primitives })
+    const nodes = nodesOf(client, deskQueue(snapshot(), null, {}, 'overview'))
+    client.resetStateCalls()
+    if (name === 'official') {
+      const tabs = one(nodes.filter((node) => node.type === HOST.SegmentedTabs), '缺官方 SegmentedTabs')
+      // 官方 onClick 无条件调用此回调；这里验证适配层没有按 value 包一层去重。
+      tabs.props.onChange('overview')
+    } else {
+      const current = one(nodes.filter((node) => node.type === 'button'
+        && node.props?.role === 'tab' && node.props['aria-selected'] === true), name + '：缺当前 fallback tab')
+      current.props.onClick()
+    }
+    const calls = client.stateCalls().filter((call) => call.index === 1)
+    assert.equal(calls.length, 1, name + '：点击当前 tab 不能吞掉 onChange')
+    assert.equal(calls[0].next, 'overview')
+  }
+})
+
+test('SegTabs 键盘：fallback Arrow/Home/End 循环且焦点跟随，官方路径无自制 keydown', () => {
+  const client = loadClient({ primitives: { ...HOST, SegmentedTabs: undefined } })
+  const scenarios = [
+    ['judge', 'ArrowRight', 'trigger'],
+    ['judge', 'ArrowLeft', 'overview'],
+    ['overview', 'ArrowLeft', 'settings'],
+    ['settings', 'ArrowRight', 'overview'],
+    ['judge', 'Home', 'overview'],
+    ['judge', 'End', 'settings'],
+  ]
+  for (const [value, key, expected] of scenarios) {
+    const nodes = nodesOf(client, deskQueue(snapshot(), null, {}, value))
+    const tablist = one(nodes.filter((node) => node.props?.role === 'tablist'), value + ' ' + key + '：缺 tablist')
+    const tabs = nodes.filter((node) => node.type === 'button' && node.props?.role === 'tab')
+    const focused = []
+    for (const tab of tabs) {
+      assert.equal(typeof tab.ref, 'function', 'fallback tab 必须注册按钮 ref')
+      tab.ref({ focus: () => focused.push(tab.props.id) })
+    }
+    let prevented = 0
+    client.resetStateCalls()
+    tablist.props.onKeyDown({ key, preventDefault: () => { prevented += 1 } })
+    assert.equal(prevented, 1, value + ' ' + key + '：必须 preventDefault')
+    assert.deepEqual(focused, ['sa-main-tab-' + expected], value + ' ' + key + '：焦点必须跟随目标 tab')
+    const calls = client.stateCalls().filter((call) => call.index === 1)
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0].next, expected)
+  }
+
+  const official = loadClient({ primitives: HOST })
+  const nodes = nodesOf(official, deskQueue(snapshot()))
+  const tabs = one(nodes.filter((node) => node.type === HOST.SegmentedTabs), '缺官方 SegmentedTabs')
+  assert.equal(tabs.props.onKeyDown, undefined, 'Arrow/Home/End 必须全部交给官方实现')
+  assert.equal(nodes.filter((node) => node.props?.role === 'tablist').length, 0)
 })
