@@ -75,6 +75,7 @@ export function createHostUi({ React, primitives } = {}) {
       throw new TypeError('Tooltip 需要宿主 React.cloneElement 以合并 trigger ref')
     }
     const [remountKey, setRemountKey] = React.useState(0)
+    const [scrollFocusSuppressed, setScrollFocusSuppressed] = React.useState(false)
     const triggerNodeRef = React.useRef(null)
     const restoreFocusRef = React.useRef(false)
     React.useEffect(() => {
@@ -89,6 +90,7 @@ export function createHostUi({ React, primitives } = {}) {
           || (typeof triggerNode.contains === 'function' && triggerNode.contains(activeElement))
         ))
         setRemountKey((current) => current + 1)
+        setScrollFocusSuppressed(restoreFocusRef.current)
       }
       // DSH Tooltip 没有受控 open 或 scroll listener；capture 可同时覆盖嵌套滚动容器。
       target.addEventListener('scroll', closeOnScroll, true)
@@ -116,10 +118,16 @@ export function createHostUi({ React, primitives } = {}) {
       // 标记只消费一次；即使新 ref 缺失，也不能在后续无关渲染中抢焦点。
       restoreFocusRef.current = false
       const triggerNode = triggerNodeRef.current
-      if (triggerNode && typeof triggerNode.focus === 'function'
-        && (!('isConnected' in triggerNode) || triggerNode.isConnected)) {
-        // 避免焦点归还自身再次滚动容器，形成 scroll -> remount 循环。
-        triggerNode.focus({ preventScroll: true })
+      try {
+        if (triggerNode && typeof triggerNode.focus === 'function'
+          && (!('isConnected' in triggerNode) || triggerNode.isConnected)) {
+          // 官方 disabled 会清 open/pinned，并让 focus 打开路径早退；只覆盖这次同步回焦，避免立即重开。
+          // preventScroll 同时避免焦点归还自身再次滚动容器，形成 scroll -> remount 循环。
+          triggerNode.focus({ preventScroll: true })
+        }
+      } finally {
+        // focus 返回立即恢复官方 hover/focus/click；不改变 key，也不再 detach/attach trigger。
+        setScrollFocusSuppressed(false)
       }
       return undefined
     }, [remountKey])
@@ -130,6 +138,7 @@ export function createHostUi({ React, primitives } = {}) {
       side: 'top',
       portal: true,
       openOnClick: true,
+      disabled: scrollFocusSuppressed,
       gap: 8,
     }, React.cloneElement(trigger, { ref: setTriggerRef }))
   }

@@ -62,13 +62,15 @@ function harness(overrides = {}) {
 function persistentTooltipHarness() {
   const context = harness()
   const refs = []
-  let generation
+  const states = []
   let refCursor = 0
+  let stateCursor = 0
   context.React.useState = (initial) => {
-    if (generation === undefined) generation = initial
-    return [generation, (next) => {
+    const index = stateCursor++
+    if (!states[index]) states[index] = { value: initial }
+    return [states[index].value, (next) => {
       context.stateUpdates.push(next)
-      generation = typeof next === 'function' ? next(generation) : next
+      states[index].value = typeof next === 'function' ? next(states[index].value) : next
     }]
   }
   context.React.useRef = (initial) => {
@@ -78,6 +80,7 @@ function persistentTooltipHarness() {
   }
   context.renderTooltip = (props) => {
     refCursor = 0
+    stateCursor = 0
     return context.ui.Tooltip(props)
   }
   return context
@@ -226,6 +229,7 @@ test('Tooltip scroll-close：焦点在 trigger 时 key 递增并重聚焦，ref/
   const first = renderTooltip(originalProps)
   const firstTrigger = first.props.children[0]
   assert.equal(first.key, 0)
+  assert.equal(first.props.disabled, false, '普通 hover/focus/click 必须保持官方 Tooltip 可用')
   assert.equal(effects.length, 2)
   assert.deepEqual(effects[0].deps, [])
   assert.deepEqual(effects[1].deps, [0])
@@ -252,11 +256,13 @@ test('Tooltip scroll-close：焦点在 trigger 时 key 递增并重聚焦，ref/
     assert.equal(listener(scrollEvent), undefined)
     assert.equal(typeof stateUpdates[0], 'function')
     assert.equal(stateUpdates[0](4), 5, '必须函数式递增，不能把 scroll event 当作新 key')
+    assert.equal(stateUpdates[1], true, '回焦 remount 帧必须暂时禁用官方 focus 打开')
 
     const remounted = renderTooltip(originalProps)
     const remountedTrigger = remounted.props.children[0]
     assert.equal(first.key, 0)
     assert.equal(remounted.key, 1)
+    assert.equal(remounted.props.disabled, true, 'disabled 必须覆盖程序化 focus 的同步分派')
     assert.equal(remounted.type, primitives.Tooltip)
     assert.equal(remounted.props.label, '说明')
     assert.equal(remounted.props.side, 'top')
@@ -277,6 +283,12 @@ test('Tooltip scroll-close：焦点在 trigger 时 key 递增并重聚焦，ref/
     assert.strictEqual(originalRef.current, newTrigger)
     assert.equal(effects[3].create(), undefined)
     assert.deepEqual(newTrigger.focusCalls, [{ preventScroll: true }])
+    assert.strictEqual(fakeDocument.activeElement, newTrigger)
+    assert.equal(stateUpdates.at(-1), false, 'focus 返回后必须立即恢复官方 hover/focus/click')
+
+    const settled = renderTooltip(originalProps)
+    assert.equal(settled.key, 1, '恢复 disabled=false 不得再次 remount 或清掉焦点')
+    assert.equal(settled.props.disabled, false)
     assert.strictEqual(fakeDocument.activeElement, newTrigger)
 
     assert.equal(typeof cleanup, 'function')
