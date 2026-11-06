@@ -60,6 +60,10 @@ Tooltip scroll-close 在独立模块与主面板同步保留 trigger 焦点，�
 
 共享 Input 与 Toggle 分别迁移官方 Input/Switch，保留 id、受控草稿与回退。真实输入与开关交互通过，全量 **612/612**。
 
+## 实施回写（0.9.280）
+
+高级区补 aria-controls/body id；Tooltip scroll 回焦同步抑制重开并同步 client 内联。深层 Chromium 47/47，模块键盘路径 27/27，全量 **613/613**。
+
 ## 0. 基线、口径与复用边界
 
 | 来源 | 本次核对基线 | 用法 |

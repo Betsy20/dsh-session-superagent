@@ -2,6 +2,33 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.280] - 2026-11-06 —— 深层 UI 验收与高级区可访问性
+
+### 高级区 aria 关联
+
+WatcherForm 高级区 trigger 现在有 `aria-controls=idPrefix-advanced-body`，展开 body 使用同 id。
+新增与编辑同页 id 不冲突，Enter/Space、摘要与草稿行为不变。
+新增用例修复前 25/26，修复后定向 128/128。
+
+### Tooltip 键盘回焦
+
+修复纯键盘 focus 打开 Tooltip 后，scroll remount 回焦让新实例立即重开的问题。
+仅在同步 `focus({preventScroll:true})` 窗口传官方 `disabled=true`，finally 立即恢复 false。
+独立模块真实键盘路径 **27/27**；client 内联镜像已同步同一逻辑，主线深层验收 **47/47**。
+
+### 深层真实验收
+
+完整 Chromium 新增 12 项：高级区展开/收起、aria 关联、5 面优先级 Switch、鼠标/Space、Tab 顺序、草稿恢复、InfoTip hover/Escape 与真实 scroll 关闭。
+最终 **47 PASS / 0 FAIL**，mutation=0，防写探针 403。截图通道问题单列 SKIP。
+
+### 计数
+
+- 全量 **613/613**
+- UI 体检 **11/11=100**
+- 同源审计 84 项，0 漂移
+
+未验真实 DSH Web GUI 与真实 watcher 写操作。按 Git 工作流保留本地候选。
+
 ## [0.9.279] - 2026-11-06 —— 官方 Input 与 Switch 全覆盖
 
 ### 单行输入

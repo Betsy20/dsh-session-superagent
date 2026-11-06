@@ -76,6 +76,7 @@ window.__ModuleLoader__.load({
         const TooltipPrimitive = primitive('Tooltip')
         if (!TooltipTrigger) throw new Error('DSH Tooltip 需要宿主 React.forwardRef')
         const [remountKey, setRemountKey] = HostReact.useState(0)
+        const [scrollFocusSuppressed, setScrollFocusSuppressed] = HostReact.useState(false)
         const triggerNodeRef = HostReact.useRef(null)
         const restoreFocusRef = HostReact.useRef(false)
         HostReact.useEffect(() => {
@@ -89,6 +90,7 @@ window.__ModuleLoader__.load({
               || (typeof triggerNode.contains === 'function' && triggerNode.contains(activeElement))
             ))
             setRemountKey((current) => current + 1)
+            setScrollFocusSuppressed(restoreFocusRef.current)
           }
           // Tooltip 没有受控 open API；capture 覆盖主面板及任意嵌套滚动容器。
           window.addEventListener('scroll', closeOnScroll, true)
@@ -98,10 +100,14 @@ window.__ModuleLoader__.load({
           if (!restoreFocusRef.current) return undefined
           restoreFocusRef.current = false
           const triggerNode = triggerNodeRef.current
-          if (triggerNode && typeof triggerNode.focus === 'function'
-            && (!('isConnected' in triggerNode) || triggerNode.isConnected)) {
-            // 防止焦点归还再次滚动容器，形成 scroll -> remount 循环。
-            triggerNode.focus({ preventScroll: true })
+          try {
+            if (triggerNode && typeof triggerNode.focus === 'function'
+              && (!('isConnected' in triggerNode) || triggerNode.isConnected)) {
+              // disabled 只覆盖这次同步回焦，避免 focus 让新 Tooltip 立即重开。
+              triggerNode.focus({ preventScroll: true })
+            }
+          } finally {
+            setScrollFocusSuppressed(false)
           }
           return undefined
         }, [remountKey])
@@ -111,6 +117,7 @@ window.__ModuleLoader__.load({
           side: 'top',
           portal: true,
           openOnClick: true,
+          disabled: scrollFocusSuppressed,
           gap: 8,
         }, hostH(TooltipTrigger, { text, icon, warn, triggerRef: triggerNodeRef }))
       }
@@ -396,7 +403,7 @@ window.__ModuleLoader__.load({
     }
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.9.279'
+    const CLIENT_VERSION = '0.9.280'
     // SEMVER_COMPARATOR_SOURCE_START
     // This block is duplicated verbatim in client.js because the browser UMD cannot import ESM.
     // test/update-semver.test.mjs audits both copies and exercises their behavior.

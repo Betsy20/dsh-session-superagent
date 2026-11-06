@@ -12,14 +12,14 @@ import { fileURLToPath } from 'node:url'
 const REPO = process.env.DSH_SUPERAGENT_REPO
   || (import.meta.url.startsWith('file:') && !import.meta.url.includes('[eval')
     ? resolve(dirname(fileURLToPath(import.meta.url)), '..')
-    : 'D:/主工作区/projects/dsh-session-superagent')
+    : 'D:/主工作区/projects/.tmp-issue9-push-20261106-1244')
 const ASAR = 'D:/DeepSeek Harness/Desktop/resources/app.asar'
 const ELECTRON = 'D:/DeepSeek Harness/Desktop/DeepSeek Harness.exe'
 const FRONTEND = `${ASAR}/dsh/node_modules/@deepseek-ai/dsh-web-frontend`
 const THEME_CLIENT = `${ASAR}/dsh/node_modules/@deepseek-ai/dsh-client-ui-theme/lib/client.js`
 const SCREENSHOTS = `${REPO}/docs/assets`
 const SESSION_ID = 'session-panel-chromium-fixture'
-const SPACE_NAME = 'dsh-full-panel-chromium-full-orbit-0.9.276'
+const SPACE_NAME = 'dsh-full-panel-chromium-deep-ui-0.9.279'
 const results = []
 const observations = []
 const artifacts = []
@@ -410,8 +410,8 @@ try {
     && overview.tabs[0]?.selected === 'true' && overview.watchers === 2 && overview.stats >= 4,
   { title: overview.title, tabs: overview.tabs, watchers: overview.watchers, stats: overview.stats })
   const shot = async (name) => {
-    const persist = name.startsWith('orbit')
-    const path = persist ? `${SCREENSHOTS}/panel-chromium-${name}.png` : null
+    const persist = name.startsWith('orbit') || name.startsWith('trigger-')
+    const path = `${SCREENSHOTS}/deep-ui-${name}.png`
     if (!CAPTURE_SCREENSHOTS) {
       const reason = 'Ego/CDP 截图通道已证实在 API 内部终止进程；本轮跳过，DOM/焦点验收继续'
       console.log(`SKIP 截图 ${name} ${JSON.stringify(reason)}`)
@@ -420,13 +420,13 @@ try {
     }
     try {
       if (persist) {
-        // 本任务只落盘 panel-chromium-orbit*.png；既有 desk PNG 不覆盖。
+        // 本任务只允许 deep-ui-*.png；既有 desk/panel-chromium PNG 不覆盖。
         await page.screenshot({ path, fullPage: true })
         artifacts.push(path)
-        observe(`${name} 已截图`, { path: `docs/assets/panel-chromium-${name}.png` })
+        observe(`${name} 已截图`, { path: `docs/assets/deep-ui-${name}.png` })
       } else {
-        // 本任务不允许覆盖 desk PNG；已知 raw CDP 截图还可能长阻塞，因此明确 SKIP，不拖住 DOM/焦点验收。
-        const detail = { name, persisted: false, reason: 'write-scope: 仅允许落盘 panel-chromium-orbit*.png' }
+        // 保留既有八张 desk 基线；已知 raw CDP 截图可能长阻塞，因此明确 SKIP，不拖住 DOM/焦点验收。
+        const detail = { name, persisted: false, reason: '保留 desk 基线；新增候选仅 deep-ui-orbit* / deep-ui-trigger-*' }
         console.log(`SKIP 截图 ${name} ${JSON.stringify(detail.reason)}`)
         observe(`${name} 截图跳过（保留 desk 基线，功能检查继续）`, detail)
       }
@@ -543,6 +543,293 @@ try {
     && switchAfter.checked !== switchBefore.checked && switchAfter.dirty === true,
   { before: switchBefore, after: switchAfter })
   await shot('trigger')
+
+  // WatcherForm 高级区：真实 Enter/Space 开合、五面优先级 Switch、Tab 顺序与本地草稿恢复。
+  const advancedTrigger = '#watcher-new .dt-disclosure-row'
+  const advancedBody = '#watcher-new .dt-disclosure-body'
+  const priorityIds = ['priorityReopened', 'priorityComments', 'priorityLabels', 'priorityUnassigned', 'priorityStale']
+  const priorityLabels = ['重开优先', '评论优先', '标签优先', '未认领优先', '积压优先']
+  const priorityDefaults = [true, true, true, false, false]
+  const prioritySelector = (id) => `#watcher-new-${id}[role=switch], #watcher-new-${id} [role=switch]`
+  const readPriority = () => page.evaluate((ids) => ids.map((id) => {
+    const wrapper = document.getElementById(`watcher-new-${id}`)
+    const control = wrapper?.getAttribute('role') === 'switch' ? wrapper : wrapper?.querySelector('[role=switch]')
+    return {
+      id,
+      role: control?.getAttribute('role') || null,
+      checked: control?.getAttribute('aria-checked') || null,
+      label: control?.getAttribute('aria-label') || null,
+      tabIndex: control?.tabIndex,
+      disabled: Boolean(control?.disabled),
+      connected: control?.isConnected === true,
+    }
+  }), priorityIds)
+  const advancedCollapsed = await page.evaluate(() => ({
+    expanded: document.querySelector('#watcher-new .dt-disclosure-row')?.getAttribute('aria-expanded'),
+    controls: document.querySelector('#watcher-new .dt-disclosure-row')?.getAttribute('aria-controls'),
+    bodyMounted: Boolean(document.querySelector('#watcher-new .dt-disclosure-body')),
+    advancedSwitches: document.querySelectorAll('#watcher-new .dt-disclosure-body [role=switch]').length,
+  }))
+  check('trigger 高级区默认收起且高级控件未挂载', advancedCollapsed.expanded === 'false'
+    && !advancedCollapsed.bodyMounted && advancedCollapsed.advancedSwitches === 0, advancedCollapsed)
+
+  await page.focus(advancedTrigger)
+  await page.keyboard.press('Enter')
+  await page.waitForFunction(() => {
+    const trigger = document.querySelector('#watcher-new .dt-disclosure-row')
+    return trigger?.getAttribute('aria-expanded') === 'true'
+      && document.querySelectorAll('#watcher-new .dt-disclosure-body [role=switch]').length === 5
+  }, undefined, { timeout: 5000 })
+  const advancedOpened = await page.evaluate(() => {
+    const trigger = document.querySelector('#watcher-new .dt-disclosure-row')
+    const body = document.querySelector('#watcher-new .dt-disclosure-body')
+    const controls = trigger?.getAttribute('aria-controls')
+    return {
+      expanded: trigger?.getAttribute('aria-expanded'),
+      controls,
+      bodyId: body?.id || null,
+      controlsTargetsBody: Boolean(controls && body && document.getElementById(controls) === body),
+      bodyVisible: Boolean(body && getComputedStyle(body).display !== 'none' && getComputedStyle(body).visibility === 'visible'),
+      switches: body?.querySelectorAll('[role=switch]').length,
+      activeIsTrigger: document.activeElement === trigger,
+      activeConnected: document.activeElement?.isConnected === true,
+    }
+  })
+  check('trigger 高级区 Enter 真实展开且焦点不丢', advancedOpened.expanded === 'true'
+    && advancedOpened.bodyVisible && advancedOpened.switches === 5
+    && advancedOpened.activeIsTrigger && advancedOpened.activeConnected, advancedOpened)
+  check('trigger 高级区 aria-expanded/controls 与 body id 关联完整', advancedOpened.expanded === 'true'
+    && Boolean(advancedOpened.controls) && Boolean(advancedOpened.bodyId)
+    && advancedOpened.controls === advancedOpened.bodyId && advancedOpened.controlsTargetsBody, advancedOpened)
+
+  const priorityInitial = await readPriority()
+  check('trigger 五面优先级 Switch role/aria-checked/默认值完整', priorityInitial.every((row, index) => (
+    row.id === priorityIds[index] && row.role === 'switch' && row.label === priorityLabels[index]
+    && row.checked === String(priorityDefaults[index]) && row.tabIndex === 0 && !row.disabled && row.connected
+  )), priorityInitial)
+
+  // 选中高级区优先级说明这个真实 InfoTip；hover/focus、portal、Escape 与真实 wheel/scroll 均在完整面板验收。
+  const priorityTipText = '全部关掉时按 GitHub 的「最近更新」顺序处理'
+  const priorityTip = '#watcher-new button.dt-info[aria-label="全部关掉时按 GitHub 的「最近更新」顺序处理"]'
+  const tooltipState = () => page.evaluate(({ selector, text }) => {
+    const trigger = document.querySelector(selector)
+    const describedBy = trigger?.getAttribute('aria-describedby') || null
+    const described = describedBy ? document.getElementById(describedBy) : null
+    const candidates = [...document.querySelectorAll('[role="tooltip"], [data-pinned]')]
+    const bubble = described || candidates.find((node) => node.textContent?.trim() === text) || null
+    const style = bubble ? getComputedStyle(bubble) : null
+    const visible = Boolean(bubble && style.display !== 'none' && style.visibility === 'visible')
+    return {
+      selector,
+      describedBy,
+      triggerExpanded: trigger?.getAttribute('aria-expanded') || null,
+      visible,
+      bubbleId: bubble?.id || null,
+      bubbleRole: bubble?.getAttribute('role') || null,
+      bubbleText: bubble?.textContent?.trim() || null,
+      bubbleParent: bubble?.parentElement?.tagName || null,
+      bubblePinned: bubble?.getAttribute('data-pinned'),
+      activeIsTrigger: document.activeElement === trigger,
+      activeConnected: document.activeElement?.isConnected === true,
+    }
+  }, { selector: priorityTip, text: priorityTipText })
+  const waitTooltip = async (open) => {
+    try {
+      await page.waitForFunction(({ selector, text, expected }) => {
+        const trigger = document.querySelector(selector)
+        const id = trigger?.getAttribute('aria-describedby')
+        const described = id ? document.getElementById(id) : null
+        const candidates = [...document.querySelectorAll('[role="tooltip"], [data-pinned]')]
+        const bubble = described || candidates.find((node) => node.textContent?.trim() === text)
+        const style = bubble ? getComputedStyle(bubble) : null
+        const visible = Boolean(bubble && style.display !== 'none' && style.visibility === 'visible')
+        return expected ? visible : !visible
+      }, { selector: priorityTip, text: priorityTipText, expected: open }, { timeout: 5000 })
+      return true
+    } catch {
+      return false
+    }
+  }
+  const tipTarget = await page.evaluate((selector) => {
+    const node = document.querySelector(selector)
+    const rect = node?.getBoundingClientRect()
+    return {
+      selector,
+      present: Boolean(node),
+      visible: Boolean(node && rect && rect.width > 0 && rect.height > 0
+        && getComputedStyle(node).display !== 'none' && getComputedStyle(node).visibility === 'visible'),
+      ariaLabel: node?.getAttribute('aria-label') || null,
+    }
+  }, priorityTip)
+  observe('InfoTip 真实验收目标', { tab: '触发 / 高级设置 / 优先级', ...tipTarget })
+  if (!tipTarget.visible) {
+    const reason = '选择器未命中可见 InfoTip；不伪造 hover/focus 结果'
+    observe('触发页高级区 InfoTip 未验原因', { selector: priorityTip, reason })
+    check('trigger 高级区 InfoTip 可见性前置检查', false, { selector: priorityTip, reason, target: tipTarget })
+  } else {
+    await page.evaluate((selector) => document.querySelector(selector)?.scrollIntoView({ block: 'center', inline: 'center' }), priorityTip)
+    await page.mouse.move(1320, 80, { label: '移开 Tooltip 指针' })
+    await page.hover(priorityTip, { label: '悬停优先级说明 Tooltip' })
+    const hoverSettled = await waitTooltip(true)
+    const hoverTip = await tooltipState()
+    check('InfoTip hover 真实打开且 portal 到 BODY', hoverSettled && hoverTip.visible
+      && hoverTip.bubbleRole === 'tooltip' && hoverTip.bubbleText === priorityTipText
+      && hoverTip.bubbleParent === 'BODY' && hoverTip.triggerExpanded === 'true'
+      && Boolean(hoverTip.describedBy) && hoverTip.describedBy === hoverTip.bubbleId, hoverTip)
+
+    // click 只负责把已经 hover 打开的官方 Tooltip pin 住；Escape 前必须仍可见，避免把移出关闭误记成 Escape。
+    await page.click(priorityTip, { label: '固定优先级说明 Tooltip' })
+    const pinnedSettled = await waitTooltip(true)
+    await page.mouse.move(1320, 80, { label: '移出已固定 Tooltip' })
+    await page.waitForTimeout(150)
+    const beforeEscape = await tooltipState()
+    await shot('trigger-tooltip')
+    await page.keyboard.press('Escape')
+    const escapeSettled = await waitTooltip(false)
+    const afterEscape = await tooltipState()
+    check('InfoTip hover 打开后 Escape 真实关闭并保留焦点', pinnedSettled && beforeEscape.visible
+      && beforeEscape.bubblePinned === 'true' && beforeEscape.triggerExpanded === 'true'
+      && escapeSettled && !afterEscape.visible && afterEscape.triggerExpanded === 'false'
+      && afterEscape.activeIsTrigger && afterEscape.activeConnected, { beforeEscape, afterEscape })
+
+    await page.focus(advancedTrigger)
+    await page.focus(priorityTip)
+    const focusSettled = await waitTooltip(true)
+    const focusTip = await tooltipState()
+    check('InfoTip focus 真实打开且 trigger 不丢焦', focusSettled && focusTip.visible
+      && focusTip.bubbleRole === 'tooltip' && focusTip.bubbleText === priorityTipText
+      && focusTip.bubbleParent === 'BODY' && focusTip.triggerExpanded === 'true'
+      && Boolean(focusTip.describedBy) && focusTip.describedBy === focusTip.bubbleId
+      && focusTip.activeIsTrigger && focusTip.activeConnected, focusTip)
+
+    // 与官方 Tooltip 验收一致：focus 已证明打开后，click pin 固定；scroll 前必须仍可见。
+    await page.click(priorityTip, { label: '固定 focus 打开的 Tooltip' })
+    const scrollPinSettled = await waitTooltip(true)
+    const scrollPlan = await page.evaluate(() => {
+      const scroller = document.querySelector('.dt-page')
+      const scrollTop = scroller?.scrollTop || 0
+      const max = scroller ? scroller.scrollHeight - scroller.clientHeight : 0
+      const downRoom = Math.max(0, max - scrollTop)
+      const delta = downRoom > 0 ? Math.min(240, downRoom) : scrollTop > 0 ? -Math.min(240, scrollTop) : 0
+      return {
+        selector: '.dt-page', scrollTop, max, delta,
+        x: Math.round(innerWidth / 2), y: Math.round(innerHeight * 0.65),
+      }
+    })
+    let scrollSettled = false
+    let beforeScroll = await tooltipState()
+    if (scrollPlan.delta !== 0) {
+      await page.mouse.move(scrollPlan.x, scrollPlan.y, { label: '移到完整面板滚动区' })
+      await page.waitForTimeout(150)
+      beforeScroll = await tooltipState()
+      await page.mouse.wheel(0, scrollPlan.delta, { label: '真实滚动关闭 Tooltip' })
+      scrollSettled = await waitTooltip(false)
+      await page.waitForTimeout(250)
+    }
+    const afterScroll = await tooltipState()
+    const scrollTopAfter = await page.evaluate(() => document.querySelector('.dt-page')?.scrollTop || 0)
+    check('InfoTip 真实 wheel/scroll 关闭且回焦新 trigger', scrollPinSettled && beforeScroll.visible
+      && beforeScroll.bubblePinned === 'true' && scrollPlan.delta !== 0
+      && scrollTopAfter !== scrollPlan.scrollTop && scrollSettled && !afterScroll.visible
+      && afterScroll.triggerExpanded === 'false' && afterScroll.activeIsTrigger && afterScroll.activeConnected,
+    { scrollPlan, beforeScroll, scrollTopAfter, afterScroll })
+    if (afterScroll.visible) {
+      await page.keyboard.press('Escape')
+      await waitTooltip(false)
+    }
+
+  }
+
+  // 从优先级 InfoTip 连续 Tab，必须依次进入五面 Switch，中间不插入隐藏控件或丢到 body。
+  await page.focus(priorityTip)
+  const priorityTabOrder = []
+  for (let index = 0; index < priorityIds.length; index += 1) {
+    await page.keyboard.press('Tab')
+    priorityTabOrder.push(await page.evaluate(() => {
+      const active = document.activeElement
+      return {
+        id: active?.closest('[id]')?.id || null,
+        role: active?.getAttribute('role') || null,
+        label: active?.getAttribute('aria-label') || null,
+        connected: active?.isConnected === true,
+      }
+    }))
+  }
+  check('trigger 高级区 Tab 顺序覆盖五面 Switch 且不丢焦', priorityTabOrder.every((row, index) => (
+    row.id === `watcher-new-${priorityIds[index]}` && row.role === 'switch'
+    && row.label === priorityLabels[index] && row.connected
+  )), priorityTabOrder)
+  // Tab 后的延迟 scroll/focus 恢复可能让 Tooltip 再出现；先真实 Escape 复位，避免遮挡后续鼠标断言。
+  await page.waitForTimeout(150)
+  await page.keyboard.press('Escape')
+  await waitTooltip(false)
+  await page.mouse.move(1320, 80, { label: 'Switch 操作前移开指针' })
+
+  // 每一面都真实改变一次：第 1/4 面用鼠标，其余用 Space；逐步核对 checked、焦点与 SaveBar。
+  const prioritySteps = []
+  for (let index = 0; index < priorityIds.length; index += 1) {
+    const id = priorityIds[index]
+    const method = index === 0 || index === 3 ? 'click' : 'Space'
+    if (method === 'click') await page.click(prioritySelector(id))
+    else {
+      await page.focus(prioritySelector(id))
+      await page.keyboard.press('Space')
+    }
+    const expected = priorityDefaults.map((value, position) => position <= index ? !value : value)
+    let settled = false
+    try {
+      await page.waitForFunction(({ ids, wanted }) => ids.every((key, position) => (
+        document.querySelector(`#watcher-new-${key}[role=switch], #watcher-new-${key} [role=switch]`)?.getAttribute('aria-checked') === String(wanted[position])
+      )), { ids: priorityIds, wanted: expected }, { timeout: 3000 })
+      settled = true
+    } catch {}
+    const step = await page.evaluate(({ ids, action }) => ({
+      method: action,
+      checked: ids.map((key) => document.querySelector(`#watcher-new-${key}[role=switch], #watcher-new-${key} [role=switch]`)?.getAttribute('aria-checked') || null),
+      activeId: document.activeElement?.closest('[id]')?.id || null,
+      activeConnected: document.activeElement?.isConnected === true,
+      savebar: document.querySelector('#watcher-new .dt-savebar')?.textContent || null,
+    }), { ids: priorityIds, action: method })
+    prioritySteps.push({ ...step, settled })
+  }
+  const expectedAfterAll = priorityDefaults.map((value) => !value)
+  check('trigger 五面 Switch checked/onChange/草稿与鼠标键盘真实生效', prioritySteps.every((step, index) => {
+    const expected = priorityDefaults.map((value, position) => position <= index ? !value : value)
+    return step.settled && JSON.stringify(step.checked) === JSON.stringify(expected.map(String))
+      && step.activeId === `watcher-new-${priorityIds[index]}` && step.activeConnected
+      && step.savebar?.includes('未保存')
+  }) && JSON.stringify(prioritySteps.at(-1)?.checked) === JSON.stringify(expectedAfterAll.map(String)), prioritySteps)
+  await shot('trigger-advanced')
+
+  // 放弃只恢复 fixture 内的新建草稿，不提交；再 Space 收起高级区，恢复进入本项前的现场。
+  await page.click('#watcher-new .dt-savebar button:text-is("放弃")')
+  await page.waitForFunction(() => !document.querySelector('#watcher-new .dt-savebar'), undefined, { timeout: 5000 })
+  const priorityRestored = await readPriority()
+  const restoredDraft = await page.evaluate(() => ({
+    repo: document.getElementById('watcher-new-repo')?.value,
+    goal: document.getElementById('watcher-new-goal')?.value,
+    onlyAssigned: document.querySelector('#watcher-new-onlyAssigned[role=switch], #watcher-new-onlyAssigned [role=switch]')?.getAttribute('aria-checked'),
+    savebarMounted: Boolean(document.querySelector('#watcher-new .dt-savebar')),
+  }))
+  check('trigger 放弃恢复五面 Switch 与整个新建草稿', priorityRestored.every((row, index) => (
+    row.checked === String(priorityDefaults[index])
+  )) && restoredDraft.repo === '' && restoredDraft.goal === ''
+    && restoredDraft.onlyAssigned === 'false' && !restoredDraft.savebarMounted,
+  { priorityRestored, restoredDraft })
+  await page.focus(advancedTrigger)
+  await page.keyboard.press('Space')
+  await page.waitForFunction(() => (
+    document.querySelector('#watcher-new .dt-disclosure-row')?.getAttribute('aria-expanded') === 'false'
+    && !document.querySelector('#watcher-new .dt-disclosure-body')
+  ), undefined, { timeout: 5000 })
+  const advancedClosed = await page.evaluate(() => ({
+    expanded: document.querySelector('#watcher-new .dt-disclosure-row')?.getAttribute('aria-expanded'),
+    bodyMounted: Boolean(document.querySelector('#watcher-new .dt-disclosure-body')),
+    activeIsTrigger: document.activeElement === document.querySelector('#watcher-new .dt-disclosure-row'),
+    activeConnected: document.activeElement?.isConnected === true,
+  }))
+  check('trigger 高级区 Space 真实收起且焦点不丢', advancedClosed.expanded === 'false'
+    && !advancedClosed.bodyMounted && advancedClosed.activeIsTrigger && advancedClosed.activeConnected, advancedClosed)
 
   // 设置总壳与五个分区全部真实点击。
   await openTab('设置')
@@ -790,11 +1077,12 @@ try {
     console.log(`SKIP desk 截图总数 ${deskCaptures.length}/8；功能检查已完成，不把 CDP 截图通道记为产品 FAIL`)
     observe('desk 截图未齐；既有仓库基线未覆盖', deskCaptures)
   }
-  if (artifacts.length === 2) {
-    check('Orbit 与确认 Modal 截图共两张', true, artifacts.map((path) => path.replace(`${REPO}/`, '')))
+  const orbitArtifacts = artifacts.filter((path) => /deep-ui-orbit/.test(path))
+  if (orbitArtifacts.length === 2) {
+    check('Orbit 与确认 Modal 截图共两张', true, orbitArtifacts.map((path) => path.replace(`${REPO}/`, '')))
   } else {
-    console.log(`SKIP Orbit/Modal 截图总数 ${artifacts.length}/2；功能检查已完成，不把 CDP 截图通道记为产品 FAIL`)
-    observe('Orbit/Modal 截图未齐', artifacts.map((path) => path.replace(`${REPO}/`, '')))
+    console.log(`SKIP Orbit/Modal 截图总数 ${orbitArtifacts.length}/2；功能检查已完成，不把 CDP 截图通道记为产品 FAIL`)
+    observe('Orbit/Modal 截图未齐', orbitArtifacts.map((path) => path.replace(`${REPO}/`, '')))
   }
   completed = true
   if (results.some((row) => !row.pass)) process.exitCode = 1
