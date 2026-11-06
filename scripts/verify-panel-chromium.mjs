@@ -770,6 +770,7 @@ try {
   for (let index = 0; index < priorityIds.length; index += 1) {
     const id = priorityIds[index]
     const method = index === 0 || index === 3 ? 'click' : 'Space'
+    await page.evaluate((wanted) => document.getElementById(`watcher-new-${wanted}`)?.scrollIntoView({ block: 'center', inline: 'center' }), id)
     if (method === 'click') await page.click(prioritySelector(id))
     else {
       await page.focus(prioritySelector(id))

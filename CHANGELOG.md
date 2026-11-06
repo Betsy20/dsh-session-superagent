@@ -2,6 +2,33 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.282] - 2026-11-06 —— CollapsibleList 与首载/校验修复
+
+### 折叠列表
+
+CollapsibleList 有官方 DisclosureRow 时使用 `expandable=true + expandOnRowClick=true`，缺导出完整回退。
+标题计数、摘要、ul/li、点击/Enter/Space 与焦点保留；高级区 aria-controls 不受影响。
+
+### 首次加载与 Orbit
+
+- 主面板仅在 snap.body 存在时渲染业务 tabpanel，首次 loading/失败不再显示零统计和 Onboarding。
+- Orbit 区分读取中、读取失败和真实空列表；首败不写成“还没有主理鱼”，成功读取清除读取失败。
+- 已有成功快照时保留旧数据并显示错误。
+
+### 表单校验
+
+原生保存点击在 checkValidity=false 时调用 reportValidity 并聚焦 :invalid，不发送 POST；有效路径不变。
+
+### 验证
+
+- CollapsibleList 定向 133/133、主线+专项 Chromium 51/51。
+- 首载/校验定向 137/137，合并全量 630/630。
+- 主线真实 Chromium 47/47；Orbit/Modal 契约 26/26。
+- UI 体检 11/11=100。
+
+严格审查报告同时入库：必须修 11、值得改 18，后续按批处理。
+未验真实 DSH Web GUI 与真实 watcher 写操作。按 Git 工作流保留本地候选。
+
 ## [0.9.281] - 2026-11-06 —— Pill、Tag 与 StateDot 官方化
 
 ### 筛选 Pill

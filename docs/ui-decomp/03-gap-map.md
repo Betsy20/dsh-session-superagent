@@ -68,6 +68,10 @@ Tooltip scroll-close 在独立模块与主面板同步保留 trigger 焦点，�
 
 共享 Pill、Tag、StateDot 迁移官方组件，静态/交互与独立回退完整。真实 Chromium 47/47，全量 **622/622**。
 
+## 实施回写（0.9.282）
+
+CollapsibleList 接入官方 DisclosureRow；首败不再冒充空态，Orbit 区分读取失败；表单校验 reportValidity 并聚焦。全量 **630/630**。
+
 ## 0. 基线、口径与复用边界
 
 | 来源 | 本次核对基线 | 用法 |
