@@ -76,6 +76,10 @@ CollapsibleList 接入官方 DisclosureRow；首败不再冒充空态，Orbit �
 
 凭证/goal 以草稿版本与保存序号防止旧响应覆盖；回读成功才 Toast，null 清干净草稿。专项 Chromium 52/52，全量 **637/637**。
 
+## 实施回写（0.9.284）
+
+Orbit 写操作 busy 锁、轮询代际和删除失败当前 Modal 可见。专项 Chromium 52/52，全量 **643/643**。
+
 ## 0. 基线、口径与复用边界
 
 | 来源 | 本次核对基线 | 用法 |

@@ -2,6 +2,28 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.284] - 2026-11-06 —— Orbit 并发与删除错误修复
+
+### 写操作 busy 锁
+
+- 立刻/暂停/恢复/删除按 watcherId+action 加同步锁。
+- pending 禁止重复点击，显示处理中文字、aria-busy 与 busy 样式。
+- 成功和失败都在 finally 解锁，fallback 的位置化 hook 契约不变。
+
+### 轮询与删除
+
+- 定时轮询和写后 /state 共用请求序号，旧成功/失败都不能覆盖新结果，最新成功清读取错误。
+- 删除失败在当前确认 Modal 以 role=alert 显示，pending 禁止 dismiss，失败保留重试。
+- 成功才自动关闭并回焦；失败后的主动 Escape/取消仍可用。
+
+### 验证
+
+- 新增用例先红复现双击 2 POST；最终定向 176/176、integration 15/15。
+- 全量 643/643，UI 体检 11/11=100。
+- 主线 Chromium 47/47，双击/删除重试/pending Escape/解锁专项合计 52/52。
+
+未验真实 DSH Web GUI 与真实 watcher 写操作。按 Git 工作流保留本地候选。
+
 ## [0.9.283] - 2026-11-06 —— 保存 pending 状态机修复
 
 ### 新草稿不再被旧响应覆盖
