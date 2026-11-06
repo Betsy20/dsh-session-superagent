@@ -1878,3 +1878,239 @@ test('WatcherForm 校验失败 reportValidity 并 focus 无效控件；有效路
   assert.equal(body.sessionId, 's1')
   assert.equal(body.intervalSec, 90)
 })
+
+function deferred() {
+  let resolve
+  let reject
+  const promise = new Promise((res, rej) => { resolve = res; reject = rej })
+  return { promise, resolve, reject }
+}
+
+function applyCalls(queue, calls) {
+  const next = [...queue]
+  for (const call of calls) next[call.index] = call.next
+  return next
+}
+
+function toastCalls(client) {
+  return client.stateCalls().filter((call) => call.index === 7 && call.next && typeof call.next.text === 'string')
+}
+
+function goalSyncEffect(client) {
+  const effect = client.effects.filter((item) => String(item.create).includes('setGoalDraft')
+    && String(item.create).includes('goalTouched')).at(-1)
+  assert.ok(effect, '找不到 goal 服务端值同步 effect')
+  return effect
+}
+
+function pendingSaveState(section) {
+  const state = snapshot()
+  state.body.sessionGoal = { objective: '服务端旧 goal', phase: 'active', revision: 1 }
+  const queue = deskQueue(state, null, {}, 'settings')
+  queue[14] = section
+  return queue
+}
+
+test('凭证 pending 新输入与重复点击：晚到的旧成功不得清掉新草稿，且只能有一个 POST', async () => {
+  const post = deferred()
+  const requests = []
+  const client = loadClient({
+    fetch: (url, init) => {
+      requests.push([url, init])
+      if (init?.method === 'POST') return post.promise
+      return Promise.resolve(response(snapshot().body))
+    },
+  })
+  const queue = pendingSaveState('creds')
+  queue[4] = 'old-github'
+  queue[19] = 'D:/old-gh'
+  queue[20] = 'old-gitee'
+  const nodes = nodesOf(client, queue)
+  const save = control(nodes, '保存凭证')
+  const pending = save.props.onClick()
+  assert.equal(await save.props.onClick(), false, 'pending 重复点击必须由 busyRef 拒绝')
+  assert.equal(postsOf(requests).length, 1, '重复点击不得产生第二个 POST')
+
+  for (const [value, next] of [['old-github', 'new-github'], ['old-gitee', 'new-gitee'], ['D:/old-gh', 'D:/new-gh']]) {
+    one(nodes.filter((node) => node.type === 'input' && node.props.value === value), '缺凭证输入 ' + value)
+      .props.onChange({ target: { value: next } })
+  }
+  client.resetStateCalls()
+  post.resolve(response({ ok: true }))
+  assert.equal(await pending, true)
+  const calls = client.stateCalls()
+  for (const [index, next] of [[4, ''], [19, ''], [20, '']]) {
+    assert.equal(calls.some((call) => call.index === index && call.next === next), false,
+      '旧保存响应不得清空 pending 后的新输入：' + JSON.stringify(calls))
+  }
+  assert.deepEqual(JSON.parse(postsOf(requests)[0][1].body), {
+    token: 'old-github', giteeToken: 'old-gitee', ghConfigDir: 'D:/old-gh',
+  }, '请求必须保存点击时的快照，而不是 pending 中改写后的值')
+})
+
+test('goal pending 新输入与重复点击：旧响应不得标 clean 或回写旧 goal，且只能有一个 POST', async () => {
+  const post = deferred()
+  const requests = []
+  const state = snapshot()
+  state.body.sessionGoal = { objective: '点击时 goal', phase: 'active', revision: 2 }
+  const client = loadClient({
+    fetch: (url, init) => {
+      requests.push([url, init])
+      if (init?.method === 'POST') return post.promise
+      return Promise.resolve(response(state.body))
+    },
+  })
+  const queue = pendingSaveState('goal')
+  queue[5] = '点击时 goal'
+  queue[6] = true
+  const nodes = nodesOf(client, queue, { sessionId: 's1' })
+  const save = control(nodes, '保存 goal')
+  const pending = save.props.onClick()
+  assert.equal(await save.props.onClick(), false, 'pending 重复点击必须由 busyRef 拒绝')
+  assert.equal(postsOf(requests).length, 1, '重复点击不得产生第二个 POST')
+  one(nodes.filter((node) => node.type === 'textarea'), '缺 goal textarea')
+    .props.onChange({ target: { value: 'pending 中的新 goal' } })
+  client.resetStateCalls()
+  post.resolve(response({ ok: true }))
+  assert.equal(await pending, true)
+  assert.equal(client.stateCalls().some((call) => call.index === 6 && call.next === false), false,
+    'pending 后有新输入时不得把 dirty 清成 false：' + JSON.stringify(client.stateCalls()))
+  assert.equal(client.stateCalls().some((call) => call.index === 5), false,
+    '旧保存响应不得直接改写新 goal 草稿')
+  assert.equal(JSON.parse(postsOf(requests)[0][1].body).objective, '点击时 goal')
+})
+
+test('凭证 POST200+GET500：不得 Toast 成功或清草稿，显示可重试回读错误', async () => {
+  const requests = []
+  const client = loadClient({
+    fetch: async (url, init) => {
+      requests.push([url, init])
+      if (init?.method === 'POST') return response({ ok: true })
+      return response({ error: 'state offline' }, false, 500)
+    },
+  })
+  const queue = pendingSaveState('creds')
+  queue[4] = 'github-secret'
+  queue[19] = 'D:/gh'
+  queue[20] = 'gitee-secret'
+  const save = control(nodesOf(client, queue), '保存凭证')
+  assert.equal(await save.props.onClick(), false, '回读失败不能返回保存成功')
+  assert.equal(toastCalls(client).some((call) => call.next.text === '凭证已保存'), false,
+    'POST200+GET500 不得 Toast 成功：' + JSON.stringify(toastCalls(client)))
+  assert.ok(toastCalls(client).some((call) => call.next.tone === 'error' && /回读失败.*重试/.test(call.next.text)),
+    '必须显示可重试的回读错误：' + JSON.stringify(toastCalls(client)))
+  for (const index of [4, 19, 20]) {
+    assert.equal(client.stateCalls().some((call) => call.index === index && call.next === ''), false,
+      '回读失败必须保留凭证草稿')
+  }
+})
+
+test('goal POST200+GET500：不得 Toast 成功、标 clean 或让旧服务端值覆盖 dirty 草稿', async () => {
+  const state = snapshot()
+  state.body.sessionGoal = { objective: '服务端旧 goal', phase: 'active', revision: 1 }
+  const client = loadClient({
+    fetch: async (url, init) => init?.method === 'POST'
+      ? response({ ok: true })
+      : response({ error: 'state offline' }, false, 500),
+  })
+  const queue = pendingSaveState('goal')
+  queue[5] = '待保存的新 goal'
+  queue[6] = true
+  const save = control(nodesOf(client, queue, { sessionId: 's1' }), '保存 goal')
+  assert.equal(await save.props.onClick(), false, '回读失败不能返回保存成功')
+  assert.equal(toastCalls(client).some((call) => call.next.text === 'goal 已保存'), false,
+    'POST200+GET500 不得 Toast 成功：' + JSON.stringify(toastCalls(client)))
+  assert.ok(toastCalls(client).some((call) => call.next.tone === 'error' && /回读失败.*重试/.test(call.next.text)),
+    '必须显示可重试的回读错误：' + JSON.stringify(toastCalls(client)))
+  assert.equal(client.stateCalls().some((call) => call.index === 6 && call.next === false), false,
+    '回读失败不得把 dirty 清成 false')
+
+  // 模拟真实 React 在 async setter 后重渲染并运行 effect：旧实现会在这里回写服务端旧 goal。
+  const rerendered = applyCalls(queue, client.stateCalls())
+  client.resetStateCalls()
+  nodesOf(client, rerendered, { sessionId: 's1' })
+  goalSyncEffect(client).create()
+  assert.equal(client.stateCalls().some((call) => call.index === 5 && call.next === '服务端旧 goal'), false,
+    '回读失败后不得回写旧 goal：' + JSON.stringify(client.stateCalls()))
+})
+
+test('sessionGoal:null 同步清空干净草稿，但不误清 dirty 草稿', () => {
+  const client = loadClient()
+  const clean = pendingSaveState('goal')
+  clean[0] = { ...clean[0], body: { ...clean[0].body, sessionGoal: null } }
+  clean[5] = '此前已保存 goal'
+  clean[6] = false
+  nodesOf(client, clean)
+  client.resetStateCalls()
+  goalSyncEffect(client).create()
+  assert.ok(client.stateCalls().some((call) => call.index === 5 && call.next === ''),
+    'sessionGoal:null 必须清空已保存值：' + JSON.stringify(client.stateCalls()))
+
+  const dirty = pendingSaveState('goal')
+  dirty[0] = { ...dirty[0], body: { ...dirty[0].body, sessionGoal: null } }
+  dirty[5] = '尚未保存的输入'
+  dirty[6] = true
+  nodesOf(client, dirty)
+  client.resetStateCalls()
+  goalSyncEffect(client).create()
+  assert.equal(client.stateCalls().some((call) => call.index === 5), false,
+    'sessionGoal:null 不得误清 dirty 草稿')
+})
+
+test('乱序 /state 响应：后到的旧响应不得覆盖新快照或 dirty goal', async () => {
+  const older = deferred()
+  const newer = deferred()
+  const states = [older, newer]
+  const requests = []
+  const client = loadClient({
+    fetch: (url) => {
+      requests.push(url)
+      if (!String(url).endsWith('/state')) return Promise.resolve(response({}))
+      assert.ok(states.length > 0, '只能有两次 /state：' + JSON.stringify(requests))
+      return states.shift().promise
+    },
+  })
+  const queue = pendingSaveState('goal')
+  queue[5] = 'dirty 输入'
+  queue[6] = true
+  const nodes = nodesOf(client, queue)
+  const refresh = control(nodes, '刷新')
+  const first = refresh.props.onClick()
+  const second = refresh.props.onClick()
+  const newBody = { ...snapshot().body, sessionGoal: { objective: '新服务端 goal', phase: 'active', revision: 3 } }
+  const oldBody = { ...snapshot().body, sessionGoal: { objective: '旧服务端 goal', phase: 'active', revision: 1 } }
+  newer.resolve(response(newBody))
+  await new Promise((resolve) => setImmediate(resolve))
+  older.resolve(response(oldBody))
+  await Promise.all([first, second])
+  const snaps = client.stateCalls().filter((call) => call.index === 0 && call.next && call.next.body)
+  assert.ok(snaps.some((call) => call.next.body.sessionGoal?.objective === '新服务端 goal'),
+    '必须接收较新的响应：' + JSON.stringify(client.stateCalls()))
+  assert.equal(snaps.some((call) => call.next.body.sessionGoal?.objective === '旧服务端 goal'), false,
+    '后到的旧响应必须被 loadSeqRef 丢弃：' + JSON.stringify(snaps))
+  assert.equal(client.stateCalls().some((call) => call.index === 5), false, '乱序响应不得直接改写 dirty goal')
+})
+
+test('无 pending 新输入的成功保存仍在 GET 后清凭证并标 goal clean', async () => {
+  const requests = []
+  const client = loadClient({
+    fetch: async (url, init) => {
+      requests.push([url, init])
+      return response(init?.method === 'POST' ? { ok: true } : snapshot().body)
+    },
+  })
+  const creds = pendingSaveState('creds')
+  creds[4] = 'github-secret'
+  creds[19] = 'D:/gh'
+  creds[20] = 'gitee-secret'
+  await control(nodesOf(client, creds), '保存凭证').props.onClick()
+  for (const index of [4, 19, 20]) {
+    assert.ok(client.stateCalls().some((call) => call.index === index && call.next === ''), '成功后应清理已提交字段 ' + index)
+  }
+
+  const goal = pendingSaveState('goal')
+  goal[5] = '新 goal'
+  goal[6] = true
+  await control(nodesOf(client, goal, { sessionId: 's1' }), '保存 goal').props.onClick()
+  assert.ok(client.stateCalls().some((call) => call.index === 6 && call.next === false), '成功回读后应标 goal clean')
+})

@@ -1990,6 +1990,11 @@ window.__ModuleLoader__.load({
       const createTouchedRef = useRef(new Set())
       const createSnapshotRef = useRef({ ...CREATE_WATCHER_VALUES })
       const editSnapshotRef = useRef(null)
+      // 保存期间仍可输入：旧响应只能清理它提交的那份草稿，不能覆盖 pending 后的新输入。
+      const credentialsDraftVersionRef = useRef(0)
+      const credentialsSaveSeqRef = useRef(0)
+      const goalDraftVersionRef = useRef(0)
+      const goalSaveSeqRef = useRef(0)
       const setField = (next) => {
         const opening = editSnapshotRef.current && editSnapshotRef.current.values
         for (const key of Object.keys(next)) {
@@ -2053,7 +2058,8 @@ window.__ModuleLoader__.load({
           if (seq !== loadSeqRef.current) return null // 已经有更新的一次请求在飞：这次结果作废
           // 304：内容没变，别白白重渲染 —— 前提是本地已经有一份能渲染的 body
           if (payload && payload.notModified) {
-            if (hasBodyRef.current) return null
+            // 有本地快照时，304 也是一次成功回读；保存后的成功反馈可以依赖它。
+            if (hasBodyRef.current) return payload
             // 本地没有数据：这次 304 是被状态栏的 etag 带出来的，清掉 etag 重取一次全量
             stateEtag = null
             return load()
@@ -2079,8 +2085,9 @@ window.__ModuleLoader__.load({
       const credentials = body.credentials || { token: 'none', sshKeyPath: 'none' }
 
       useEffect(() => {
-        if (goalTouched || !sessionGoal) return
-        setGoalDraft(sessionGoal.objective || '')
+        if (goalTouched) return
+        // null 也是服务端事实：干净草稿要同步清空；dirty 草稿仍由用户自己决定保存或放弃。
+        setGoalDraft(sessionGoal ? sessionGoal.objective || '' : '')
       }, [goalTouched, sessionGoal])
 
       const busyRef = useRef(false)
@@ -2097,8 +2104,14 @@ window.__ModuleLoader__.load({
         setNotice(null)
         try {
           await work()
+          if (options.requireReload) {
+            const body = await load()
+            if (!body) throw new Error(options.reloadError || '操作已提交，但回读失败，请重试')
+            if (options.afterReload) options.afterReload(body)
+          }
+          // 必须回读的保存只有在确认成功后才提示；其它动作保留原有通知/刷新契约。
           if (done) notify(done)
-          await load()
+          if (!options.requireReload) await load()
           return true
         } catch (error) {
           const text = String((error && error.message) || error)
@@ -2251,30 +2264,52 @@ window.__ModuleLoader__.load({
         return warnings
       }, null, { rethrow: true })
 
-      const saveCredentials = () => run(async () => {
-        const payload = {}
-        if (token.trim()) payload.token = token.trim()
-        if (giteeToken.trim()) payload.giteeToken = giteeToken.trim()
-        // 审核 T24 M3：这里以前无条件带 "ghConfigDir" —— ghDir 初值恒为空串且从不回填服务端值，
-        // 于是「只改 token」也会发 ghConfigDir:""，服务端把它当「显式清空」，
-        // 已绑定的 gh 账号目录被静默解绑（评论改回宿主账号）。
-        // 现在只有**填了东西**才发；要解绑请用旁边的「清除」按钮（它显式发空串）。
-        if (ghDir.trim()) payload.ghConfigDir = ghDir.trim()
-        await call('/credentials', { method: 'POST', body: JSON.stringify(payload) })
-        setToken('')
-        setGhDir('')
-        setGiteeToken('')
-      }, '凭证已保存')
+      const saveCredentials = () => {
+        const draftVersion = credentialsDraftVersionRef.current
+        let saveSeq = 0
+        return run(async () => {
+          saveSeq = ++credentialsSaveSeqRef.current
+          const payload = {}
+          if (token.trim()) payload.token = token.trim()
+          if (giteeToken.trim()) payload.giteeToken = giteeToken.trim()
+          // 审核 T24 M3：这里以前无条件带 "ghConfigDir" —— ghDir 初值恒为空串且从不回填服务端值，
+          // 于是「只改 token」也会发 ghConfigDir:""，服务端把它当「显式清空」，
+          // 已绑定的 gh 账号目录被静默解绑（评论改回宿主账号）。
+          // 现在只有**填了东西**才发；要解绑请用旁边的「清除」按钮（它显式发空串）。
+          if (ghDir.trim()) payload.ghConfigDir = ghDir.trim()
+          await call('/credentials', { method: 'POST', body: JSON.stringify(payload) })
+        }, '凭证已保存', {
+          requireReload: true,
+          reloadError: '凭证已提交，但回读失败，请重试',
+          afterReload: () => {
+            if (saveSeq !== credentialsSaveSeqRef.current || draftVersion !== credentialsDraftVersionRef.current) return
+            setToken('')
+            setGhDir('')
+            setGiteeToken('')
+          },
+        })
+      }
 
       /** 显式解绑 gh 账号目录（T24 M3：不能在「只改 token」时顺带清掉）。 */
       const clearGhDir = () => run(async () => {
         await call('/credentials', { method: 'POST', body: JSON.stringify({ ghConfigDir: '' }) })
       }, '已解绑 gh 账号目录（评论改回宿主账号）')
 
-      const saveGoal = () => run(async () => {
-        await call('/goal', { method: 'POST', body: JSON.stringify({ sessionId, objective: goalDraft }) })
-        setGoalTouched(false)
-      }, 'goal 已保存')
+      const saveGoal = () => {
+        const draftVersion = goalDraftVersionRef.current
+        let saveSeq = 0
+        return run(async () => {
+          saveSeq = ++goalSaveSeqRef.current
+          await call('/goal', { method: 'POST', body: JSON.stringify({ sessionId, objective: goalDraft }) })
+        }, 'goal 已保存', {
+          requireReload: true,
+          reloadError: 'goal 已提交，但回读失败，请重试',
+          afterReload: () => {
+            if (saveSeq !== goalSaveSeqRef.current || draftVersion !== goalDraftVersionRef.current) return
+            setGoalTouched(false)
+          },
+        })
+      }
 
       // 四个数字必须加得上总数（以前「已暂停」按 enabled 数、「异常」按 lastError 数：
       // 一条已暂停又有错误的守会被数两次，而「时段外」根本没被数）
@@ -2952,9 +2987,9 @@ window.__ModuleLoader__.load({
           h(KeyValues, { rows: [['GitHub token', credentials.token === 'none' ? '未配置（回退到已登录的 gh CLI）' : '已配置'], ['SSH 私钥', credentials.sshKeyPath === 'none' ? '未配置（当前版本不使用）' : '已配置'],
             ['gh 账号', credentials.ghConfigDir === 'configured' ? '已绑定独立配置目录（评论挂智能体账号）' : '宿主当前登录的账号'],
             ['Gitee 令牌', credentials.giteeToken === 'configured' ? '已配置' : '未配置（公开仓库也能读，私有仓库需要）']] }),
-          field('Token', h(Input, { type: 'password', value: token, placeholder: 'ghp_… / github_pat_…（留空不改）', onChange: (e) => setToken(e.target.value) })),
-          field('Gitee 令牌', h(Input, { type: 'password', value: giteeToken, placeholder: '私人令牌（留空不改）；只盯 GitHub 可以不管' , onChange: (e) => setGiteeToken(e.target.value) })),
-          field('gh 账号目录', h(Input, { value: ghDir, placeholder: '绝对路径（留空 = 用宿主账号）', onChange: (e) => setGhDir(e.target.value) })),
+          field('Token', h(Input, { type: 'password', value: token, placeholder: 'ghp_… / github_pat_…（留空不改）', onChange: (e) => { credentialsDraftVersionRef.current += 1; setToken(e.target.value) } })),
+          field('Gitee 令牌', h(Input, { type: 'password', value: giteeToken, placeholder: '私人令牌（留空不改）；只盯 GitHub 可以不管' , onChange: (e) => { credentialsDraftVersionRef.current += 1; setGiteeToken(e.target.value) } })),
+          field('gh 账号目录', h(Input, { value: ghDir, placeholder: '绝对路径（留空 = 用宿主账号）', onChange: (e) => { credentialsDraftVersionRef.current += 1; setGhDir(e.target.value) } })),
           // 解绑要**显式**：以前只改 token 时会顺带把已绑定的目录清掉，客户不知道评论为什么换回了宿主账号。
           credentials.ghConfigDir === 'configured'
             ? h('div', { className: 'dt-actions' }, h(Btn, { variant: 'ghost', size: 'sm', onClick: clearGhDir }, '解绑 gh 账号目录'))
@@ -3035,7 +3070,7 @@ window.__ModuleLoader__.load({
           h('textarea', {
             className: 'dt-textarea', rows: 3, value: goalDraft,
             placeholder: '这个会话要达成什么（会写进 /goal）',
-            onChange: (e) => { setGoalTouched(true); setGoalDraft(e.target.value) },
+            onChange: (e) => { goalDraftVersionRef.current += 1; setGoalTouched(true); setGoalDraft(e.target.value) },
           }),
           h('div', { className: 'dt-actions' }, h(Btn, { variant: 'primary', onClick: saveGoal, disabled: !sessionId }, '保存 goal'))),
       ]
