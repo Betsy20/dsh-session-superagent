@@ -2,6 +2,24 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.285] - 2026-11-06 —— /state 会话上下文修复
+
+### 主面板带 sessionId
+
+- 主面板 `load()` 在 sessionId 存在时请求 `/state?sessionId=<encodeURIComponent>`。
+- 服务端现在能返回正确的 `sessionGoal / sessionTitle / sessionUsage`，不再因为缺参置空。
+- 空 sessionId 保持原请求，不串用其它会话 goal；Orbit 的独立 `/state` 调用不变。
+- 服务端行为不改，只补客户端与 routes 契约。
+
+### 验证
+
+- 离线联合 client + update-ui + routes：**214/214**。
+- 全量：**645/645**。
+- 真实 Chromium：**47/47**。
+- fixture 精确校验 sessionId query，没有放宽断言。
+
+未验真实 DSH Web GUI 与真实 watcher 写操作。按 Git 工作流保留本地候选。
+
 ## [0.9.284] - 2026-11-06 —— Orbit 并发与删除错误修复
 
 ### 写操作 busy 锁

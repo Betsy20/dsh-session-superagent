@@ -80,6 +80,10 @@ CollapsibleList 接入官方 DisclosureRow；首败不再冒充空态，Orbit �
 
 Orbit 写操作 busy 锁、轮询代际和删除失败当前 Modal 可见。专项 Chromium 52/52，全量 **643/643**。
 
+## 实施回写（0.9.285）
+
+主面板 `/state` 带 sessionId，goal/title/usage 正确返回且空 session 不串数据。真实 Chromium 47/47，全量 **645/645**。
+
 ## 0. 基线、口径与复用边界
 
 | 来源 | 本次核对基线 | 用法 |
