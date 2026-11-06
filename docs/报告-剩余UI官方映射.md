@@ -9,6 +9,10 @@
 | 主页面 SegTabs | `SegmentedTabs` | T85 已迁移，含方向键/Home/End、panel 关联与回退 |
 | Btn primary/ghost/outline/toolbar | `Button` | T80/T82 已迁移；link 无同物，保留 |
 | Orbit watcher 行头 | `DisclosureRow` | T84 已迁移，详情仍作 derived 内容 |
+| 单行 Input | `Input` | T86 已迁移，搜索/凭证/数字/行内编辑与回退 |
+| Toggle | `Switch` | T87 已迁移，id 用无样式 wrapper 保留 |
+| 筛选 Pill | `Pill` | T91 已迁移，静态/交互与 aria-pressed |
+| 只读 Tag / 状态点 | `Tag` / `StateDot` | T92 已迁移，独立回退 |
 
 ## 只有专用实现，不冒充公共组件
 
@@ -17,7 +21,7 @@
 - DockLayout/FloatLayer 是 split/tabbed panes，不是 Orbit 的 watcher 列表。
 - Menu 使用 `menuitem` 单动作选择语义，不适合 Orbit 的暂停/轮询/删除多动作富行。
 
-因此原生 `input.dt-input / textarea.dt-textarea / select.dt-select` 暂保留，复用 DSH tokens，不借专用组件换名。Orbit 容器继续使用已验证的 `MenuSurface + useAnchoredPosition + useDismissOnOutsidePointer + portal`。
+因此原生 `textarea.dt-textarea / select.dt-select` 暂保留，复用 DSH tokens，不借专用组件换名。Orbit 容器继续使用已验证的 `MenuSurface + useAnchoredPosition + useDismissOnOutsidePointer + portal`。
 
 ## 后续候选
 

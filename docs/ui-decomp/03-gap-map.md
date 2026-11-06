@@ -64,6 +64,10 @@ Tooltip scroll-close 在独立模块与主面板同步保留 trigger 焦点，�
 
 高级区补 aria-controls/body id；Tooltip scroll 回焦同步抑制重开并同步 client 内联。深层 Chromium 47/47，模块键盘路径 27/27，全量 **613/613**。
 
+## 实施回写（0.9.281）
+
+共享 Pill、Tag、StateDot 迁移官方组件，静态/交互与独立回退完整。真实 Chromium 47/47，全量 **622/622**。
+
 ## 0. 基线、口径与复用边界
 
 | 来源 | 本次核对基线 | 用法 |

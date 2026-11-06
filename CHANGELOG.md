@@ -2,6 +2,29 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.281] - 2026-11-06 —— Pill、Tag 与 StateDot 官方化
+
+### 筛选 Pill
+
+共享 `Pill()` 迁移到官方组件，9 个过滤/清除调用点不变。
+active/className/children/onClick/rest 全透传，交互形态补 `aria-pressed`；无 onClick 时使用官方静态 span，不伪造按钮。
+缺导出时交互回退 `button.dt-pill`，静态回退 `span.dt-pill`。
+
+### 只读 Tag 与状态点
+
+- `Tag()` 委托官方 `tone/className/children`，官方不收 title 时用无样式 span 保留。
+- `StateDot()` 原样传递 done/warning/ongoing/error/idle、size 与 className。
+- 两个组件独立探测、独立回退；ongoing 回退也保留调用方 className。
+
+### 验证
+
+- Pill 定向 **124/124**；Tag/StateDot 定向 **125/125**。
+- 合并后定向 **129/129**，全量 **622/622**。
+- 真实 Chromium **47/47**：筛选、Orbit/Modal、深层表单与防写 403 全部通过。
+- UI 体检 **11/11=100**。
+
+未验真实 DSH Web GUI 与真实 watcher 写操作。按 Git 工作流保留本地候选。
+
 ## [0.9.280] - 2026-11-06 —— 深层 UI 验收与高级区可访问性
 
 ### 高级区 aria 关联
