@@ -54,6 +54,7 @@ function loadClient(options = {}) {
   let mod = null
   const timers = []
   const stateCalls = []
+  const effects = []
   const hooks = { queue: [], index: 0 }
   const sandbox = {
     window: {
@@ -154,7 +155,7 @@ function loadClient(options = {}) {
       }
       return [value, setter]
     },
-    useEffect() {},
+    useEffect(create, deps) { effects.push({ create, deps }) },
     useCallback: (fn) => fn,
     useRef: (value) => ({ current: value }),
   }
@@ -193,6 +194,7 @@ function loadClient(options = {}) {
     registrations,
     render,
     timers,
+    effects,
     Btn: sandbox.window.__BtnForTest,
     Input: sandbox.window.__InputForTest,
     Toggle: sandbox.window.__ToggleForTest,
@@ -1795,4 +1797,84 @@ test('Pill 过滤汇总：单项清除与全部清除仍写回原状态槽，清
   assert.deepEqual(client.stateCalls().map((call) => [call.index, call.next]), [
     [16, null], [18, null], [10, ''], [17, false], [15, null],
   ], '全部清除必须保留徽章/状态/搜索/问题/暂停原因五类既有行为')
+})
+
+test('Orbit 首次 /state 失败保持 watchers=null 并写读取错误，不伪装成空数组', async () => {
+  const client = loadClient({
+    fetch: async () => response({ error: 'offline' }, false, 500),
+  })
+  const orbit = client.registrations.find((item) => item.opts.id === 'session-superagent-orbit')
+  client.render(orbit, [null, null, false, null])
+  const loadEffect = client.effects.find((effect) => String(effect.create).includes("noteOnce('orbit-mount'"))
+  assert.ok(loadEffect, '找不到 Orbit 首次状态加载 effect')
+  const cleanup = loadEffect.create()
+  await new Promise((resolve) => setImmediate(resolve))
+  const calls = client.stateCalls()
+  assert.equal(calls.some((call) => call.index === 0 && Array.isArray(call.next)), false,
+    '首次失败不得把未知 watchers 写成 []：' + JSON.stringify(calls))
+  assert.ok(calls.some((call) => call.index === 1 && String(call.next).includes('读取失败：offline')),
+    '首次失败必须写可见读取错误：' + JSON.stringify(calls))
+  if (typeof cleanup === 'function') cleanup()
+})
+
+test('WatcherForm 校验失败 reportValidity 并 focus 无效控件；有效路径仍只发原 POST', async () => {
+  for (const scenario of [
+    { name: '必填仓库空缺', repo: '', intervalSec: '90' },
+    { name: '数字低于 min', repo: 'acme/widgets', intervalSec: '1' },
+  ]) {
+    const requests = []
+    const client = loadClient({
+      fetch: async (url, init) => {
+        requests.push([url, init])
+        return response({ ok: true, watchers: [] })
+      },
+    })
+    const queue = deskQueue(snapshot(), null, {}, 'trigger')
+    queue[3] = { ...queue[3], repo: scenario.repo, intervalSec: scenario.intervalSec }
+    const save = control(nodesOf(client, queue, { sessionId: 's1' }), '添加到当前会话')
+    const events = { prevented: 0, checked: 0, reported: 0, queried: 0, focused: 0 }
+    const invalid = { focus() { events.focused += 1 } }
+    const form = {
+      checkValidity() { events.checked += 1; return false },
+      reportValidity() { events.reported += 1 },
+      querySelector(selector) {
+        events.queried += 1
+        assert.equal(selector, ':invalid')
+        return invalid
+      },
+    }
+    const result = await save.props.onClick({
+      preventDefault() { events.prevented += 1 },
+      currentTarget: { form },
+    })
+    assert.equal(result, false, scenario.name + '：无效表单不能保存')
+    assert.deepEqual(events, { prevented: 1, checked: 1, reported: 1, queried: 1, focused: 1 }, scenario.name)
+    assert.equal(postsOf(requests).length, 0, scenario.name + '：无效表单不得 POST')
+  }
+
+  const requests = []
+  const client = loadClient({
+    fetch: async (url, init) => {
+      requests.push([url, init])
+      return response({ ok: true, watchers: [] })
+    },
+  })
+  const queue = deskQueue(snapshot(), null, {}, 'trigger')
+  queue[3] = { ...queue[3], repo: 'acme/widgets', intervalSec: '90' }
+  const save = control(nodesOf(client, queue, { sessionId: 's1' }), '添加到当前会话')
+  const events = { prevented: 0, checked: 0, reported: 0, queried: 0, focused: 0 }
+  const form = {
+    checkValidity() { events.checked += 1; return true },
+    reportValidity() { events.reported += 1 },
+    querySelector() { events.queried += 1; return { focus() { events.focused += 1 } } },
+  }
+  assert.equal(await save.props.onClick({ preventDefault() { events.prevented += 1 }, currentTarget: { form } }), true)
+  assert.deepEqual(events, { prevented: 1, checked: 1, reported: 0, queried: 0, focused: 0 }, '有效路径不得显示校验错误')
+  const posts = postsOf(requests)
+  assert.equal(posts.length, 1, '有效路径仍只能发一次 POST')
+  assert.equal(posts[0][0], '/session-superagent/watch')
+  const body = JSON.parse(posts[0][1].body)
+  assert.equal(body.repo, 'acme/widgets')
+  assert.equal(body.sessionId, 's1')
+  assert.equal(body.intervalSec, 90)
 })

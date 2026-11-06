@@ -1147,7 +1147,12 @@ window.__ModuleLoader__.load({
         if (event && typeof event.preventDefault === 'function') event.preventDefault()
         // 原生点击保存时仍执行 constraints；测试桩没有 form，直接走同一提交函数。
         const form = event && event.currentTarget && event.currentTarget.form
-        if (form && typeof form.checkValidity === 'function' && !form.checkValidity()) return false
+        if (form && typeof form.checkValidity === 'function' && !form.checkValidity()) {
+          if (typeof form.reportValidity === 'function') form.reportValidity()
+          const invalid = typeof form.querySelector === 'function' ? form.querySelector(':invalid') : null
+          if (invalid && typeof invalid.focus === 'function') invalid.focus()
+          return false
+        }
         if (busyRef.current || disabled || (mode === 'edit' && !dirty)) return false
         if (mode === 'create' && (!sessionId || !String(values.repo || '').trim())) return false
         busyRef.current = true
@@ -1583,9 +1588,13 @@ window.__ModuleLoader__.load({
         const load = async () => {
           try {
             const body = await call('/state')
-            if (alive) setWatchers(Array.isArray(body && body.watchers) ? body.watchers : [])
-          } catch {
-            if (alive) setWatchers((prev) => (prev === null ? [] : prev))
+            if (alive) {
+              setWatchers(Array.isArray(body && body.watchers) ? body.watchers : [])
+              setOrbitError((current) => typeof current === 'string' && current.startsWith('读取失败：') ? null : current)
+            }
+          } catch (error) {
+            // null=尚未读到，[]=成功读到空列表；首次失败不能伪造成“还没有主理鱼”。
+            if (alive) setOrbitError('读取失败：' + String((error && error.message) || error).slice(0, 160))
           }
         }
         load()
@@ -1625,15 +1634,18 @@ window.__ModuleLoader__.load({
       }, [open])
 
       const list = watchers || []
+      const readError = typeof orbitError === 'string' && orbitError.startsWith('读取失败：') ? orbitError : null
       // Never hide the entry: with nothing being watched it stays as a grey
       // ring, so the affordance is always findable in the dock row.
       const running = list.filter((w) => orbitStateOf(w) === 'active').length
       const broken = list.filter((w) => orbitStateOf(w) === 'error').length
-      const summary = list.length === 0
-        ? '还没有主理鱼'
-        : '会话级 superagent：' + running + ' 运行中'
-          + (broken ? '，' + broken + ' 异常' : '')
-          + '（共 ' + list.length + ' 条）'
+      const summary = readError && watchers === null
+        ? '读不到主理鱼状态'
+        : list.length === 0
+          ? '还没有主理鱼'
+          : '会话级 superagent：' + running + ' 运行中'
+            + (broken ? '，' + broken + ' 异常' : '')
+            + '（共 ' + list.length + ' 条）'
 
       const toggle = () => {
         if (!hostOrbit) {
@@ -1649,9 +1661,11 @@ window.__ModuleLoader__.load({
       const button = h('button', {
         ref: btnRef,
         type: 'button',
-        title: list.length
-          ? list.map((w) => (w.repo + ' · ' + (w.title || '未命名会话') + ' · ' + sessionTag(w.sessionId) + ' · ' + STATE_TEXT[orbitStateOf(w)])).join('\n')
-          : '还没有主理鱼 —— 在「主理鱼」页加一条',
+        title: readError && watchers === null
+          ? readError
+          : list.length
+            ? list.map((w) => (w.repo + ' · ' + (w.title || '未命名会话') + ' · ' + sessionTag(w.sessionId) + ' · ' + STATE_TEXT[orbitStateOf(w)])).join('\n')
+            : '还没有主理鱼 —— 在「主理鱼」页加一条',
         'aria-label': summary,
         'aria-expanded': open ? 'true' : 'false',
         className: cx('dt-btn', 'dt-btn-ghost', 'sa-orbit-trigger', watchers === null && 'is-loading'),
@@ -1797,13 +1811,20 @@ window.__ModuleLoader__.load({
         h('div', { className: 'sa-dock-head' },
           h('span', { className: 'sa-dock-title' }, '主理鱼'),
           // 和面板统计条同一套官方素材：dt-stat（数值强 + 单位弱），不再自己发明 sa-dock-metric-*
-          h(Stat, { className: 'sa-dock-metric', value: running + ' / ' + list.length, unit: '主理中' })),
+          h(Stat, {
+            className: 'sa-dock-metric',
+            value: watchers === null ? '—' : running + ' / ' + list.length,
+            unit: watchers === null ? (readError ? '读取失败' : '读取中') : '主理中',
+          })),
         bar,
-        list.length === 0
-          ? h('div', { className: 'sa-dock-empty' }, '还没有。在「主理鱼」标签页填 owner/name 加一条。')
-          : h(hostOrbitRow ? 'ul' : 'div', { className: 'sa-dock-rows' }, rows),
-        // 写操作的失败必须出现在弹层里（M4）：以前两层空 catch，点了没反应也没提示
-        orbitError ? h('div', { className: 'sa-dock-err', role: 'alert' }, '操作失败：' + orbitError) : null,
+        watchers === null
+          ? (!readError ? h('div', { className: 'sa-dock-empty' }, '正在读取…') : null)
+          : list.length === 0
+            ? h('div', { className: 'sa-dock-empty' }, '还没有。在「主理鱼」标签页填 owner/name 加一条。')
+            : h(hostOrbitRow ? 'ul' : 'div', { className: 'sa-dock-rows' }, rows),
+        // 读失败与写操作失败分开说；旧列表仍可保留在错误上方。
+        readError ? h('div', { className: 'sa-dock-err', role: 'alert' }, readError) : null,
+        !readError && orbitError ? h('div', { className: 'sa-dock-err', role: 'alert' }, '操作失败：' + orbitError) : null,
         list.length > 0
           ? h('div', { className: 'sa-dock-foot' }, '详细状态与凭证在「主理鱼」标签页')
           : null)
@@ -3282,16 +3303,16 @@ window.__ModuleLoader__.load({
             h('div', { className: 'dt-actions' }, h(Btn, { size: 'sm', variant: 'primary', onClick: () => load() }, '重试')))
           : null,
         snap.loading && !snap.body ? h(Hint, null, '正在读取…') : null,
-        tab === 'overview' ? h('div', {
+        snap.body && tab === 'overview' ? h('div', {
           id: 'sa-main-panel-overview', role: 'tabpanel', 'aria-labelledby': 'sa-main-tab-overview', className: 'dt-tabpanel',
         }, overview, repoSummary) : null,
-        tab === 'judge' ? h('div', {
+        snap.body && tab === 'judge' ? h('div', {
           id: 'sa-main-panel-judge', role: 'tabpanel', 'aria-labelledby': 'sa-main-tab-judge', className: 'dt-tabpanel',
         }, judge, timeline) : null,
-        tab === 'trigger' ? h('div', {
+        snap.body && tab === 'trigger' ? h('div', {
           id: 'sa-main-panel-trigger', role: 'tabpanel', 'aria-labelledby': 'sa-main-tab-trigger', className: 'dt-tabpanel',
         }, trigger) : null,
-        tab === 'settings' ? h('div', {
+        snap.body && tab === 'settings' ? h('div', {
           id: 'sa-main-panel-settings', role: 'tabpanel', 'aria-labelledby': 'sa-main-tab-settings', className: 'dt-tabpanel',
         }, settings) : null,
         typeof glossary === 'string' ? h(PanelModal, {
