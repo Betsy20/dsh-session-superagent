@@ -350,7 +350,7 @@ window.__ModuleLoader__.load({
     let hostOrbit = null
     try {
       const primitives = require('@deepseek-ai/dsh-client-ui-primitives')
-      // Button 独立探测：老宿主缺 Modal/Toast 时仍可复用官方按钮；缺 Button 时所有 primary 完整回退旧 Btn。
+      // Button 独立探测：老宿主缺 Modal/Toast 时仍可复用官方按钮；缺 Button 时所有 variant 完整回退旧 Btn。
       hostButton = primitives.Button || null
       if (primitives && primitives.Modal && primitives.Toast && primitives.IconWarningOutlineMedium) {
         hostUi = createHostUi({ React, primitives })
@@ -682,9 +682,13 @@ window.__ModuleLoader__.load({
 
     const cx = (...names) => names.filter(Boolean).join(' ')
 
+    // 安装版 Button 的真实 variant 映射：primary/ghost/outline/toolbar × md/sm，默认 ghost/md。
+    // 业务的 link 没有官方同物：保留旧 dt-btn-link，不借 toolbar/ghost 自造映射。
+    const HOST_BUTTON_VARIANTS = new Set(['primary', 'ghost', 'outline', 'toolbar'])
+
     function Btn({ variant = 'ghost', size = 'md', icon, children, className, ...rest }) {
-      if (variant === 'primary' && hostButton) {
-        // 只转发业务 className：旧 dt-btn-primary 会覆盖宿主主题，造成深色白底浅字。
+      if (hostButton && HOST_BUTTON_VARIANTS.has(variant)) {
+        // 只转发业务 className：旧 dt-btn + variant/size 会覆盖宿主主题，不能回填到官方路径。
         // type 默认 button，但显式 submit 等原生 props（含 ref）必须原样交给 DSH Button；key 仍由 React 管理。
         return h(hostButton, { type: 'button', ...rest, variant, size, icon, className }, children)
       }
@@ -694,7 +698,7 @@ window.__ModuleLoader__.load({
         children)
     }
 
-    // 保留安装动作现有调用面；其它 primary 也统一由 Btn 内的宿主分支委托，老宿主完整回退。
+    // 保留安装动作现有调用面；其它受支持 variant 也统一由 Btn 内的宿主分支委托，老宿主完整回退。
     const UpdateButton = hostButton || Btn
 
     function Tag({ tone = 'outline', title, children }) {
