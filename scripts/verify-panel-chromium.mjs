@@ -19,7 +19,8 @@ const FRONTEND = `${ASAR}/dsh/node_modules/@deepseek-ai/dsh-web-frontend`
 const THEME_CLIENT = `${ASAR}/dsh/node_modules/@deepseek-ai/dsh-client-ui-theme/lib/client.js`
 const SCREENSHOTS = `${REPO}/docs/assets`
 const SESSION_ID = 'session-panel-chromium-fixture'
-const SPACE_NAME = 'dsh-full-panel-chromium-deep-ui-0.9.279'
+// 每次验收用独立任务空间：崩溃重跑时不能复用上一次残留页面/事件监听，否则会伪造失败。
+const SPACE_NAME = 'dsh-full-panel-chromium-deep-ui-' + String(Date.now())
 const results = []
 const observations = []
 const artifacts = []
