@@ -2649,3 +2649,305 @@ test('W14：追溯、首败/stale、持久操作与更新失败均有独立 aler
   const updateAlerts = nodes.filter((node) => node.props && node.props.role === 'alert' && a11yText(node).includes('npm failed'))
   assert.equal(updateAlerts.length, 1, '同一次更新失败只能有一个 alert')
 })
+
+// ── W15–W17：fallback 可访问性定向桩 ────────────────────────────────
+// panel-harness 的 useEffect 是空实现、hook 槽位也不持久，量不了「一次 Escape 关几层」。
+// 这里单独做一个小桩：持久化 hook 槽位、真的执行/清理 effect、记录 document 上的
+// capture/bubble 监听，才能复现 Modal 与 Orbit 的同一事件竞争。
+function loadFallbackA11y(options = {}) {
+  const source = readFileSync(new URL('../client.js', import.meta.url), 'utf8')
+  const needle = "    return {\n      inject: ['slots'],"
+  assert.ok(source.includes(needle), '找不到 client.js 的返回出口')
+  const instrumented = source.replace(needle,
+    '    window.__fallbackA11y = { FallbackInfoTip, Modal, StatusOrbit, isLocalDialogOpen: () => localDialogDepth > 0 }\n'
+    + needle)
+
+  let mod = null
+  const listeners = []
+  const timers = []
+  const document = {
+    activeElement: null,
+    body: { nodeName: 'BODY', isConnected: true },
+    hidden: false,
+    addEventListener(type, listener, capture) {
+      listeners.push({ type, listener, capture: Boolean(capture) })
+    },
+    removeEventListener(type, listener, capture) {
+      const index = listeners.findIndex((entry) => entry.type === type
+        && entry.listener === listener && entry.capture === Boolean(capture))
+      if (index >= 0) listeners.splice(index, 1)
+    },
+    getElementById: () => null,
+    createElement: () => ({ id: '', textContent: '' }),
+    head: { appendChild() {} },
+  }
+  const sandbox = {
+    window: {
+      __ModuleLoader__: { load(value) { mod = value } },
+      innerWidth: 1440,
+      innerHeight: 900,
+      matchMedia: () => ({ matches: false }),
+      addEventListener() {},
+      removeEventListener() {},
+    },
+    document,
+    navigator: { clipboard: { writeText: async () => {} } },
+    // 状态读取永远挂着：本轮只验 Escape 分层，不让异步 loadState 改状态。
+    fetch: () => new Promise(() => {}),
+    setInterval: () => 0,
+    clearInterval() {},
+    setTimeout: (fn, ms) => {
+      timers.push({ id: timers.length + 1, fn, ms })
+      return timers.length
+    },
+    clearTimeout: (id) => {
+      const index = timers.findIndex((timer) => timer.id === id)
+      if (index >= 0) timers.splice(index, 1)
+    },
+    queueMicrotask: (fn) => fn(),
+    console,
+  }
+
+  let currentCtx = null
+  const depsEqual = (a, b) => Array.isArray(a) && Array.isArray(b)
+    && a.length === b.length && a.every((value, index) => Object.is(value, b[index]))
+  const React = {
+    Fragment: Symbol('Fragment'),
+    createElement(type, props, ...children) {
+      const { key, ...rest } = props || {}
+      const node = {
+        type,
+        props: { ...rest, children: children.flat(Infinity).filter((child) => child !== null && child !== undefined && child !== false) },
+      }
+      if (key !== undefined) node.key = key
+      return node
+    },
+    isValidElement: (value) => Boolean(value && typeof value === 'object' && 'type' in value),
+    forwardRef: (render) => function ForwardRef(props = {}) { return render(props, props.ref || null) },
+    memo: (fn) => fn,
+    useState(initial) {
+      const ctx = currentCtx
+      const index = ctx.cursor
+      ctx.cursor += 1
+      if (!(index in ctx.slots)) ctx.slots[index] = typeof initial === 'function' ? initial() : initial
+      const setter = (next) => {
+        const resolved = typeof next === 'function' ? next(ctx.slots[index]) : next
+        ctx.slots[index] = resolved
+        ctx.stateCalls.push({ index, next: resolved })
+      }
+      return [ctx.slots[index], setter]
+    },
+    useRef(initial) {
+      const ctx = currentCtx
+      const index = ctx.cursor
+      ctx.cursor += 1
+      if (!(index in ctx.slots)) ctx.slots[index] = { current: initial }
+      return ctx.slots[index]
+    },
+    useCallback(fn) {
+      currentCtx.cursor += 1
+      return fn
+    },
+    useEffect(create, deps) {
+      const ctx = currentCtx
+      const index = ctx.cursor
+      ctx.cursor += 1
+      ctx.seen.add(index)
+      const previous = ctx.effects.get(index)
+      if (previous && depsEqual(previous.deps, deps)) return
+      if (previous && typeof previous.cleanup === 'function') previous.cleanup()
+      const cleanup = create()
+      ctx.effects.set(index, { deps, cleanup })
+    },
+  }
+
+  vm.createContext(sandbox)
+  vm.runInContext(instrumented, sandbox)
+  assert.ok(mod, 'fallback 可访问性测试也必须执行真实 client.js')
+  mod.factory((name) => {
+    if (name === 'react') return React
+    if (name === '@deepseek-ai/dsh-client-ui-primitives') {
+      if (options.primitives === undefined) throw new Error('MODULE_NOT_FOUND: ' + name)
+      return options.primitives
+    }
+    throw new Error('unexpected require: ' + name)
+  })
+
+  const mount = (Component, props = {}, seed = []) => {
+    const ctx = { slots: [...seed], cursor: 0, seen: new Set(), effects: new Map(), stateCalls: [] }
+    const render = () => {
+      ctx.cursor = 0
+      ctx.seen = new Set()
+      currentCtx = ctx
+      let nodes
+      try {
+        nodes = walk(Component(props))
+      } finally {
+        currentCtx = null
+        // 本次渲染没再出现的 effect 视为卸载：真实 React 会在 commit 后跑清理。
+        for (const [index, entry] of [...ctx.effects]) {
+          if (ctx.seen.has(index)) continue
+          ctx.effects.delete(index)
+          if (typeof entry.cleanup === 'function') entry.cleanup()
+        }
+      }
+      return nodes
+    }
+    return { render, ctx, stateCalls: ctx.stateCalls }
+  }
+
+  const dispatchEscape = (extra = {}) => {
+    const event = {
+      key: 'Escape', repeat: false, defaultPrevented: false,
+      preventDefault() { this.defaultPrevented = true },
+      stopPropagation() { this.propagationStopped = true },
+      ...extra,
+    }
+    const keydown = listeners.filter((entry) => entry.type === 'keydown')
+    // capture 先于 bubble，和真实事件分发一致。
+    for (const entry of keydown) if (entry.capture) entry.listener(event)
+    for (const entry of keydown) if (!entry.capture) entry.listener(event)
+    return event
+  }
+
+  return {
+    internals: sandbox.window.__fallbackA11y,
+    document,
+    listeners,
+    timers,
+    mount,
+    dispatchEscape,
+  }
+}
+
+function tipNodes(nodes) {
+  return nodes.filter((node) => String(node.props?.className || '').split(/\s+/).includes('dt-tooltip'))
+}
+
+function infoTrigger(nodes, text) {
+  return nodes.filter((node) => node.type === 'button'
+    && String(node.props?.className || '').split(/\s+/).includes('dt-info')
+    && (text === undefined || node.props['aria-label'] === text))
+}
+
+test('W15：fallback Tooltip 有稳定 id 与 aria-describedby，Escape 关闭且焦点留在 trigger', () => {
+  const HOST_WITHOUT_TOOLTIP = { Modal: 'm', Toast: 't', IconWarningOutlineMedium: 'w' }
+  for (const primitives of [undefined, HOST_WITHOUT_TOOLTIP]) {
+    const client = loadFallbackA11y({ primitives })
+    const text = '回退说明原文'
+    const tip = client.mount(client.internals.FallbackInfoTip, { text, icon: 'alert', warn: true })
+    let nodes = tip.render()
+    let trigger = infoTrigger(nodes, text)[0]
+    assert.ok(trigger, 'fallback 缺原 trigger')
+    assert.equal(trigger.props['aria-describedby'], undefined, '关闭时不得保留 describedby')
+    assert.equal(tipNodes(nodes).length, 0)
+
+    trigger.props.onClick()
+    nodes = tip.render()
+    trigger = infoTrigger(nodes, text)[0]
+    let bubble = tipNodes(nodes)[0]
+    assert.ok(bubble, '点击后必须显示本地气泡')
+    assert.ok(bubble.props.id, 'tooltip 必须有稳定 id')
+    assert.equal(trigger.props['aria-describedby'], bubble.props.id, '打开时 trigger 必须关联 tooltip id')
+    assert.equal(trigger.props['aria-expanded'], true)
+    const firstId = bubble.props.id
+
+    // Escape：preventDefault、关闭、焦点仍在 trigger 上。
+    const triggerNode = { name: 'trigger', isConnected: true }
+    client.document.activeElement = triggerNode
+    let prevented = 0
+    trigger.props.onKeyDown({ key: 'Escape', repeat: false, preventDefault() { prevented += 1 } })
+    assert.equal(prevented, 1, 'Escape 必须 preventDefault')
+    assert.equal(client.document.activeElement, triggerNode, 'Escape 后焦点必须留在 trigger')
+    nodes = tip.render()
+    trigger = infoTrigger(nodes, text)[0]
+    assert.equal(tipNodes(nodes).length, 0, 'Escape 必须关闭气泡')
+    assert.equal(trigger.props['aria-describedby'], undefined, '关闭后必须清除 describedby')
+
+    // 再打开：同一 trigger 的 id 必须稳定，不能每次重建。
+    trigger.props.onClick()
+    nodes = tip.render()
+    bubble = tipNodes(nodes)[0]
+    assert.equal(bubble.props.id, firstId, '同一 trigger 反复打开必须复用同一个 tooltip id')
+
+    // blur 仍是原有关闭路径，并同步清关联。
+    trigger = infoTrigger(nodes, text)[0]
+    trigger.props.onBlur()
+    nodes = tip.render()
+    assert.equal(tipNodes(nodes).length, 0, 'blur 必须继续关闭气泡')
+    assert.equal(infoTrigger(nodes, text)[0].props['aria-describedby'], undefined)
+  }
+})
+
+test('W16：fallback 确认 Modal 独占 Escape，底层 Orbit 不同时关闭且焦点回 opener', () => {
+  const client = loadFallbackA11y()
+  const list = [watcher('a/b', { id: 'a/b#s1', title: '会话 a/b', intervalSec: 30 })]
+  // StatusOrbit hooks：watchers / orbitError / open / anchor（再往后是 refs 和 effects）。
+  const orbit = client.mount(client.internals.StatusOrbit, {}, [list, null, true, { x: 700, y: 800 }])
+  let nodes = orbit.render()
+  const opener = { name: 'delete-opener', isConnected: true, focus() { client.document.activeElement = this } }
+  client.document.activeElement = opener
+  const deleteButton = nodes.find((node) => node.type === 'button' && node.props['aria-label'] === '删除')
+  assert.ok(deleteButton, 'fallback 弹层缺删除按钮')
+  deleteButton.props.onClick()
+  nodes = orbit.render()
+  const dialog = nodes.find((node) => node.props && node.props.role === 'dialog'
+    && String(node.props.className || '').includes('dt-modal'))
+  assert.ok(dialog, '点删除必须打开本地确认 Modal')
+  assert.equal(client.internals.isLocalDialogOpen(), true, 'Modal 打开期间必须登记为最上层对话框')
+
+  // 背板/取消的 mousedown 也不得穿透：Modal 层还在时 Orbit 不处理外点关闭。
+  const mousedown = client.listeners.filter((entry) => entry.type === 'mousedown' && entry.capture)
+  assert.equal(mousedown.length, 1, 'Orbit 打开时必须登记 capture mousedown')
+  orbit.stateCalls.length = 0
+  mousedown[0].listener({ target: {}, preventDefault() {} })
+  assert.ok(!orbit.stateCalls.some((call) => call.index === 2 && call.next === false),
+    'Modal 打开时点击背板不得同时关闭底层 Orbit')
+
+  orbit.stateCalls.length = 0
+  const escaped = client.dispatchEscape()
+  assert.equal(escaped.defaultPrevented, true, 'Modal 必须消费这次 Escape')
+  assert.ok(orbit.stateCalls.some((call) => call.index !== 2 && call.next === false), '第一次 Escape 必须关闭 Modal')
+  assert.ok(!orbit.stateCalls.some((call) => call.index === 2 && call.next === false),
+    '底层 Orbit 不得同时关闭：' + JSON.stringify(orbit.stateCalls))
+
+  nodes = orbit.render()
+  assert.equal(client.internals.isLocalDialogOpen(), false, 'Modal 关闭后必须释放层级')
+  assert.equal(nodes.filter((node) => node.props && String(node.props.className || '').includes('dt-modal')).length, 0,
+    'Modal 关闭后不得残留对话框')
+  assert.equal(client.document.activeElement, opener, 'Modal 关闭后焦点必须回到 opener')
+
+  // 第二次 Escape 才轮到 Orbit；一次按键只能关一层。
+  orbit.stateCalls.length = 0
+  client.dispatchEscape()
+  assert.ok(orbit.stateCalls.some((call) => call.index === 2 && call.next === false),
+    '第二次 Escape 应关闭底层 Orbit')
+})
+
+test('W17：fallback Toast 以 item.id 为 key，连续通知重新挂载且 hold 与 timer 对齐', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((item) => item.opts.id === 'session-superagent-desk')
+  const snapshot = {
+    loading: false, error: null,
+    body: {
+      sessionGoal: null, sessionTitle: 'Toast key', credentials: {},
+      gh: { ok: true }, defaults: {}, watchers: [watcher('a/b')],
+    },
+  }
+  const toastOf = (item) => {
+    const queue = deskQueue(snapshot)
+    queue[7] = item
+    const nodes = walk(render(desk, queue))
+    const toast = nodes.find((node) => String(node.props?.className || '').split(/\s+/).includes('dt-toast'))
+    assert.ok(toast, '缺 fallback Toast：' + JSON.stringify(item))
+    return toast
+  }
+  const first = toastOf({ id: 'toast-a', text: '第一条', tone: 'success' })
+  assert.equal(first.key, 'toast-a', 'fallback Toast 必须用 item.id 作为 React key')
+  assert.equal(first.props.key, undefined, 'React key 不应留在 props')
+  assert.equal(first.props.style['--dt-toast-hold'], '3000ms', 'CSS hold 必须与 4000ms timer 对齐（3000 + 1000 fade）')
+
+  const second = toastOf({ id: 'toast-b', text: '第二条', tone: 'error' })
+  assert.equal(second.key, 'toast-b')
+  assert.notEqual(first.key, second.key, '连续两条通知必须换 key 才能重启动画')
+})
