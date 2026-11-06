@@ -52,6 +52,10 @@ Tooltip scroll-close 在独立模块与主面板同步保留 trigger 焦点，�
 
 官方支持的 `primary/ghost/outline/toolbar` 全部委托 DSH Button，link 保留回退；真实对比度 23/23。完整 desk+Orbit 双 root、Modal 焦点圈与 Escape 验收 34/34。全量 **602/602**。
 
+## 实施回写（0.9.278）
+
+主页面迁移官方 SegmentedTabs，补 tab/panel 关联与回退；Orbit 行头迁移官方 DisclosureRow，watcher 详情保留 derived。真实 Chromium 组合验收全 PASS，全量 **606/606**。
+
 ## 0. 基线、口径与复用边界
 
 | 来源 | 本次核对基线 | 用法 |

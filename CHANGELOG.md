@@ -2,6 +2,29 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.278] - 2026-11-06 —— SegmentedTabs 与 Orbit DisclosureRow 原生化
+
+### 主页面 tabs
+
+四个主 tab 迁移到官方 `SegmentedTabs`：受控 items/value/onChange、ArrowLeft/Right、Home/End、唯一 tab stop 和焦点移动全部由官方组件负责。
+每个 tab 补稳定 id/panelId，当前页面有且只有一个 `role=tabpanel` 并反向关联。
+点击当前 tab 仍重发 onChange；缺导出或 primitives 时完整回退旧 SegTabs。
+
+### Orbit 列表结构
+
+Orbit watcher 行头迁移到官方 `DisclosureRow`：状态点、仓库、状态标签与三个动作进入官方行结构，外层使用 `ul > li` 语义列表。
+多行 watcher 详情保留为 derived 内容；缺 DisclosureRow 或任何 Orbit 基础能力时完整回退。
+容器继续使用官方 `MenuSurface + useAnchoredPosition + portal`，没有把 Menu/DockKit 误当通用 Popover。
+
+### 映射边界与验证
+
+- `ConfigField` 的 textarea/select 不是公共导出，`PickerPopover` 是专用实现；不自造映射。
+- SegmentedTabs 定向 **113/113**；Orbit 定向 **103/103**。
+- 合并后全量 **606/606**，UI 体检 **11/11=100**。
+- 合并后真实 Chromium：官方 tabs、Orbit/Modal、焦点圈、Escape、取消回焦与防写 403 全部 PASS。
+
+未验真实 DSH Web GUI 与真实 watcher 写操作。按 Git 工作流保留本地候选。
+
 ## [0.9.277] - 2026-11-06 —— 全部按钮原生化 + 完整 Orbit/Modal 验收
 
 ### 全部按钮接入官方 Button
