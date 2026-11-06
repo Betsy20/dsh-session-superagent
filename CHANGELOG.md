@@ -2,6 +2,13 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.10.2] - 2026-11-07 —— 304 不再吞评论（issue #11 复审）
+
+- 修复 watcher 信任 GitHub issues 列表 ETag 导致新增评论被 304 吞掉：超过 10 分钟没有全量刷新就丢弃 ETag，下一轮强制重取。
+- 新增 `lastFreshAt` 持久化；304 只在这个时间窗内视为「未变化」。
+- `UPDATING.md` 补宿主安装写锁超时的排查提示。
+- 验证：690/690、preflight 41/41。
+
 ## [0.10.1] - 2026-11-06 —— 品牌与默认 ack 可配置（issue #11，@modusensus）
 
 - 新增 `Config`：`brandName`、`defaultAckLabel`、`defaultAckLabelGitee`，默认值与 0.10.0 逐字相同。

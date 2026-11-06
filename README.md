@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/MYCF711/dsh-session-superagent/releases"><img src="https://img.shields.io/badge/version-0.10.1-green.svg" alt="version"></a>
+  <a href="https://github.com/MYCF711/dsh-session-superagent/releases"><img src="https://img.shields.io/badge/version-0.10.2-green.svg" alt="version"></a>
   <a href="https://www.npmjs.com/package/dsh-session-superagent"><img src="https://img.shields.io/npm/v/dsh-session-superagent?color=4D6BFE" alt="npm"></a>
   <img src="https://img.shields.io/badge/license-MIT-4D6BFE" alt="license">
 </p>
@@ -65,7 +65,7 @@ DSH 插件要装进 profile，`npm i` 不会让它生效：
 dsh plugin --profile desktop add dsh-session-superagent
 
 # 锁定版本
-dsh plugin --profile desktop add dsh-session-superagent@0.10.1
+dsh plugin --profile desktop add dsh-session-superagent@0.10.2
 ```
 
 装完重载宿主。开发时用 `file:` 安装，新增文件后要跑 `pnpm run sync:profile`，否则插件会整体不挂载。
@@ -144,13 +144,13 @@ Gitee 没有 ETag，每轮会真读一次列表；私有仓库需要在面板里
 
 ## 验证
 
-689 项单测、41 项 preflight、11 项 UI、47 项 Chromium 全绿（0.10.1）。
+690 项单测、41 项 preflight、11 项 UI、47 项 Chromium 全绿（0.10.2）。
 
 ## 数据来源
 
 | 说法 | 来源 |
 |---|---|
-| 版本 `0.10.1` | [package.json](package.json)、[npm](https://www.npmjs.com/package/dsh-session-superagent) |
+| 版本 `0.10.2` | [package.json](package.json)、[npm](https://www.npmjs.com/package/dsh-session-superagent) |
 | 项目起点 | [deepseek-ai/dsh-superagent-prototype](https://github.com/deepseek-ai/dsh-superagent-prototype) |
 | DSH 原生 UI | [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness)、`$DSH_HOME/DSH-UI-official.md`、`docs/ui-decomp/` |
 | 图标 | [DSH-X/docs/icon-app.png](https://github.com/yyh-001/DSH-X/blob/Staging/docs/icon-app.png)（MIT） |
