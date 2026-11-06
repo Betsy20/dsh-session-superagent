@@ -25,6 +25,7 @@
     "lib/semver.js",
     "cordis.patch.yml",
     "README.md",
+    "AGENTS.md",
     "SETUP.md",
     "CHANGELOG.md",
     "LICENSE",
@@ -33,8 +34,10 @@
     "ui-orbit-popover.js",
     "bin/check.mjs",
     "assets/icon-180.png",
+    "assets/icon-app.png",
     "docs/whats-new-0.9.md",
     "docs/json-契约.md",
+    "docs/真机验证清单.md",
     "UPDATING.md",
     "CHECKLIST.md",
     "MAINTENANCE.md"
