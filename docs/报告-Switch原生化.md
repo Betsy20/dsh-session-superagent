@@ -68,3 +68,7 @@
 - 本子代理未运行真实 Chromium；真实浏览器中的官方 DOM、双主题、键盘与焦点表现由主线继续验收，本报告不提前宣称通过。
 - 未修改 `lib/`、`package.json`、版本号、preflight、派单表或既有业务调用面。
 - 未 commit、未 push。
+
+## 6. 主线真实复验
+
+真实 Chromium 新增表单默认显示 3 面普通开关（5 面优先级在高级区未展开）。点击第一面后 `aria-checked=false→true`，SaveBar 继续显示未保存，未提交 mutation；完整面板与 Orbit/Modal 同时通过。

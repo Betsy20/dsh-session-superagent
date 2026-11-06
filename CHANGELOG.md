@@ -2,6 +2,29 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.279] - 2026-11-06 —— 官方 Input 与 Switch 全覆盖
+
+### 单行输入
+
+共享 `Input()` 在有官方导出时直接委托 DSH `Input`，搜索、repo/goal/ghDir、密码 token、数字和行内编辑全部统一。
+官方 wrapper 保留 `dt-input` 布局 className，icon 只由官方渲染；value/onChange、aria、disabled、required、min/max/step、ref 全透传。
+缺导出或 primitives 时完整回退旧 `span.dt-input > input`。textarea/select/time 不在本版强行迁移。
+
+### 开关
+
+共享 `Toggle()` 在有官方导出时委托 DSH `Switch`，保留 checked/onChange/label/disabled/title。
+官方不收 id，使用无样式的 `span[id]` 保留关联；不回填 `dt-switch` 主题类。
+缺导出时完整回退旧 button+thumb。新增与行内编辑业务逻辑不变。
+
+### 验证
+
+- Input 定向 **116/116**；Switch 定向 **25/25**；合并全量 **612/612**。
+- 真实 Chromium：搜索、行内编辑、三个凭证输入、goal、Orbit/Modal 全部 PASS。
+- 新增表单 3 面普通开关真实点击，`aria-checked=false→true`，草稿标脏且无 mutation。
+- UI 体检 **11/11=100**。
+
+未验真实 DSH Web GUI 与真实 watcher 写操作。按 Git 工作流保留本地候选。
+
 ## [0.9.278] - 2026-11-06 —— SegmentedTabs 与 Orbit DisclosureRow 原生化
 
 ### 主页面 tabs

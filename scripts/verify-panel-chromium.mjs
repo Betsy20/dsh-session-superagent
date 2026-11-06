@@ -530,6 +530,18 @@ try {
   check('trigger 搜索外的新增/编辑表单 input 可编辑', triggerEdited.repo === 'fixture/editable'
     && triggerEdited.goal === 'Chromium 可编辑 fixture，不提交'
     && triggerEdited.savebar?.includes('未保存'), triggerEdited)
+  const switchBefore = await page.evaluate(() => ({
+    count: document.querySelectorAll('#watcher-new [role=switch]').length,
+    checked: document.querySelector('#watcher-new [role=switch]')?.getAttribute('aria-checked'),
+  }))
+  await page.click('#watcher-new [role=switch] >> nth=0')
+  const switchAfter = await page.evaluate(() => ({
+    checked: document.querySelector('#watcher-new [role=switch]')?.getAttribute('aria-checked'),
+    dirty: document.querySelector('#watcher-new .dt-savebar')?.textContent.includes('未保存'),
+  }))
+  check('trigger 官方 Switch 可切换且只改本地草稿', switchBefore.count === 3
+    && switchAfter.checked !== switchBefore.checked && switchAfter.dirty === true,
+  { before: switchBefore, after: switchAfter })
   await shot('trigger')
 
   // 设置总壳与五个分区全部真实点击。

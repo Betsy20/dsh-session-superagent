@@ -66,3 +66,7 @@
 本 worktree 未运行主线真实 Chromium 34 项，未把 Node 桩或静态 UI 体检冒充真机交互验收。官方组件在真实 Chromium 中的键盘、焦点、受控编辑、双主题与窄屏表现由主线 34 项继续验收。
 
 最终改动仅限：`client.js`、`test/update-ui.test.mjs`、本报告。未改 `test/client.test.mjs`，因为现有回退面板回归已足够，新增定向场景集中在已有宿主原语测试文件中即可。
+
+## 主线真实复验
+
+合并后真实 Chromium 全部功能项 PASS：搜索筛选、行内编辑/放弃、三个凭证输入、goal 编辑，以及 Orbit/Modal 焦点与防写 403。textarea/select/time 保持原实现。

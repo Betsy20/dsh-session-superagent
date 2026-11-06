@@ -56,6 +56,10 @@ Tooltip scroll-close 在独立模块与主面板同步保留 trigger 焦点，�
 
 主页面迁移官方 SegmentedTabs，补 tab/panel 关联与回退；Orbit 行头迁移官方 DisclosureRow，watcher 详情保留 derived。真实 Chromium 组合验收全 PASS，全量 **606/606**。
 
+## 实施回写（0.9.279）
+
+共享 Input 与 Toggle 分别迁移官方 Input/Switch，保留 id、受控草稿与回退。真实输入与开关交互通过，全量 **612/612**。
+
 ## 0. 基线、口径与复用边界
 
 | 来源 | 本次核对基线 | 用法 |
