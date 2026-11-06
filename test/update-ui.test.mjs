@@ -14,6 +14,8 @@ const HOST = Object.freeze({
   Input: 'dsh-host-input',
   Switch: 'dsh-host-switch',
   SegmentedTabs: 'dsh-host-segmented-tabs',
+  Tag: 'dsh-host-tag',
+  StateDot: 'dsh-host-state-dot',
   IconWarningOutlineMedium: 'dsh-host-warning-icon',
 })
 const MAIN_TABS = Object.freeze([
@@ -99,6 +101,16 @@ function loadClient(options = {}) {
     source = source.replace('    function StateDot({', '    window.__ToggleForTest = Toggle\n    function StateDot({')
     assert.notEqual(source, before, '必须捕获真实 Toggle，不能测试手写复制品')
   }
+  if (options.captureTag) {
+    const before = source
+    source = source.replace('    function Tag({', '    window.__TagForTest = Tag\n    function Tag({')
+    assert.notEqual(source, before, '必须捕获真实 Tag，不能测试手写复制品')
+  }
+  if (options.captureStateDot) {
+    const before = source
+    source = source.replace('    function StateDot({', '    window.__StateDotForTest = StateDot\n    function StateDot({')
+    assert.notEqual(source, before, '必须捕获真实 StateDot，不能测试手写复制品')
+  }
   vm.runInContext(source, sandbox)
   assert.ok(mod, 'client.js 必须调用 __ModuleLoader__.load')
 
@@ -172,6 +184,8 @@ function loadClient(options = {}) {
     Btn: sandbox.window.__BtnForTest,
     Input: sandbox.window.__InputForTest,
     Toggle: sandbox.window.__ToggleForTest,
+    Tag: sandbox.window.__TagForTest,
+    StateDot: sandbox.window.__StateDotForTest,
     stateCalls: () => stateCalls,
     resetStateCalls: () => { stateCalls.length = 0 },
   }
@@ -621,6 +635,103 @@ test('Toggle 真实调用面：新增/行内编辑的普通与优先级开关全
     assert.ok(client.stateCalls().some((call) => call.index === stateIndex && call.next?.priorityReopened === false),
       name + '：优先级 Switch 必须仍按 key,next 写回既有业务状态')
   }
+})
+
+test('Tag 官方委托：tone/children/className 直传，title 仅用无样式 wrapper 保留', () => {
+  const client = loadClient({ primitives: HOST, captureTag: true })
+  assert.equal(typeof client.Tag, 'function')
+  for (const tone of ['outline', 'solid', 'neutral', 'quiet', 'success', 'info', 'warning', 'danger']) {
+    const node = client.Tag({ tone, className: 'business', children: '标签 ' + tone })
+    assert.equal(node.type, HOST.Tag, tone + ' 必须委托 DSH Tag')
+    assert.equal(node.props.tone, tone)
+    assert.equal(node.props.className, 'business')
+    assert.equal(node.props.title, undefined, tone + '：官方不收 title，不能伪造透传')
+    assert.equal(node.props['data-tone'], undefined, tone + '：data-tone 由官方组件自己拥有')
+    assert.deepEqual(node.props.children, ['标签 ' + tone])
+    assert.ok(!hasClass(node, 'dt-tag'), tone + '：官方路径不得回填旧 dt-tag 主题')
+  }
+  const defaults = client.Tag({ children: '默认标签' })
+  assert.equal(defaults.type, HOST.Tag)
+  assert.equal(defaults.props.tone, 'outline')
+
+  const titled = client.Tag({ tone: 'outline', title: '不在活跃时段：只攒条目，不唤醒', children: '时段外' })
+  assert.equal(titled.type, 'span', '有 title 时只增加最小 wrapper')
+  assert.equal(titled.props.title, '不在活跃时段：只攒条目，不唤醒')
+  assert.equal(titled.props.className, undefined, 'title wrapper 不得引入新视觉')
+  assert.equal(titled.props.children.length, 1)
+  const official = titled.props.children[0]
+  assert.equal(official.type, HOST.Tag)
+  assert.equal(official.props.tone, 'outline')
+  assert.equal(official.props.title, undefined)
+  assert.deepEqual(official.props.children, ['时段外'])
+})
+
+test('Tag 回退：缺导出或整个 primitives 时保留 dt-tag、title/tone/children 与业务 className', () => {
+  for (const primitives of [undefined, {}, { ...HOST, Tag: undefined }]) {
+    const client = loadClient({ primitives, captureTag: true })
+    for (const tone of ['outline', 'quiet', 'success', 'warning', 'danger']) {
+      const node = client.Tag({ tone, title: '提示 ' + tone, className: 'business', children: '标签 ' + tone })
+      assert.equal(node.type, 'span')
+      assert.ok(hasClass(node, 'dt-tag'))
+      assert.ok(hasClass(node, 'business'))
+      assert.equal(node.props['data-tone'], tone)
+      assert.equal(node.props.title, '提示 ' + tone)
+      assert.deepEqual(node.props.children, ['标签 ' + tone])
+    }
+  }
+})
+
+test('StateDot 官方委托：done/warning/ongoing/error/idle、size 与 dt-dot className 原样直传', () => {
+  const client = loadClient({ primitives: HOST, captureStateDot: true })
+  assert.equal(typeof client.StateDot, 'function')
+  for (const state of ['done', 'warning', 'ongoing', 'error', 'idle']) {
+    const node = client.StateDot({ state, size: 12, className: 'dt-dot business' })
+    assert.equal(node.type, HOST.StateDot, state + ' 必须委托 DSH StateDot')
+    assert.equal(node.props.state, state, state + '：不得自造或改写状态')
+    assert.equal(node.props.size, 12)
+    assert.equal(node.props.className, 'dt-dot business')
+    assert.equal(node.props['data-state'], undefined, state + '：data-state 由官方组件自己拥有')
+    assert.deepEqual(node.props.children, [])
+  }
+  const defaults = client.StateDot({ state: 'done', className: 'dt-dot' })
+  assert.equal(defaults.props.size, undefined, '未传 size 时保留官方默认值')
+})
+
+test('StateDot 回退：缺导出或整个 primitives 时保留四态、dt-dot 与 ongoing spinner', () => {
+  for (const primitives of [undefined, {}, { ...HOST, StateDot: undefined }]) {
+    const client = loadClient({ primitives, captureStateDot: true })
+    for (const state of ['done', 'warning', 'error', 'idle']) {
+      const node = client.StateDot({ state, className: 'dt-dot business' })
+      assert.equal(node.type, 'span')
+      assert.ok(hasClass(node, 'dt-state-dot'))
+      assert.ok(hasClass(node, 'dt-dot'))
+      assert.ok(hasClass(node, 'business'))
+      assert.equal(node.props['data-state'], state)
+      assert.equal(node.props['aria-hidden'], 'true')
+    }
+    const ongoing = client.StateDot({ state: 'ongoing', size: 16, className: 'dt-dot' })
+    assert.equal(ongoing.type, 'svg')
+    assert.ok(hasClass(ongoing, 'dt-spinner'))
+    assert.ok(hasClass(ongoing, 'dt-dot'), 'ongoing 回退也不能丢调用方 className')
+    assert.equal(ongoing.props['data-state'], 'ongoing')
+    assert.equal(ongoing.props.width, 16)
+    assert.equal(ongoing.props.height, 16)
+    assert.equal(ongoing.props.viewBox, '0 0 24 24')
+    assert.equal(ongoing.props['aria-hidden'], 'true')
+  }
+})
+
+test('Tag 与 StateDot 缺导出互不影响：各自回退，另一个仍委托官方', () => {
+  const withoutTag = loadClient({ primitives: { ...HOST, Tag: undefined }, captureTag: true, captureStateDot: true })
+  assert.equal(withoutTag.Tag({ children: '本地标签' }).type, 'span')
+  assert.equal(withoutTag.StateDot({ state: 'done', className: 'dt-dot' }).type, HOST.StateDot)
+
+  const withoutDot = loadClient({ primitives: { ...HOST, StateDot: undefined }, captureTag: true, captureStateDot: true })
+  assert.equal(withoutDot.Tag({ tone: 'success', children: '官方标签' }).type, HOST.Tag)
+  const fallbackDot = withoutDot.StateDot({ state: 'idle', className: 'dt-dot' })
+  assert.equal(fallbackDot.type, 'span')
+  assert.equal(fallbackDot.props['data-state'], 'idle')
+  assert.ok(hasClass(fallbackDot, 'dt-dot'))
 })
 
 test('WatcherForm 高级区：新增/编辑 bodyId 唯一，aria-controls 关联且 Enter/Space 开合不改草稿', () => {
