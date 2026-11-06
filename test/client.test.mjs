@@ -1463,6 +1463,8 @@ test('首帧 304 不该把面板卡在「正在读取」：本地没有 body 时
   // 旧代码在 304 分支直接 return，从不 setSnap，于是面板永远停在
   // {loading:true, body:null}：统计条全 0、列表是空态、底下还挂着「正在读取…」。
   const stateBody = { routeBase: '/session-superagent', serverVersion: '0.9.167', watchers: [watcher('a/b'), watcher('c/d')] }
+  const sessionId = 'session /?&=# 中文'
+  const expectedStateUrl = '/session-superagent/state?sessionId=' + encodeURIComponent(sessionId)
   const calls = []
   const fakeFetch = (url, init) => {
     const headers = (init && init.headers) || {}
@@ -1472,27 +1474,51 @@ test('首帧 304 不该把面板卡在「正在读取」：本地没有 body 时
     if (etag) return Promise.resolve({ ok: false, status: 304, headers: { get: () => etag }, text: () => Promise.resolve('') })
     return Promise.resolve({ ok: true, status: 200, headers: { get: () => 'W/"v1"' }, text: () => Promise.resolve(JSON.stringify(stateBody)) })
   }
-  const stateCalls = () => calls.filter((c) => c.url.endsWith('/state'))
+  // query 是契约的一部分：按 pathname 找调用，同时逐条断言完整 URL，不能用 endsWith 把 query 隐藏掉。
+  const stateCalls = () => calls.filter((c) => new URL(c.url, 'http://fixture.local').pathname === '/session-superagent/state')
   const { registrations, render } = loadClient({ fetch: fakeFetch })
   const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
   const findRefresh = (tree) => walk(tree).find((n) => n.props && typeof n.props.onClick === 'function'
     && walk(n).some((x) => x.type === '#text' && x.text === '刷新'))
 
   // 1) 状态栏圆环那种常规全量拉取：把模块级 etag 写上
-  const first = findRefresh(render(desk, deskQueue({ loading: true, error: null, body: null })))
+  const first = findRefresh(render(desk, deskQueue({ loading: true, error: null, body: null }), { sessionId }))
   assert.ok(first, '面板上找不到「刷新」按钮')
   await first.props.onClick()
   assert.equal(stateCalls().length, 1, '首拉一次 /state')
+  assert.equal(stateCalls()[0].url, expectedStateUrl, '主面板必须带编码后的当前 sessionId')
   assert.equal(stateCalls()[0].etag, null, '首次拉取不该带条件头')
 
   // 2) 面板重新挂载：本地还没有 body，却带着别人的 etag 去问 → 首帧 304
-  const second = findRefresh(render(desk, deskQueue({ loading: true, error: null, body: null })))
+  const second = findRefresh(render(desk, deskQueue({ loading: true, error: null, body: null }), { sessionId }))
   const got = await second.props.onClick()
 
   assert.equal(stateCalls().length, 3, '304 之后必须重取一次全量，不能停在 loading')
   assert.equal(stateCalls()[1].etag, 'W/"v1"', '第二次是条件请求')
   assert.equal(stateCalls()[2].etag, null, '重取时不能沿用那个 etag')
+  assert.deepEqual(stateCalls().map((call) => call.url), [expectedStateUrl, expectedStateUrl, expectedStateUrl],
+    '条件请求与 304 重取都不能丢 sessionId')
   assert.ok(got && Array.isArray(got.watchers) && got.watchers.length === 2, 'load 要拿到能渲染的 body')
+})
+
+test('主面板 sessionId 为空或缺失时保持原 /state 请求，不追加空 query', async () => {
+  for (const props of [{ sessionId: '' }, {}]) {
+    const calls = []
+    const { registrations, render } = loadClient({
+      fetch: async (url) => {
+        calls.push(url)
+        return { ok: true, status: 200, headers: { get: () => null }, text: async () => JSON.stringify({ watchers: [] }) }
+      },
+    })
+    const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+    const tree = render(desk, deskQueue({ loading: true, error: null, body: null }), props)
+    const refresh = walk(tree).find((n) => n.props && typeof n.props.onClick === 'function'
+      && walk(n).some((x) => x.type === '#text' && x.text === '刷新'))
+    assert.ok(refresh, '面板上找不到「刷新」按钮')
+    await refresh.props.onClick()
+    assert.deepEqual(calls.filter((url) => new URL(url, 'http://fixture.local').pathname === '/session-superagent/state'),
+      ['/session-superagent/state'], '空 sessionId 不得变成 ?sessionId= 或 ?sessionId=undefined')
+  }
 })
 
 test('保存编辑只发改过的字段（M2：全量 PUT 会把别处刚改的值写回旧快照）', async () => {

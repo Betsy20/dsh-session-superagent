@@ -1,9 +1,10 @@
 // 路由层单测：之前 0 覆盖，全靠真机 curl 手测。
 // 用环境变量把状态目录指到临时目录，并把轮询关掉，避免打到真 GitHub。
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { assertTempStateDir, tempDir } from './fixtures/tmpdir.mjs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { zstdCompressSync } from 'node:zlib'
 import test from 'node:test'
 // 审核 T30：这些用例会改 process.env.DSH_SUPERAGENT_STATE 却从不还原 ——
 import assert from 'node:assert/strict'
@@ -378,6 +379,75 @@ test('/state 带 sessionUsage（近一小时用了几次、上限多少、几条
   assert.equal(typeof body.sessionUsage.cap, 'number')
   assert.ok(body.sessionUsage.cap >= 1, '上限要有值：' + JSON.stringify(body.sessionUsage))
   assert.equal(typeof body.sessionUsage.capped, 'number')
+})
+
+test('/state?sessionId 返回当前会话 goal/title/usage；无 sessionId 不泄漏其它会话 goal', async () => {
+  const focusSession = 'session-focus-contract'
+  const otherSession = 'session-other-contract'
+  const focusAgent = { id: focusSession }
+  const otherAgent = { id: otherSession }
+  const goalByAgent = new Map([
+    [focusAgent, { objective: '当前会话 goal', phase: 'active', ref: { revision: 7 } }],
+    [otherAgent, { objective: '其它会话 goal', phase: 'active', ref: { revision: 3 } }],
+  ])
+  const agents = {
+    get: (id) => id === focusSession ? focusAgent : (id === otherSession ? otherAgent : null),
+    currentInitiator: () => focusAgent,
+  }
+  const goals = { get: (agent) => goalByAgent.get(agent) || null }
+  const localRoutes = new Map()
+  const dir = tempDir('zhuli-state-session-contract-')
+  const home = tempDir('zhuli-state-session-home-')
+  process.env.DSH_SUPERAGENT_STATE = dir
+  process.env.DSH_SUPERAGENT_NO_POLL = '1'
+  process.env.DSH_HOME = home
+
+  // sessionTitle() 的真实输入是宿主 zstd 会话日志；不能用 watcher.note 或手写标题冒充。
+  const sessionDir = join(home, 'sessions', 'contract', focusSession)
+  mkdirSync(sessionDir, { recursive: true })
+  writeFileSync(join(sessionDir, 'session.v4.jsonl.zstd'), zstdCompressSync(Buffer.from(
+    JSON.stringify({ type: 'session/title', data: { title: '当前会话标题' } }) + '\n', 'utf8',
+  )))
+
+  const ctx = {
+    tools: { register: () => {} },
+    webServer: { register: (route) => { localRoutes.set(route.path, route); return () => {} } },
+    agents,
+    get: (name) => name === 'goals' ? goals : (name === 'agents' ? agents : null),
+    effect: (fn) => fn(), inject: () => {},
+  }
+  const mod = await import('../lib/index.js?state-session-contract=' + Date.now())
+  mod.apply(ctx)
+  const now = Date.now()
+  mod.__test.writeState({ watchers: {
+    ['acme/focus#' + focusSession]: {
+      id: 'acme/focus#' + focusSession, repo: 'acme/focus', sessionId: focusSession,
+      intervalSec: 60, enabled: true, sessionMaxWakes: 9,
+      wakeTimes: [now - 1000, now - 2000],
+    },
+    ['acme/other#' + otherSession]: {
+      id: 'acme/other#' + otherSession, repo: 'acme/other', sessionId: otherSession,
+      intervalSec: 60, enabled: true, sessionMaxWakes: 9,
+      wakeTimes: [now - 1000, now - 2000, now - 3000, now - 4000],
+    },
+  } })
+
+  const getState = async (path) => {
+    const res = makeRes()
+    await localRoutes.get('/session-superagent/state').handler(makeReq('GET', path), res)
+    assert.equal(res.statusCode, 200, path + '：' + res.body)
+    return res.json()
+  }
+  const focused = await getState('/session-superagent/state?sessionId=' + encodeURIComponent(focusSession))
+  assert.deepEqual(focused.sessionGoal, { objective: '当前会话 goal', phase: 'active', revision: 7 })
+  assert.equal(focused.sessionTitle, '当前会话标题')
+  assert.equal(focused.sessionUsage.used, 2, '只统计当前会话，不得把其它会话的 4 次加进来')
+  assert.equal(focused.sessionUsage.cap, 9)
+
+  const anonymous = await getState('/session-superagent/state')
+  assert.equal(anonymous.sessionGoal, null, '无 sessionId 时不能拿其它会话 goal 顶替')
+  assert.equal(anonymous.sessionTitle, null)
+  assert.equal(anonymous.sessionUsage.used, 0)
 })
 
 test('/state 每条守都带 deferReason（面板按字段统计，不再匹配文案）', async () => {
