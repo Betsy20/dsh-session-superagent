@@ -68,6 +68,8 @@ dsh plugin --profile <p> update dsh-session-superagent
 dsh plugin --profile <p> add dsh-session-superagent@latest
 ```
 
+> 宿主正在安装/更新其它插件时，CLI 安装可能卡在 `package.json.lock`，报 `atomic-write: timed out waiting for the writer lock`。等当前安装结束后重试，或指定精确版本号即可；不要同时开多个安装。
+
 **服务端改动（`lib/`）要重启宿主才生效；`client.js` 改动刷新即可。**
 面板报「代码已更新到 X，但宿主还在跑 Y」时，就是这一条没做。
 

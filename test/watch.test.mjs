@@ -490,6 +490,14 @@ test('ETag 只在真正消费这一轮之后前移（推迟时不前移，否则
   assert.equal(typeof mod.__test.readState, 'function')
 })
 
+test('304 超过 10 分钟不再信任 ETag（真机 #11 评论被 304 吞掉）', () => {
+  const source = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+  assert.match(source, /const ETAG_MAX_AGE_MS = 10 \* 60 \* 1000/, '要有 10 分钟上限')
+  assert.match(source, /Date\.now\(\) - freshAt > ETAG_MAX_AGE_MS/, '304 要检查 lastFreshAt 年龄')
+  assert.match(source, /delete entry\.etag/, '过期后要丢掉 ETag，下一轮全量重取')
+  assert.match(source, /entry\.lastFreshAt = new Date\(\)\.toISOString\(\)/, '200 正文要记刷新时刻')
+})
+
 test('jitterMs：同一条守永远同一个偏移，且在窗口内', () => {
   const a = jitterMs('owner/repo#session-1', 5000)
   const b = jitterMs('owner/repo#session-1', 5000)
