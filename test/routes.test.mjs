@@ -226,14 +226,14 @@ test('watch_doctor 会报告挂载状态（面板接口死没死）', async () =
   assert.ok(tool, '没注册 watch_doctor')
   const text = String(await tool.execute({ repo: 'no-such-owner/no-such-repo-xyz' }))
   assert.match(text, /面板接口挂载/, '必须有一行讲挂载状态')
-  assert.match(text, /9 条，无失败|部分失败|挂载：/, '挂载行要给出具体结论')
+  assert.match(text, /13 条，无失败|部分失败|挂载：/, '挂载行要给出具体结论')
 })
 
 test('cleanup', () => {
   rmSync(STATE_DIR, { recursive: true, force: true })
 })
 
-test('路由面收敛：只保留 9 条（/config 与 /client-hello 已下线，新增 /update 与 /trace）', () => {
+test('路由面收敛：只保留 13 条（/config 与 /client-hello 已下线，新增 /update /trace 与四条 /gates）', () => {
   const expected = [
     '/session-superagent/state',
     '/session-superagent/client-note',
@@ -244,6 +244,10 @@ test('路由面收敛：只保留 9 条（/config 与 /client-hello 已下线，
     '/session-superagent/update',
     '/session-superagent/trace',
     '/session-superagent/diagnose',
+    '/session-superagent/gates',
+    '/session-superagent/gates/preview',
+    '/session-superagent/gates/optimize',
+    '/session-superagent/gates/models',
   ].sort()
   assert.deepEqual([...routes.keys()].sort(), expected)
 })

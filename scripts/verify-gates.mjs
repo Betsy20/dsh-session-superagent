@@ -400,7 +400,7 @@ const record = (name, detected, detail) => {
   try {
     writeFileSync(path, original.replace("path: '/session-superagent/trace'", "path: '/session-superagent/zz-injected'"))
     const res = run(['scripts/audit-routes.mjs'])
-    record('路由面（9 条）（注入改路径）', res.code !== 0)
+    record('路由面（13 条）（注入改路径）', res.code !== 0)
   } finally {
     writeFileSync(path, original)
   }

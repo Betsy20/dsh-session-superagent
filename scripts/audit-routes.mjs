@@ -10,7 +10,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const EXPECTED = ['state', 'client-note', 'client-error', 'watch', 'credentials', 'diagnose', 'update', 'goal', 'trace']
+const EXPECTED = ['state', 'client-note', 'client-error', 'watch', 'credentials', 'diagnose', 'update', 'goal', 'trace', 'gates', 'gates/models', 'gates/optimize', 'gates/preview'].map((name) => '/session-superagent/' + name)
 
 const stateDir = mkdtempSync(join(tmpdir(), 'zhuli-routes-audit-'))
 process.env.DSH_SUPERAGENT_STATE = stateDir
@@ -34,14 +34,14 @@ try {
   rmSync(stateDir, { recursive: true, force: true })
 }
 
-const names = paths.map((p) => p.split('/').pop())
+const names = paths.map(String)
 const missing = EXPECTED.filter((name) => !names.includes(name))
 const extra = names.filter((name) => !EXPECTED.includes(name))
 
-if (!failure && count === 9 && missing.length === 0 && extra.length === 0) {
-  console.log('PASS 路由面（9 条）  ' + names.join(' '))
+if (!failure && count === 13 && missing.length === 0 && extra.length === 0) {
+  console.log('PASS 路由面（13 条）  ' + names.join(' '))
 } else {
-  const why = failure || (count !== 9 ? '数量 ' + count + '（期望 9）' : '缺 ' + missing.join(',') + ' 多 ' + extra.join(','))
-  console.log('FAIL 路由面（9 条）  ' + why)
+  const why = failure || (count !== 13 ? '数量 ' + count + '（期望 13）' : '缺 ' + missing.join(',') + ' 多 ' + extra.join(','))
+  console.log('FAIL 路由面（13 条）  ' + why)
   process.exitCode = 1
 }
