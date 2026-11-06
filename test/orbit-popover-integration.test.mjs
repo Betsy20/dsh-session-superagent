@@ -80,6 +80,13 @@ function hasClass(node, name) {
   return String(node.props?.className || '').split(/\s+/).includes(name)
 }
 
+function deferred() {
+  let resolve
+  let reject
+  const promise = new Promise((res, rej) => { resolve = res; reject = rej })
+  return { promise, resolve, reject }
+}
+
 function localModals(nodes) {
   return nodes.filter((node) => node.type === 'div' && hasClass(node, 'dt-modal'))
 }
@@ -92,6 +99,7 @@ function loadClient(options = {}) {
   const dismissCalls = []
   const portals = []
   const timers = []
+  const intervals = []
   const fetchCalls = []
   const document = Object.assign(eventTarget(), {
     hidden: false,
@@ -114,7 +122,11 @@ function loadClient(options = {}) {
       fetchCalls.push(args)
       return response({ watchers: [] })
     }),
-    setInterval: () => 1,
+    setInterval(callback, ms) {
+      const timer = { id: intervals.length + 1, callback, ms }
+      intervals.push(timer)
+      return timer.id
+    },
     clearInterval() {},
     setTimeout(fn, ms) {
       const timer = { id: timers.length + 1, fn, ms }
@@ -317,6 +329,7 @@ function loadClient(options = {}) {
     document,
     window,
     timers,
+    intervals,
     anchorCalls,
     dismissCalls,
     portals,
@@ -595,4 +608,195 @@ test('DSH 窄视口 width=368 缩到视口减 16，不产生左溢出', () => {
   const opened = client.renderOrbit({ watchers: [watcher()], open: true })
   const surface = one(opened.nodes.filter((node) => node.type === MENU_SURFACE), '缺窄屏 surface')
   assert.equal(surface.props.style.width, 304)
+})
+
+test('Orbit 立刻/暂停/恢复：同步 busy 锁挡双击，pending 文案可见且成功后解锁', async () => {
+  for (const scenario of [
+    { label: '立刻', pendingLabel: '轮询中…', action: 'poll', enabled: true },
+    { label: '暂停', pendingLabel: '暂停中…', action: 'pause', enabled: true },
+    { label: '恢复', pendingLabel: '恢复中…', action: 'resume', enabled: false },
+  ]) {
+    const post = deferred()
+    const calls = []
+    const client = loadClient({
+      fetch: (url, init) => {
+        calls.push([url, init])
+        if (init?.method === 'POST' && calls.filter(([, options]) => options?.method === 'POST').length === 1) {
+          return post.promise
+        }
+        return Promise.resolve(response(init?.method === 'POST' ? { ok: true } : { watchers: [watcher('a/b', { enabled: scenario.enabled })] }))
+      },
+    })
+    const row = watcher('a/b', { enabled: scenario.enabled })
+    const opened = client.renderOrbit({ watchers: [row], open: true })
+    const first = button(opened.nodes, scenario.label).props.onClick()
+    const duplicate = button(opened.nodes, scenario.label).props.onClick()
+    assert.equal(calls.filter(([, init]) => init?.method === 'POST').length, 1,
+      scenario.action + '：同一次 pending 的双击只能有一个 POST')
+    assert.equal(await duplicate, false, scenario.action + '：重复动作必须被同步锁拒绝')
+
+    const pending = client.renderOrbit()
+    const pendingButton = button(pending.nodes, scenario.pendingLabel)
+    assert.equal(pendingButton.props.disabled, true, scenario.action + '：pending 必须禁用原动作')
+    assert.equal(pendingButton.props['aria-busy'], 'true', scenario.action + '：pending 必须有可访问忙碌状态')
+    assert.ok(hasClass(pendingButton, 'dt-btn-busy'), scenario.action + '：pending 必须沿用官方 busy 样式')
+
+    post.resolve(response({ ok: true }))
+    assert.equal(await first, true, scenario.action + '：成功动作仍按原契约返回 true')
+    const settled = client.renderOrbit()
+    assert.equal(button(settled.nodes, scenario.label).props.disabled, false, scenario.action + '：成功后必须解锁')
+    await button(settled.nodes, scenario.label).props.onClick()
+    const writes = calls.filter(([, init]) => init?.method === 'POST')
+    assert.equal(writes.length, 2, scenario.action + '：解锁后的显式新点击必须能再次执行')
+    assert.ok(writes.every(([, init]) => JSON.parse(init.body).action === scenario.action))
+  }
+})
+
+test('Orbit 写操作失败后解除 busy，错误保持可见且显式重试可成功', async () => {
+  const calls = []
+  const client = loadClient({
+    fetch: async (url, init) => {
+      calls.push([url, init])
+      if (init?.method === 'POST' && calls.filter(([, options]) => options?.method === 'POST').length === 1) {
+        return response({ error: 'poll denied' }, false, 500)
+      }
+      return response(init?.method === 'POST' ? { ok: true } : { watchers: [watcher()] })
+    },
+  })
+  const opened = client.renderOrbit({ watchers: [watcher()], open: true })
+  assert.equal(await button(opened.nodes, '立刻').props.onClick(), false)
+  const failed = client.renderOrbit()
+  assert.equal(button(failed.nodes, '立刻').props.disabled, false, '失败后不能永久禁用动作')
+  assert.ok(failed.nodes.some((node) => node.props?.role === 'alert' && textOf(node).includes('poll denied')))
+  assert.equal(await button(failed.nodes, '立刻').props.onClick(), true, '失败后的显式重试必须可执行')
+  assert.equal(calls.filter(([, init]) => init?.method === 'POST').length, 2)
+})
+
+test('Orbit 并发 /state：旧响应不得覆盖新 watcher，最新成功清除读取错误', async () => {
+  const older = deferred()
+  const newer = deferred()
+  const pendingReads = [older, newer]
+  const reads = []
+  const client = loadClient({
+    fetch: (url) => {
+      if (String(url).endsWith('/state')) {
+        reads.push(url)
+        return pendingReads.shift().promise
+      }
+      return Promise.resolve(response({ ok: true }))
+    },
+  })
+  client.renderOrbit({ watchers: null, orbitError: '读取失败：offline', open: true })
+  client.commitEffects()
+  assert.equal(reads.length, 1, '挂载必须发起首次 /state')
+  assert.equal(client.intervals.length, 1, '挂载必须注册轮询')
+  const latest = client.intervals[0].callback()
+  assert.equal(reads.length, 2, '前一次未结束时也要能用序号判定并发响应')
+
+  newer.resolve(response({ watchers: [watcher('new/state', { title: '新状态' })] }))
+  await latest
+  const fresh = client.renderOrbit()
+  assert.equal(client.slots[0].value[0].repo, 'new/state', '较新的响应必须生效')
+  assert.ok(textOf(fresh.nodes).includes('新状态'))
+  assert.ok(!textOf(fresh.nodes).includes('读取失败：offline'), '最新成功必须清除读取错误')
+
+  older.resolve(response({ watchers: [watcher('old/state', { title: '旧状态' })] }))
+  await new Promise((resolve) => setImmediate(resolve))
+  const settled = client.renderOrbit()
+  assert.equal(client.slots[0].value[0].repo, 'new/state', '旧响应返回后仍要保留新 watcher')
+  assert.ok(textOf(settled.nodes).includes('新状态'))
+  assert.ok(!textOf(settled.nodes).includes('旧状态'), '旧响应不得回盖新 watcher')
+})
+
+test('Orbit 并发 /state：旧读取失败不得覆盖较新的成功与清错结果', async () => {
+  const older = deferred()
+  const newer = deferred()
+  const pendingReads = [older, newer]
+  const client = loadClient({
+    fetch: (url) => String(url).endsWith('/state')
+      ? pendingReads.shift().promise
+      : Promise.resolve(response({ ok: true })),
+  })
+  client.renderOrbit({ watchers: null, orbitError: '读取失败：previous', open: true })
+  client.commitEffects()
+  const latest = client.intervals[0].callback()
+  newer.resolve(response({ watchers: [watcher('new/state')] }))
+  await latest
+  older.resolve(response({ error: 'stale-offline' }, false, 500))
+  await new Promise((resolve) => setImmediate(resolve))
+
+  assert.equal(client.slots[0].value[0].repo, 'new/state')
+  assert.equal(client.slots[1].value, null, '最新成功清错后，旧失败不得再写错误')
+  assert.equal(client.stateCalls.some((call) => call.index === 1 && String(call.next).includes('stale-offline')), false)
+})
+
+test('Orbit 删除失败留在当前 Modal，busy 禁止 dismiss，解锁后重试成功才关闭', async () => {
+  const post = deferred()
+  const calls = []
+  const client = loadClient({
+    fetch: (url, init) => {
+      calls.push([url, init])
+      const writeCount = calls.filter(([, options]) => options?.method === 'POST').length
+      if (init?.method === 'POST' && writeCount === 1) return post.promise
+      return Promise.resolve(response(init?.method === 'POST' ? { ok: true } : { watchers: [] }))
+    },
+  })
+  const row = watcher()
+  const opened = client.renderOrbit({ watchers: [row], open: true })
+  const ring = attach(ringOf(opened.nodes), 'orbit-ring')
+  button(opened.nodes, '删除').props.onClick()
+  const confirming = client.renderOrbit()
+  const modal = one(localModals(confirming.nodes), '删除前必须显示确认 Modal')
+  const first = button(confirming.nodes, '确认删除').props.onClick()
+  assert.equal(await button(confirming.nodes, '确认删除').props.onClick(), false, '确认连点必须由 busyRef 挡住')
+  assert.equal(calls.filter(([, init]) => init?.method === 'POST').length, 1)
+  const close = one(confirming.nodes.filter((node) => node.type === 'button' && node.props['aria-label'] === '关闭'), '缺 Modal 关闭按钮')
+  assert.equal(close.props.onClick(), false, '删除 pending 时 Escape/遮罩/关闭不得让错误失去当前可见位置')
+
+  post.resolve(response({ error: 'delete denied' }, false, 500))
+  assert.equal(await first, false, '删除失败不能按成功关闭')
+  const failed = client.renderOrbit()
+  const failedModal = one(localModals(failed.nodes), '删除失败后确认 Modal 必须保留供重试')
+  const alerts = failed.nodes.filter((node) => node.props?.role === 'alert' && textOf(node).includes('delete denied'))
+  assert.equal(alerts.length, 1, '删除错误必须显示在当前确认 Modal，而不是只写已关闭 Orbit')
+  assert.ok(textOf(failedModal).includes('删除失败：delete denied'), 'role=alert 必须落在当前 Modal 子树内')
+  assert.equal(button(failed.nodes, '确认删除').props.disabled, false, '失败后必须解除确认按钮 busy')
+
+  assert.equal(await button(failed.nodes, '确认删除').props.onClick(), true, '显式重试成功才允许关闭')
+  const done = client.renderOrbit()
+  assert.equal(localModals(done.nodes).length, 0, '重试成功后确认 Modal 才关闭')
+  assert.equal(calls.filter(([, init]) => init?.method === 'POST').length, 2)
+  assert.equal(ring.calls.length, 1, '成功关闭后仍要回焦圆环')
+})
+
+test('Orbit 删除失败后 Escape 仍可主动取消，回焦圆环且不重发请求', async () => {
+  const calls = []
+  const client = loadClient({
+    fetch: async (url, init) => {
+      calls.push([url, init])
+      if (init?.method === 'POST') return response({ error: 'delete denied' }, false, 500)
+      return response({ watchers: [watcher()] })
+    },
+  })
+  const opened = client.renderOrbit({ watchers: [watcher()], open: true })
+  const ring = attach(ringOf(opened.nodes), 'orbit-ring')
+  button(opened.nodes, '删除').props.onClick()
+  const confirming = client.renderOrbit()
+  client.commitEffects()
+  assert.equal(await button(confirming.nodes, '确认删除').props.onClick(), false)
+  const failed = client.renderOrbit()
+  client.commitEffects()
+  assert.equal(localModals(failed.nodes).length, 1)
+  client.resetStateCalls()
+
+  let prevented = 0
+  client.document.dispatch('keydown', { key: 'Escape', preventDefault() { prevented += 1 } })
+  assert.equal(prevented, 1)
+  assert.ok(client.stateCalls.some((call) => call.index === 3 && call.next === null), 'Escape 只关闭确认，不执行删除')
+  const done = client.renderOrbit()
+  client.commitEffects()
+  assert.equal(localModals(done.nodes).length, 0)
+  assert.equal(done.nodes.some((node) => node.type === PORTAL || node.type === MENU_SURFACE), false)
+  assert.equal(calls.filter(([, init]) => init?.method === 'POST').length, 1, 'Escape 不得重发 delete')
+  assert.equal(ring.calls.length, 1, '失败后主动 Escape 仍要回焦圆环')
 })
