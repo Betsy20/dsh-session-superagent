@@ -2229,7 +2229,11 @@ window.__ModuleLoader__.load({
           return body
         } catch (error) {
           if (seq !== loadSeqRef.current) return null // 旧请求的失败也别盖掉新数据
-          setSnap((prev) => ({ loading: false, error: String((error && error.message) || error), body: prev.body }))
+          const message = String((error && error.message) || error)
+          // 同文轮询失败复用同一 snap/alert DOM；显式重试成功仍会清错，错误文本变化仍会通知。
+          setSnap((prev) => prev.error === message && !prev.loading
+            ? prev
+            : { loading: false, error: message, body: prev.body })
           return null
         }
       }, [sessionId])

@@ -1988,6 +1988,11 @@ test('首次 loading/error 不渲染零统计、Onboarding 或业务页；旧快
     assert.ok(text.includes(expected), '缺状态文案：' + expected)
     assert.ok(!text.includes('三步让这个会话开始盯办'), '首次未成功不能显示 Onboarding：' + text)
     assert.ok(!text.includes('条主理鱼'), '首次未成功不能显示零统计：' + text)
+    if (snap.error) {
+      assert.ok(nodes.some((node) => node.props && node.props.role === 'alert' && a11yText(node).includes('连不上宿主')), '无 body 首败也必须有 alert')
+    } else {
+      assert.equal(nodes.filter((node) => node.props && node.props.role === 'alert').length, 0, '加载中不得预播错误')
+    }
     assert.equal(nodes.filter((n) => n.props && n.props.role === 'tabpanel').length, 0, '没有 body 时不应渲染业务页')
     assert.equal(nodes.filter((n) => n.props && String(n.props.className || '').includes('dt-stats')).length, 0, '没有 body 时不应渲染统计条')
   }
@@ -2192,6 +2197,8 @@ test('trace 错误后可重试；较慢的旧错误不得覆盖重试成功', as
   await button.props.onClick()
   assert.equal(panel.trace().error, 'first failed')
   assert.equal(panel.trace().number, '9')
+  assert.ok(panel.nodes().some((node) => node.props && node.props.role === 'alert' && a11yText(node).includes('first failed')),
+    'trace 首败必须插入 alert')
 
   const stale = button.props.onClick()
   assert.equal(panel.trace().loading, true, '失败后的重试要清掉旧错误并显示 loading')
@@ -2204,6 +2211,8 @@ test('trace 错误后可重试；较慢的旧错误不得覆盖重试成功', as
   await stale
   assert.equal(panel.trace().text, '#9 重试成功', '旧错误不能回盖最新成功')
   assert.equal(panel.trace().error, undefined)
+  assert.equal(panel.nodes().filter((node) => node.props && node.props.role === 'alert' && /first failed|stale failed/.test(a11yText(node))).length, 0,
+    'trace 恢复后必须移除旧 alert')
 })
 
 test('/state 200→500→304：已有快照的最新 304 是成功，必须清掉旧读取错误', async () => {
@@ -2229,6 +2238,8 @@ test('/state 200→500→304：已有快照的最新 304 是成功，必须清�
   await refresh.props.onClick()
   assert.equal(panel.snap().body.marker, 'fresh', '500 要保留已渲染快照')
   assert.equal(panel.snap().error, 'temporary failure')
+  assert.ok(panel.nodes().some((node) => node.props && node.props.role === 'alert' && a11yText(node).includes('temporary failure')),
+    'stale+500 必须有独立 alert')
 
   // 重新 render 让 hasBodyRef 看见 200 留下的快照；第三次命中的是 304 早退分支。
   const retry = panel.button('重试')
@@ -2236,6 +2247,8 @@ test('/state 200→500→304：已有快照的最新 304 是成功，必须清�
   assert.equal(panel.snap().body.marker, 'fresh')
   assert.equal(panel.snap().error, null, '有快照的 304 是最新成功回读，不能留下 500 的旧错误')
   assert.equal(panel.snap().loading, false)
+  assert.equal(panel.nodes().filter((node) => node.props && node.props.role === 'alert' && a11yText(node).includes('temporary failure')).length, 0,
+    '304 恢复后必须移除读取 alert')
   assert.deepEqual(requests.map((request) => request.etag), [null, 'W/"v1"', 'W/"v1"'])
 })
 
@@ -2562,6 +2575,77 @@ test('W11：编辑保存关闭表单后回 opener；用户主动移走时不抢�
   }
 })
 
+function watcherFocusScenario(mode, onSave, onDiscard = () => {}) {
+  const context = loadA11yInternals([false, false, null])
+  const tree = context.internals.WatcherForm({
+    mode, idPrefix: 'watcher-focus-' + mode,
+    value: { intervalSec: '90', repo: mode === 'create' ? 'acme/new' : undefined },
+    snapshot: { intervalSec: '60', repo: mode === 'create' ? '' : undefined },
+    sessionId: 'session-focus', submitLabel: mode === 'create' ? '添加' : '保存',
+    onChange() {}, onSave, onDiscard,
+  })
+  const nodes = walk(tree)
+  const formView = nodes.find((node) => node.type === 'form')
+  const saveView = nodes.find((node) => node.type === 'button' && a11yText(node) === (mode === 'create' ? '添加' : '保存'))
+  const discardView = nodes.find((node) => node.type === 'button' && a11yText(node) === '放弃')
+  const { document } = context
+  document.body = { name: 'body', isConnected: true }
+  const input = { name: mode + '-input', isConnected: true, focus() { document.activeElement = this } }
+  const opener = { name: mode + '-opener', isConnected: true, focus() { document.activeElement = this } }
+  const save = { name: mode + '-save', isConnected: true }
+  const discard = { name: mode + '-discard', isConnected: true }
+  let editable = true
+  const saveBar = { contains: (node) => node === save || node === discard }
+  const form = {
+    isConnected: true,
+    contains: (node) => node === save || node === discard || node === input,
+    closest: () => ({ querySelector: () => opener }),
+    querySelector(selector) {
+      if (selector === '.dt-savebar') return saveBar
+      if (selector.startsWith('input:not(:disabled)')) return editable ? input : null
+      return null
+    },
+  }
+  formView.props.ref.current = form
+  formView.props.onFocusCapture()
+  return { ...context, form, input, opener, save, discard, saveView, discardView, setEditable: (value) => { editable = value } }
+}
+
+test('W11：真实 WatcherForm 保存/放弃接线成功才回焦，失败保留焦点与错误', async () => {
+  for (const mode of ['create', 'edit']) {
+    const scenario = watcherFocusScenario(mode, async () => {
+      scenario.setEditable(false)
+      if (mode === 'edit') {
+        scenario.form.isConnected = false
+        scenario.input.isConnected = false
+      }
+      scenario.document.activeElement = scenario.document.body
+      return true
+    })
+    scenario.document.activeElement = scenario.save
+    assert.equal(await scenario.saveView.props.onClick({ preventDefault() {}, currentTarget: { form: null } }), true)
+    scenario.setEditable(true)
+    scenario.flushFocus()
+    assert.equal(scenario.document.activeElement, mode === 'edit' ? scenario.opener : scenario.input,
+      mode + ' 保存成功后的回焦目标错误')
+  }
+
+  for (const mode of ['create', 'edit']) {
+    const scenario = watcherFocusScenario(mode, async () => true)
+    scenario.document.activeElement = scenario.discard
+    scenario.discardView.props.onClick()
+    scenario.flushFocus()
+    assert.equal(scenario.document.activeElement, scenario.input, mode + ' 放弃必须回首个字段而非 opener')
+  }
+
+  const failure = watcherFocusScenario('edit', async () => { throw new Error('save failed') })
+  failure.document.activeElement = failure.save
+  assert.equal(await failure.saveView.props.onClick({ preventDefault() {}, currentTarget: { form: null } }), false)
+  assert.equal(failure.timers.length, 0, '失败不得安排 opener 回焦')
+  assert.equal(failure.document.activeElement, failure.save)
+  assert.ok(failure.stateCalls.some((call) => call.index === 2 && call.next === 'save failed'), '失败必须留给 SaveBar')
+})
+
 test('W12：busy Disclosure 不可聚焦且有 disabled/busy 语义，click/Enter/Space 均不切', () => {
   const { internals, stateCalls } = loadA11yInternals([false, true, null])
   const tree = internals.WatcherForm({
@@ -2635,7 +2719,7 @@ test('W14：追溯、首败/stale、持久操作与更新失败均有独立 aler
   queue[2] = { ok: false, text: 'save failed' }
   let nodes = walk(render(desk, queue))
   for (const message of ['连不上宿主', 'save failed']) {
-    const alert = nodes.find((node) => node.props && node.props.role === 'alert' && a11yText(node).includes(message))
+    const alert = nodes.find((node) => node.props && node.props && node.props.role === 'alert' && a11yText(node).includes(message))
     assert.ok(alert, '缺少持久错误 alert：' + message)
     assert.equal(alert.props['aria-atomic'], 'true')
   }
@@ -2646,7 +2730,7 @@ test('W14：追溯、首败/stale、持久操作与更新失败均有独立 aler
   updateQueue[12] = { current: '0.9.286', latest: null, hasUpdate: false, error: 'npm failed' }
   updateQueue[14] = 'update'
   nodes = walk(render(desk, updateQueue))
-  const updateAlerts = nodes.filter((node) => node.props && node.props.role === 'alert' && a11yText(node).includes('npm failed'))
+  const updateAlerts = nodes.filter((node) => node.props && node.props && node.props.role === 'alert' && a11yText(node).includes('npm failed'))
   assert.equal(updateAlerts.length, 1, '同一次更新失败只能有一个 alert')
 })
 
@@ -2951,4 +3035,46 @@ test('W17：fallback Toast 以 item.id 为 key，连续通知重新挂载且 hol
   const second = toastOf({ id: 'toast-b', text: '第二条', tone: 'error' })
   assert.equal(second.key, 'toast-b')
   assert.notEqual(first.key, second.key, '连续两条通知必须换 key 才能重启动画')
+})
+
+test('W14：同文轮询失败复用 snap，不重建读取 alert；新错误仍可更新', async () => {
+  let attempt = 0
+  const panel = loadStatefulPanel({
+    queue: deskQueue(raceSnapshot()),
+    fetch: (url) => {
+      if (!new URL(url, 'http://fixture.local').pathname.endsWith('/state')) return Promise.resolve(raceResponse({ ok: true }))
+      attempt += 1
+      return Promise.resolve(raceResponse({ error: attempt < 3 ? 'same failure' : 'changed failure' }, 500))
+    },
+  })
+  const refresh = panel.button('刷新')
+  await refresh.props.onClick()
+  const first = panel.snap()
+  assert.ok(panel.nodes().some((node) => node.props && node.props.role === 'alert' && a11yText(node).includes('same failure')))
+  await refresh.props.onClick()
+  assert.strictEqual(panel.snap(), first, '同文同状态失败必须返回 prev，避免轮询重播')
+  await refresh.props.onClick()
+  assert.notStrictEqual(panel.snap(), first, '错误文本变化仍是新通知')
+  assert.equal(panel.snap().error, 'changed failure')
+})
+
+test('W14：更新检查失败有 alert，重新检查成功后移除', async () => {
+  let attempt = 0
+  const queue = deskQueue(raceSnapshot(), null, {}, 'settings')
+  queue[14] = 'update'
+  const panel = loadStatefulPanel({
+    queue,
+    fetch: (url) => {
+      if (!new URL(url, 'http://fixture.local').pathname.endsWith('/update')) return Promise.resolve(raceResponse({ ok: true }))
+      attempt += 1
+      return Promise.resolve(attempt === 1
+        ? raceResponse({ error: 'npm failed' }, 500)
+        : raceResponse({ current: '0.9.286', latest: '0.9.286', hasUpdate: false }))
+    },
+  })
+  const retry = panel.button('重新检查')
+  assert.equal(await retry.props.onClick(), false)
+  assert.equal(panel.nodes().filter((node) => node.props && node.props.role === 'alert' && a11yText(node).includes('npm failed')).length, 1)
+  assert.equal(await retry.props.onClick(), true)
+  assert.equal(panel.nodes().filter((node) => node.props && node.props.role === 'alert' && a11yText(node).includes('npm failed')).length, 0)
 })
