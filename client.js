@@ -2074,6 +2074,8 @@ window.__ModuleLoader__.load({
       const [giteeToken, setGiteeToken] = useState('')
       // 判定页内联追溯结果（官方 Thread 详情最小吸收）：不再只塞进一条 Toast。
       const [traceResult, setTraceResult] = useState(null)
+      // 每次追溯独占一个代际：新编号一开始，旧请求的结果/错误就全部作废。
+      const traceSeqRef = useRef(0)
       // 安装回执与版本检查分开：POST 失败不能冲掉当前版本和命令回退。
       const [updateResult, setUpdateResult] = useState(null)
       // POST 后 GET 仍以 runningVersion 比较 latest；已装到 latest 且等待重载时，回执优先于 hasUpdate。
@@ -2102,10 +2104,16 @@ window.__ModuleLoader__.load({
         try {
           const payload = await call(statePath, stateEtag ? { headers: { 'if-none-match': stateEtag } } : undefined)
           if (seq !== loadSeqRef.current) return null // 已经有更新的一次请求在飞：这次结果作废
-          // 304：内容没变，别白白重渲染 —— 前提是本地已经有一份能渲染的 body
+          // 304：内容没变，前提是本地已经有一份能渲染的 body
           if (payload && payload.notModified) {
-            // 有本地快照时，304 也是一次成功回读；保存后的成功反馈可以依赖它。
-            if (hasBodyRef.current) return payload
+            // 有本地快照时，304 也是一次成功回读；清掉此前的 500/网络错误。
+            // 正常且无旧错时返回原 state，避免每次条件轮询都重渲染。
+            if (hasBodyRef.current) {
+              setSnap((prev) => prev.error || prev.loading
+                ? { loading: false, error: null, body: prev.body }
+                : prev)
+              return payload
+            }
             // 本地没有数据：这次 304 是被状态栏的 etag 带出来的，清掉 etag 重取一次全量
             stateEtag = null
             return load()
@@ -2815,12 +2823,15 @@ window.__ModuleLoader__.load({
                   className: 'dt-textlink',
                   type: 'button',
                   onClick: async () => {
+                    const seq = ++traceSeqRef.current
                     setTraceResult({ loading: true, number: asNumber })
                     try {
                       const query = '/trace?number=' + encodeURIComponent(asNumber) + (onlyRepo ? '&repo=' + encodeURIComponent(onlyRepo) : '')
                       const payload = await call(query)
+                      if (seq !== traceSeqRef.current) return
                       setTraceResult(payload || { text: '没有结果', traces: [] })
                     } catch (error) {
+                      if (seq !== traceSeqRef.current) return
                       setTraceResult({ error: String((error && error.message) || error), number: asNumber })
                     }
                   },

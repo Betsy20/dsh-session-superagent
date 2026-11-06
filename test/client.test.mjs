@@ -9,6 +9,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import vm from 'node:vm'
 import { deskForm, deskQueue, loadClient, walk, watcher } from './fixtures/panel-harness.mjs'
 
 test('client.js 注册主理鱼与 composer dock 上的轨道环', () => {
@@ -1976,4 +1977,267 @@ test('首次 loading/error 不渲染零统计、Onboarding 或业务页；旧快
   assert.ok(text.includes('读不到面板数据'), '旧快照也要显示刷新失败')
   assert.ok(text.includes('a/b') && text.includes('条主理鱼'), '刷新失败不能清掉旧数据：' + text)
   assert.ok(!text.includes('三步让这个会话开始盯办'), '有旧 watcher 时不能显示空态')
+})
+
+// 竞态回归需要跨 render 保留 useRef；通用 panel-harness 每次 render 都新建 ref，
+// 只适合静态/单次点击断言。这里仍执行完整真实 client.js，只让 state/ref 按 React 语义持久。
+function loadStatefulPanel({ fetch, queue }) {
+  const states = [...queue]
+  const refs = []
+  let stateCursor = 0
+  let refCursor = 0
+  let mod = null
+  const sandbox = {
+    window: {
+      __ModuleLoader__: { load(value) { mod = value } },
+      innerWidth: 1440,
+      innerHeight: 900,
+      addEventListener() {},
+      removeEventListener() {},
+    },
+    document: {
+      getElementById: () => null,
+      createElement: () => ({ id: '', textContent: '' }),
+      head: { appendChild() {} },
+      addEventListener() {},
+      removeEventListener() {},
+    },
+    navigator: { clipboard: { writeText: async () => {} } },
+    fetch,
+    setInterval: () => 0,
+    clearInterval() {},
+    setTimeout: () => 1,
+    clearTimeout() {},
+    queueMicrotask,
+    console,
+  }
+  vm.createContext(sandbox)
+  vm.runInContext(readFileSync(new URL('../client.js', import.meta.url), 'utf8'), sandbox)
+  assert.ok(mod, '持久 ref 测试也必须执行真实 client.js')
+
+  const React = {
+    Fragment: Symbol('Fragment'),
+    createElement(type, props, ...children) {
+      const { key, ...rest } = props || {}
+      const node = {
+        type,
+        props: { ...rest, children: children.flat(Infinity).filter((child) => child !== null && child !== undefined && child !== false) },
+      }
+      if (key !== undefined) node.key = key
+      return node
+    },
+    isValidElement: (value) => Boolean(value && typeof value === 'object' && 'type' in value),
+    memo: (fn) => fn,
+    useState(initial) {
+      const index = stateCursor++
+      if (index >= states.length) states[index] = typeof initial === 'function' ? initial() : initial
+      return [states[index], (next) => {
+        states[index] = typeof next === 'function' ? next(states[index]) : next
+      }]
+    },
+    useEffect() {},
+    useCallback: (fn) => fn,
+    useRef(initial) {
+      const index = refCursor++
+      if (!refs[index]) refs[index] = { current: initial }
+      return refs[index]
+    },
+  }
+  const registrations = []
+  const ctx = {
+    effect: (fn) => fn(),
+    slots: {
+      inject: (_name, fn) => fn(),
+      register(opts, Component) { registrations.push({ opts, Component }); return () => {} },
+    },
+  }
+  mod.factory((name) => {
+    if (name === 'react') return React
+    throw new Error('unexpected require: ' + name)
+  }).apply(ctx)
+  const desk = registrations.find((item) => item.opts.id === 'session-superagent-desk')
+  assert.ok(desk, '找不到主面板注册')
+  const traceIndex = deskQueue({ loading: true, error: null, body: null }).length - 2
+  const render = () => {
+    stateCursor = 0
+    refCursor = 0
+    return desk.Component({ sessionId: 'session-race' })
+  }
+  const nodes = () => walk(render())
+  const textOf = (node) => walk(node).filter((item) => item.type === '#text').map((item) => item.text).join('')
+  const button = (label) => {
+    const found = nodes().find((node) => node.type === 'button' && textOf(node).includes(label))
+    assert.ok(found, '找不到按钮：' + label)
+    return found
+  }
+  return {
+    nodes,
+    button,
+    snap: () => states[0],
+    trace: () => states[traceIndex],
+    search(value) {
+      const input = nodes().find((node) => node.type === 'input' && node.props['aria-label'] === '搜索')
+      assert.ok(input, '找不到搜索框')
+      input.props.onChange({ target: { value } })
+    },
+  }
+}
+
+function raceResponse(body, status = 200, etag = null) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: { get: (name) => String(name).toLowerCase() === 'etag' ? etag : null },
+    text: async () => status === 304 ? '' : JSON.stringify(body),
+  }
+}
+
+function raceDeferred() {
+  let resolve
+  let reject
+  const promise = new Promise((res, rej) => { resolve = res; reject = rej })
+  return { promise, resolve, reject }
+}
+
+function raceSnapshot() {
+  return {
+    loading: false,
+    error: null,
+    body: {
+      sessionGoal: null,
+      sessionTitle: '竞态回归',
+      credentials: { token: 'none', sshKeyPath: 'none', ghConfigDir: 'none', giteeToken: 'none' },
+      gh: { ok: true, version: '2.0' },
+      defaults: {},
+      watchers: [watcher('a/b')],
+    },
+  }
+}
+
+test('trace A 慢 B 快：新编号立即 loading，慢旧结果不得回盖新编号', async () => {
+  const slowA = raceDeferred()
+  const fastB = raceDeferred()
+  const requests = []
+  const panel = loadStatefulPanel({
+    queue: deskQueue(raceSnapshot(), null, {}, 'judge', '1'),
+    fetch: (url) => {
+      const parsed = new URL(url, 'http://fixture.local')
+      if (!parsed.pathname.endsWith('/trace')) return Promise.resolve(raceResponse({ ok: true }))
+      const number = parsed.searchParams.get('number')
+      requests.push(number)
+      return number === '1' ? slowA.promise : fastB.promise
+    },
+  })
+
+  const first = panel.button('追溯 #1').props.onClick()
+  assert.equal(panel.trace().loading, true)
+  assert.equal(panel.trace().number, '1')
+  panel.search('2')
+  const second = panel.button('追溯 #2').props.onClick()
+  assert.equal(panel.trace().loading, true, '新编号必须立即作废旧结果并进入自己的 loading')
+  assert.equal(panel.trace().number, '2')
+
+  const payloadB = { text: '#2 新结果', traces: [{ number: '2', repo: 'a/b', verdict: '新结果' }] }
+  fastB.resolve(raceResponse(payloadB))
+  await second
+  assert.equal(panel.trace().text, '#2 新结果')
+  assert.equal(panel.trace().loading, undefined)
+
+  slowA.resolve(raceResponse({ text: '#1 旧结果', traces: [{ number: '1', repo: 'a/b', verdict: '旧结果' }] }))
+  await first
+  assert.deepEqual(requests, ['1', '2'])
+  assert.equal(panel.trace().text, '#2 新结果', 'A 后到也不能把 B 的结果改回 #1')
+  assert.equal(panel.trace().traces[0].number, '2')
+})
+
+test('trace 错误后可重试；较慢的旧错误不得覆盖重试成功', async () => {
+  const staleRetry = raceDeferred()
+  const latestRetry = raceDeferred()
+  let attempt = 0
+  const panel = loadStatefulPanel({
+    queue: deskQueue(raceSnapshot(), null, {}, 'judge', '9'),
+    fetch: (url) => {
+      if (!new URL(url, 'http://fixture.local').pathname.endsWith('/trace')) return Promise.resolve(raceResponse({ ok: true }))
+      attempt += 1
+      if (attempt === 1) return Promise.resolve(raceResponse({ error: 'first failed' }, 500))
+      return attempt === 2 ? staleRetry.promise : latestRetry.promise
+    },
+  })
+
+  const button = panel.button('追溯 #9')
+  await button.props.onClick()
+  assert.equal(panel.trace().error, 'first failed')
+  assert.equal(panel.trace().number, '9')
+
+  const stale = button.props.onClick()
+  assert.equal(panel.trace().loading, true, '失败后的重试要清掉旧错误并显示 loading')
+  const latest = button.props.onClick()
+  latestRetry.resolve(raceResponse({ text: '#9 重试成功', traces: [{ number: '9', repo: 'a/b', verdict: '成功' }] }))
+  await latest
+  assert.equal(panel.trace().text, '#9 重试成功')
+
+  staleRetry.resolve(raceResponse({ error: 'stale failed' }, 500))
+  await stale
+  assert.equal(panel.trace().text, '#9 重试成功', '旧错误不能回盖最新成功')
+  assert.equal(panel.trace().error, undefined)
+})
+
+test('/state 200→500→304：已有快照的最新 304 是成功，必须清掉旧读取错误', async () => {
+  const requests = []
+  let attempt = 0
+  const panel = loadStatefulPanel({
+    queue: deskQueue({ loading: true, error: null, body: null }),
+    fetch: (url, init) => {
+      if (!new URL(url, 'http://fixture.local').pathname.endsWith('/state')) return Promise.resolve(raceResponse({ ok: true }))
+      attempt += 1
+      requests.push({ url, etag: init?.headers?.['if-none-match'] || null })
+      if (attempt === 1) return Promise.resolve(raceResponse({ watchers: [watcher('new/state')], marker: 'fresh' }, 200, 'W/"v1"'))
+      if (attempt === 2) return Promise.resolve(raceResponse({ error: 'temporary failure' }, 500))
+      return Promise.resolve(raceResponse(null, 304, 'W/"v1"'))
+    },
+  })
+
+  const refresh = panel.button('刷新')
+  await refresh.props.onClick()
+  assert.equal(panel.snap().body.marker, 'fresh')
+  assert.equal(panel.snap().error, null)
+
+  await refresh.props.onClick()
+  assert.equal(panel.snap().body.marker, 'fresh', '500 要保留已渲染快照')
+  assert.equal(panel.snap().error, 'temporary failure')
+
+  // 重新 render 让 hasBodyRef 看见 200 留下的快照；第三次命中的是 304 早退分支。
+  const retry = panel.button('重试')
+  await retry.props.onClick()
+  assert.equal(panel.snap().body.marker, 'fresh')
+  assert.equal(panel.snap().error, null, '有快照的 304 是最新成功回读，不能留下 500 的旧错误')
+  assert.equal(panel.snap().loading, false)
+  assert.deepEqual(requests.map((request) => request.etag), [null, 'W/"v1"', 'W/"v1"'])
+})
+
+test('/state 并发：旧失败不得覆盖较新的 200 成功与清错结果', async () => {
+  const older = raceDeferred()
+  const newer = raceDeferred()
+  const initial = raceSnapshot()
+  initial.error = 'previous failure'
+  const panel = loadStatefulPanel({
+    queue: deskQueue(initial),
+    fetch: (url) => new URL(url, 'http://fixture.local').pathname.endsWith('/state')
+      ? panelRequests.shift().promise
+      : Promise.resolve(raceResponse({ ok: true })),
+  })
+  const panelRequests = [older, newer]
+  const refresh = panel.button('刷新')
+  const oldRequest = refresh.props.onClick()
+  const newRequest = refresh.props.onClick()
+
+  newer.resolve(raceResponse({ watchers: [watcher('new/state')], marker: 'newest' }))
+  await newRequest
+  assert.equal(panel.snap().body.marker, 'newest')
+  assert.equal(panel.snap().error, null, '最新 200 必须清掉进入请求前的旧错误')
+
+  older.resolve(raceResponse({ error: 'stale failure' }, 500))
+  await oldRequest
+  assert.equal(panel.snap().body.marker, 'newest')
+  assert.equal(panel.snap().error, null, '旧失败不能重新写回错误')
 })
