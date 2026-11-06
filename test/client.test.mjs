@@ -746,6 +746,30 @@ test('gh 不可用要说清后果与下一步（不能只显示原始错误）',
   assert.ok(overviewText.includes('所有轮询都会失败'), '总览要说明后果：' + overviewText.slice(0, 300))
 })
 
+test('token 告警与来源指引都进入「凭证」，不再误指「来源」', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = {
+    loading: false, error: null,
+    body: {
+      sessionGoal: null, sessionTitle: 'x', credentials: { token: 'none', sshKeyPath: 'none' },
+      gh: { ok: false, error: 'gh: command not found' },
+      watchers: [watcher('a/b', { id: 'a/b#s1' })],
+    },
+  }
+  const overviewText = walk(render(desk, deskQueue(snap)))
+    .filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(overviewText.includes('设置 → 凭证'), 'token 告警必须指向凭证：' + overviewText.slice(0, 400))
+  assert.ok(!overviewText.includes('设置 → 来源'), 'token 告警不得再指向来源：' + overviewText.slice(0, 400))
+
+  const sourceQueue = deskQueue(snap, null, {}, 'settings')
+  sourceQueue[14] = 'source'
+  const sourceText = walk(render(desk, sourceQueue))
+    .filter((n) => typeof n.text === 'string').map((n) => n.text).join(' | ')
+  assert.ok(sourceText.includes('「凭证」填 token'), '来源页的 token 指引必须点明凭证分区：' + sourceText.slice(0, 500))
+  assert.ok(!sourceText.includes('下面填 token'), '来源页下面没有 token 表单，不能使用位置误导：' + sourceText.slice(0, 500))
+})
+
 test('归档 / 禁用仓库也要在「需要关注」里说清（客户端之前漏了这两条）', () => {
   const { registrations, render } = loadClient()
   const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')

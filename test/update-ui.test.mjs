@@ -1671,6 +1671,10 @@ test('Pill 官方委托：active/className/children/onClick/rest 完整，交互
   assert.equal(staticNode.props.onClick, undefined)
   assert.equal(staticNode.props.type, undefined, '适配层不得给静态 badge 自造 button type')
   assert.equal(staticNode.props['aria-pressed'], undefined, '静态 badge 不应伪装成切换按钮')
+
+  const clearNode = client.Pill({ onClick: () => {}, children: '清除筛选' })
+  assert.equal(clearNode.props.active, undefined, '清除动作没有 toggle 状态，不得补 active=false')
+  assert.equal(clearNode.props['aria-pressed'], undefined, '清除动作不是 toggle，不得输出 aria-pressed=false')
 })
 
 test('Pill 回退：缺导出或整个 primitives 时交互保留 button.dt-pill，静态按官方语义渲染 span', () => {
@@ -1694,6 +1698,8 @@ test('Pill 回退：缺导出或整个 primitives 时交互保留 button.dt-pill
       assert.equal(node.props.title, '清除')
       assert.equal(node.key, 'clear-' + active)
     }
+    const clearNode = client.Pill({ onClick: () => {}, children: '清除' })
+    assert.equal(clearNode.props['aria-pressed'], undefined, '未定义 active 的清除动作在回退路径也不是 toggle')
     const staticNode = client.Pill({ active: true, className: 'business', children: '只读' })
     assert.equal(staticNode.type, 'span', '无 onClick 时连回退也不能把只读 badge 强行变按钮')
     assert.ok(hasClass(staticNode, 'dt-pill') && hasClass(staticNode, 'dt-pill-active') && hasClass(staticNode, 'business'))
@@ -1791,10 +1797,10 @@ test('Pill 过滤汇总：单项清除与全部清除仍写回原状态槽，清
   const nodes = nodesOf(client, queue)
   const clearBadge = officialPill(nodes, '只读 ✕')
   const clearAll = officialPill(nodes, '全部清除')
-  assert.equal(clearBadge.props.active, false)
-  assert.equal(clearBadge.props['aria-pressed'], false)
-  assert.equal(clearAll.props.active, false)
-  assert.equal(clearAll.props['aria-pressed'], false)
+  assert.equal(clearBadge.props.active, undefined)
+  assert.equal(clearBadge.props['aria-pressed'], undefined)
+  assert.equal(clearAll.props.active, undefined)
+  assert.equal(clearAll.props['aria-pressed'], undefined)
 
   client.resetStateCalls()
   clearBadge.props.onClick()
@@ -1918,6 +1924,52 @@ function pendingSaveState(section) {
   queue[14] = section
   return queue
 }
+
+test('空凭证草稿禁用保存；即使直接调用也不发 {} POST 或 Toast 成功', async () => {
+  const requests = []
+  const client = loadClient({
+    primitives: HOST,
+    fetch: async (url, init) => {
+      requests.push([url, init])
+      return response(init?.method === 'POST' ? { ok: true } : snapshot().body)
+    },
+  })
+  const nodes = nodesOf(client, pendingSaveState('creds'))
+  const save = control(nodes, '保存凭证')
+  const result = await save.props.onClick()
+  assert.equal(postsOf(requests).length, 0, '没有 token/giteeToken/ghDir 改动时不得发空 POST：' + JSON.stringify(requests))
+  assert.equal(result, false, '空凭证保存不能返回成功')
+  assert.equal(toastCalls(client).some((call) => call.next.text === '凭证已保存'), false,
+    '空凭证不得 Toast 成功：' + JSON.stringify(toastCalls(client)))
+  assert.equal(save.props.disabled, true, '空凭证保存按钮必须禁用')
+})
+
+test('goal 有包含可见标签的 AX name；无 session 时说明原因并禁止编辑与保存', async () => {
+  const requests = []
+  const client = loadClient({
+    primitives: HOST,
+    fetch: async (url, init) => {
+      requests.push([url, init])
+      return response(init?.method === 'POST' ? { ok: true } : snapshot().body)
+    },
+  })
+  const queue = pendingSaveState('goal')
+  queue[5] = '无会话时不应提交的 goal'
+  queue[6] = true
+  const nodes = nodesOf(client, queue)
+  const textarea = one(nodes.filter((node) => node.type === 'textarea'), '缺唯一 goal textarea')
+  assert.equal(textarea.props['aria-label'], '会话 goal', 'AX name 必须包含可见标签「会话 goal」')
+  assert.equal(textarea.props.disabled, true, '无 sessionId 时 goal 编辑必须禁用')
+  assert.ok(textOf(nodes).includes('没有会话上下文，无法编辑或保存 goal'), '必须在 goal 分区说明禁用原因：' + textOf(nodes))
+
+  const save = control(nodes, '保存 goal')
+  assert.equal(save.props.disabled, true, '无 sessionId 时保存必须禁用')
+  const result = await save.props.onClick()
+  assert.equal(postsOf(requests).length, 0, '无 sessionId 时即使直接调用保存也不得 POST：' + JSON.stringify(requests))
+  assert.equal(result, false, '无 sessionId 保存不能返回成功')
+  assert.equal(toastCalls(client).some((call) => call.next.text === 'goal 已保存'), false,
+    '无 sessionId 不得 Toast 成功：' + JSON.stringify(toastCalls(client)))
+})
 
 test('凭证 pending 新输入与重复点击：晚到的旧成功不得清掉新草稿，且只能有一个 POST', async () => {
   const post = deferred()

@@ -902,13 +902,13 @@ window.__ModuleLoader__.load({
           items.map((text, index) => h('li', { key: index }, text))))
     }
 
-    /** DSH Pill：有 onClick 时是可切换按钮，否则是静态只读胶囊。 */
-    function Pill({ active = false, className, onClick, children, ...rest }) {
+    /** DSH Pill：active 有定义时才是 toggle；无 active 的 onClick 只是动作，静态则无 onClick。 */
+    function Pill({ active, className, onClick, children, ...rest }) {
       if (hostPill) {
-        // 官方没有 aria-pressed；只在交互形态最小补齐，不把只读 badge 变成按钮。
+        // 官方没有 aria-pressed；只给真正的 toggle 补齐，清除等普通动作不得误报 pressed=false。
         return h(hostPill, {
           ...rest, active, className, onClick,
-          'aria-pressed': onClick ? !!active : undefined,
+          'aria-pressed': onClick && active !== undefined ? !!active : undefined,
         }, children)
       }
       if (!onClick) {
@@ -916,7 +916,7 @@ window.__ModuleLoader__.load({
       }
       return h('button', {
         type: 'button', ...rest, className: cx('dt-pill', active && 'dt-pill-active', className),
-        'aria-pressed': !!active, onClick,
+        'aria-pressed': active !== undefined ? !!active : undefined, onClick,
       }, children)
     }
 
@@ -2377,7 +2377,10 @@ window.__ModuleLoader__.load({
         return warnings
       }, null, { rethrow: true })
 
+      const credentialsDirty = Boolean(token.trim() || giteeToken.trim() || ghDir.trim())
       const saveCredentials = () => {
+        // 空草稿没有可保存的改动；即使绕过 disabled 直接调用，也不能发 {} 后假报成功。
+        if (!credentialsDirty) return Promise.resolve(false)
         const draftVersion = credentialsDraftVersionRef.current
         let saveSeq = 0
         return run(async () => {
@@ -2409,6 +2412,8 @@ window.__ModuleLoader__.load({
       }, '已解绑 gh 账号目录（评论改回宿主账号）')
 
       const saveGoal = () => {
+        // 与按钮/文本域的 disabled 同一道防线：没有会话归属时不能提交或假报成功。
+        if (!sessionId) return Promise.resolve(false)
         const draftVersion = goalDraftVersionRef.current
         let saveSeq = 0
         return run(async () => {
@@ -2643,7 +2648,7 @@ window.__ModuleLoader__.load({
         // 两处并排会让同一句话在同一屏出现两次；而且「时段外 / 已停用」是配置出来的状态、不是待处理的问题。
       }
       if (body.gh && body.gh.ok === false && credentials.token === 'none') {
-        problems.push({ key: 'gh', rank: 0, kind: 'gh', text: 'gh CLI 不可用，且没有配置 token —— 现在所有轮询都会失败。先跑 gh auth login，或在「设置 → 来源」填一个 token。' })
+        problems.push({ key: 'gh', rank: 0, kind: 'gh', text: 'gh CLI 不可用，且没有配置 token —— 现在所有轮询都会失败。先跑 gh auth login，或在「设置 → 凭证」填一个 token。' })
       }
       if (watchers.length > 0 && credentials.token === 'none') {
         problems.push({ key: 'cred', rank: 7, kind: 'cred', text: '未配置 token，正在复用已登录的 gh CLI（可用 panel 填 token 换成独立凭据）' })
@@ -3047,7 +3052,7 @@ window.__ModuleLoader__.load({
                 ? '不需要（没有 GitHub 主理鱼）' + (body.gh.skipped ? ' · ' + String(body.gh.skipped) : '')
                 : body.gh.ok
                   ? '可用 · ' + (body.gh.version || '')
-                  : '不可用 —— 先跑 gh auth login（或装 gh CLI）；也可以直接在下面填 token · ' + String(body.gh.error || '').slice(0, 80)],
+                  : '不可用 —— 先跑 gh auth login（或装 gh CLI）；也可以去「凭证」填 token · ' + String(body.gh.error || '').slice(0, 80)],
             // 标签要能和左栏「凭证」分区区分开；值要写出「面板 token / gh 登录态」二选一。
             ['GitHub 凭证', credentials.token === 'none' ? '回退到已登录的 gh CLI' : '用面板 token（不再需要 gh login）'],
             ['权限范围', (() => {
@@ -3079,7 +3084,7 @@ window.__ModuleLoader__.load({
           credentials.ghConfigDir === 'configured'
             ? h('div', { className: 'dt-actions' }, h(Btn, { variant: 'ghost', size: 'sm', onClick: clearGhDir }, '解绑 gh 账号目录'))
             : null,
-          h('div', { className: 'dt-actions' }, h(Btn, { variant: 'primary', onClick: saveCredentials }, '保存凭证')),
+          h('div', { className: 'dt-actions' }, h(Btn, { variant: 'primary', onClick: saveCredentials, disabled: !credentialsDirty }, '保存凭证')),
           h(Hint, null, '不填也能用：插件直接复用已登录的 gh CLI。填了 gh 账号目录，插件就用那个目录里的账号发言（git push 仍用会话自己的身份，唤醒消息里会提醒会话）。')),
         h(Section, { key: 'update', title: '版本与更新' },
           h(KeyValues, { rows: [
@@ -3154,9 +3159,11 @@ window.__ModuleLoader__.load({
         h(Section, { key: 'goal', title: '会话 goal' },
           h('textarea', {
             className: 'dt-textarea', rows: 3, value: goalDraft,
+            'aria-label': '会话 goal', disabled: !sessionId,
             placeholder: '这个会话要达成什么（会写进 /goal）',
             onChange: (e) => { goalDraftVersionRef.current += 1; setGoalTouched(true); setGoalDraft(e.target.value) },
           }),
+          !sessionId ? h(Hint, null, '没有会话上下文，无法编辑或保存 goal；请先在会话里打开本面板。') : null,
           h('div', { className: 'dt-actions' }, h(Btn, { variant: 'primary', onClick: saveGoal, disabled: !sessionId }, '保存 goal'))),
       ]
 
