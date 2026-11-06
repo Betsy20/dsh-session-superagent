@@ -892,10 +892,12 @@ window.__ModuleLoader__.load({
     }
 
     /** 官方 DisclosureRow：折叠行的标准写法（Enter / 空格可切换，带 aria-expanded）。 */
-    function DisclosureRow({ icon, title, open, onToggle, collapsedContent, children }) {
+    function DisclosureRow({ icon, title, open, onToggle, collapsedContent, bodyId, children }) {
+      const content = Array.isArray(children) && children.length === 1 ? children[0] : children
       return h('div', { className: 'dt-disclosure', 'data-open': open ? 'true' : undefined },
         h('div', {
           className: 'dt-disclosure-row', role: 'button', tabIndex: 0, 'aria-expanded': !!open,
+          'aria-controls': bodyId,
           onClick: onToggle,
           onKeyDown: (event) => {
             if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onToggle() }
@@ -906,7 +908,13 @@ window.__ModuleLoader__.load({
             h('span', { className: 'dt-disclosure-chevron' }, h(Icon, { name: open ? 'chevron-up' : 'chevron-down' }))),
           h('span', { className: 'dt-disclosure-title' }, title),
           !open ? collapsedContent : null),
-        open ? children : null)
+        open
+          ? bodyId
+            ? content && typeof content === 'object' && !Array.isArray(content)
+              ? { ...content, props: { ...(content.props || {}), id: bodyId } }
+              : h('div', { id: bodyId }, content)
+            : children
+          : null)
     }
 
     /** 无 DSH Tooltip 时完整保留原实现：原 trigger、点击/失焦与本地气泡都不改写。 */
@@ -1168,7 +1176,7 @@ window.__ModuleLoader__.load({
           h(DisclosureRow, {
             icon: h(Icon, { name: 'settings' }), title: '高级设置', open: advancedOpen,
             onToggle: () => { if (!busy && !disabled) setAdvancedOpen(!advancedOpen) },
-            collapsedContent: collapsedAdvanced,
+            collapsedContent: collapsedAdvanced, bodyId: idPrefix + '-advanced-body',
           }, h('div', { className: 'dt-disclosure-body' }, advanced))),
         h(SaveBar, { dirty, busy, error, disabled, onDiscard: discard, onSave: submitFromClick, saveLabel: submitLabel }),
         // 新建空白表单也要给入口；开始输入后由 SaveBar 接管，不在屏幕上重复两个提交按钮。

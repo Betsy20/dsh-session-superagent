@@ -623,6 +623,65 @@ test('Toggle 真实调用面：新增/行内编辑的普通与优先级开关全
   }
 })
 
+test('WatcherForm 高级区：新增/编辑 bodyId 唯一，aria-controls 关联且 Enter/Space 开合不改草稿', () => {
+  const client = loadClient({ primitives: HOST })
+  const state = snapshot()
+  state.body.watchers = [watcher('a/b', { id: 'a/b#s1', sessionId: 's1' })]
+  const scenarios = [
+    ['新增', deskQueue(state, null, {}, 'trigger'), 3, 'watcher-new'],
+    ['行内编辑', deskQueue(state, 'a/b#s1'), 9, 'watcher-edit-' + encodeURIComponent('a/b#s1')],
+  ]
+  const expandedBodyIds = []
+  for (const [name, queue, draftIndex, idPrefix] of scenarios) {
+    const bodyId = idPrefix + '-advanced-body'
+    const advancedOf = (nodes) => one(nodes.filter((node) => hasClass(node, 'dt-disclosure-row') && nodeText(node).includes('高级设置')),
+      name + '：缺高级设置触发器')
+    const applyStateCalls = (base) => {
+      const next = [...base]
+      const calls = client.stateCalls()
+      assert.equal(calls.length, 1, name + '：一次高级区键盘操作只能切换一个 open 状态')
+      for (const call of calls) next[call.index] = call.next
+      assert.strictEqual(next[draftIndex], base[draftIndex], name + '：开合不得改写表单草稿')
+      return next
+    }
+
+    const closed = nodesOf(client, queue, { sessionId: 's1' })
+    const closedRow = advancedOf(closed)
+    assert.equal(closedRow.props['aria-expanded'], false, name + '：默认收起')
+    assert.equal(closedRow.props['aria-controls'], bodyId, name + '：收起时 trigger 也要声明受控 body id')
+    assert.equal(closed.filter((node) => node.props?.id === bodyId).length, 0, name + '：收起时 body 不挂载')
+    assert.ok(nodeText(closedRow).includes('限额、优先级与隔离保留策略'), name + '：收起摘要必须保留')
+
+    client.resetStateCalls()
+    let prevented = 0
+    closedRow.props.onKeyDown({ key: 'Enter', preventDefault: () => { prevented += 1 } })
+    assert.equal(prevented, 1, name + '：Enter 必须阻止默认行为')
+    assert.equal(client.stateCalls()[0].next, true, name + '：Enter 必须展开')
+    const openedQueue = applyStateCalls(queue)
+    const opened = nodesOf(client, openedQueue, { sessionId: 's1' })
+    const openedRow = advancedOf(opened)
+    assert.equal(openedRow.props['aria-expanded'], true)
+    assert.equal(openedRow.props['aria-controls'], bodyId, name + '：展开后 aria-controls 必须稳定')
+    const body = one(opened.filter((node) => node.props?.id === bodyId), name + '：展开 body 必须带 aria-controls 指向的 id')
+    assert.ok(hasClass(body, 'dt-disclosure-body'), name + '：id 必须落在真实高级区 body，而不是额外容器')
+    assert.ok(!nodeText(openedRow).includes('限额、优先级与隔离保留策略'), name + '：展开后收起摘要必须卸载')
+    expandedBodyIds.push(body.props.id)
+
+    client.resetStateCalls()
+    openedRow.props.onKeyDown({ key: ' ', preventDefault: () => { prevented += 1 } })
+    assert.equal(prevented, 2, name + '：Space 必须阻止默认行为')
+    assert.equal(client.stateCalls()[0].next, false, name + '：Space 必须收起')
+    const restoredQueue = applyStateCalls(openedQueue)
+    const restored = nodesOf(client, restoredQueue, { sessionId: 's1' })
+    const restoredRow = advancedOf(restored)
+    assert.equal(restoredRow.props['aria-expanded'], false, name + '：关闭后 aria-expanded 恢复 false')
+    assert.equal(restoredRow.props['aria-controls'], bodyId, name + '：关闭后关联声明保留')
+    assert.equal(restored.filter((node) => node.props?.id === bodyId).length, 0, name + '：关闭后 body 卸载')
+    assert.ok(nodeText(restoredRow).includes('限额、优先级与隔离保留策略'), name + '：关闭后摘要恢复')
+  }
+  assert.equal(new Set(expandedBodyIds).size, scenarios.length, '新增与编辑同页展开时 bodyId 不得冲突')
+})
+
 test('现有 8 个直接 Btn primary 场景全部委托；SaveBar 的 ghost 同样委托', () => {
   const client = loadClient({ primitives: HOST })
   const empty = snapshot()
