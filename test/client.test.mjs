@@ -2862,6 +2862,7 @@ test('W15：fallback Tooltip 有稳定 id 与 aria-describedby，Escape 关闭�
     nodes = tip.render()
     trigger = infoTrigger(nodes, text)[0]
     assert.equal(tipNodes(nodes).length, 0, 'Escape 必须关闭气泡')
+    assert.equal(trigger.props['aria-expanded'], false)
     assert.equal(trigger.props['aria-describedby'], undefined, '关闭后必须清除 describedby')
 
     // 再打开：同一 trigger 的 id 必须稳定，不能每次重建。
