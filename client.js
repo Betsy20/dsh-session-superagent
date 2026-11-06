@@ -970,16 +970,36 @@ window.__ModuleLoader__.load({
           : null)
     }
 
-    /** 无 DSH Tooltip 时完整保留原实现：原 trigger、点击/失焦与本地气泡都不改写。 */
+    // 本地气泡的 id 序号：同一 trigger 反复开合复用同一个 id，trigger 才能稳定用 aria-describedby 指向它。
+    // 用 ref 而不是新增 state，避免打乱父组件按位置取值的 hook 队列。
+    let fallbackTipSerial = 0
+    /** 无 DSH Tooltip 时完整保留原实现；补上 Escape 关闭与 trigger↔tooltip 关联（W15）。 */
     function FallbackInfoTip({ text, icon = 'question', warn }) {
       const [open, setOpen] = useState(false)
+      const tipIdRef = useRef(null)
+      if (!tipIdRef.current) {
+        fallbackTipSerial += 1
+        tipIdRef.current = 'dt-info-tip-' + fallbackTipSerial
+      }
+      const tipId = tipIdRef.current
       return h('span', { style: { position: 'relative', display: 'inline-flex' } },
         h('button', {
           type: 'button', className: cx('dt-info', warn && 'dt-info-warn'),
           'aria-label': text, 'aria-expanded': open,
+          // 只有气泡真的在 DOM 里才关联；关闭时同步清掉，读屏不会指向已消失的节点。
+          'aria-describedby': open ? tipId : undefined,
           onClick: () => setOpen(!open), onBlur: () => setOpen(false),
+          onKeyDown: (event) => {
+            if (event.key !== 'Escape' || !open) return
+            // 键盘约定：Escape 只关气泡，焦点留在 trigger 上（不能 blur 掉）。
+            event.preventDefault()
+            setOpen(false)
+          },
         }, h(Icon, { name: icon, size: 14 })),
-        open ? h('span', { className: 'dt-tooltip', role: 'tooltip', style: { position: 'absolute', bottom: '130%', left: 0, visibility: 'visible' } }, text) : null)
+        open ? h('span', {
+          id: tipId, className: 'dt-tooltip', role: 'tooltip',
+          style: { position: 'absolute', bottom: '130%', left: 0, visibility: 'visible' },
+        }, text) : null)
     }
 
     // 保持 InfoTip({text,icon,warn}) 调用面；静态分支不会在组件生命周期内改变 hooks 顺序。
@@ -1308,6 +1328,9 @@ window.__ModuleLoader__.load({
 
     // 官方 Modal 的键盘行为：Escape 关闭 + Tab 焦点陷阱 + 关闭后焦点回到触发元素。
     // 移植时只搬了样式，行为是后补的（2026-11-02 对官方 controls.tsx 逐行比对时发现）。
+    // 本地 Modal 打开层数：Modal 存在时 Escape 属于最上层对话框，底层 Orbit 的 capture 必须让位（W16）。
+    // 用模块级计数而不是给 StatusOrbit 加 hook，保持它按位置取值的 hook 契约不变。
+    let localDialogDepth = 0
     const FOCUSABLE = 'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
     function trapTab(event, dialog) {
       const items = [...dialog.querySelectorAll('*')].filter((element) => element.matches(FOCUSABLE))
@@ -1329,6 +1352,7 @@ window.__ModuleLoader__.load({
       close.current = onClose
       useEffect(() => {
         if (!open || typeof document === 'undefined') return undefined
+        localDialogDepth += 1
         restoreTo.current = document.activeElement
         // 打开后把焦点挪进对话框，否则键盘用户还停在背后的页面上
         const timer = setTimeout(() => {
@@ -1338,11 +1362,16 @@ window.__ModuleLoader__.load({
           ;(first || node).focus()
         }, 0)
         const onKey = (event) => {
-          if (event.key === 'Escape') { event.preventDefault(); close.current(); return }
+          if (event.key === 'Escape') {
+            // 已被更上层控件（如 fallback Tooltip）消费的 Escape 不再关 Modal。
+            if (event.defaultPrevented) return
+            event.preventDefault(); close.current(); return
+          }
           if (event.key === 'Tab' && dialog.current) trapTab(event, dialog.current)
         }
         document.addEventListener('keydown', onKey)
         return () => {
+          localDialogDepth = Math.max(0, localDialogDepth - 1)
           clearTimeout(timer)
           document.removeEventListener('keydown', onKey)
           const back = restoreTo.current
@@ -1692,12 +1721,19 @@ window.__ModuleLoader__.load({
         // 仅旧路径保留 capture mousedown / 手算焦点；DSH 由 OrbitPopover 与宿主 dismiss hook 接管。
         if (!open || hostOrbit) return undefined
         const onDown = (event) => {
+          // 本地确认 Modal 在最上层时，点背板/取消不能穿透到 Orbit（W16）。
+          if (localDialogDepth > 0) return
           const target = event.target
           if (panelRef.current && panelRef.current.contains(target)) return
           if (btnRef.current && btnRef.current.contains(target)) return
           setOpen(false)
         }
-        const onKey = (event) => { if (event.key === 'Escape') setOpen(false) }
+        const onKey = (event) => {
+          if (event.key !== 'Escape' || event.repeat) return
+          // 第一次 Escape 只关 Modal；Modal 的 keydown 在 bubble 阶段处理并归还焦点（W16）。
+          if (localDialogDepth > 0) return
+          setOpen(false)
+        }
         document.addEventListener('mousedown', onDown, true)
         document.addEventListener('keydown', onKey, true)
         // 键盘可达：打开后把焦点送进弹层（Tab 才能顺序走进去），关掉时还给圆环按钮。
@@ -2003,7 +2039,9 @@ window.__ModuleLoader__.load({
       }, [intervalMs])
     }
 
-    /** 轻量 Toast：DSH 可用时由宿主计时；fallback 保留原有 4 秒自动消失。 */
+    /** 轻量 Toast：DSH 可用时由宿主计时；fallback 保留 4 秒自动消失。 */
+    const TOAST_HOLD_MS = 3000
+    const TOAST_FADE_MS = 1000
     function useToast() {
       if (hostUi) {
         const { item, notify, dismiss } = hostUi.createToastState()
@@ -2019,16 +2057,19 @@ window.__ModuleLoader__.load({
       const notify = useCallback((text, tone = 'info') => {
         if (timer.current) clearTimeout(timer.current)
         setItem({ id: Math.random().toString(36).slice(2), text, tone })
-        timer.current = setTimeout(() => setItem(null), 4000)
+        // timer 覆盖 hold + fade 全段；比只等 hold 长 1 秒，淡出不会被提前卸载打断。
+        timer.current = setTimeout(() => setItem(null), TOAST_HOLD_MS + TOAST_FADE_MS)
       }, [])
       const view = item === null ? null : h('div', {
+        // key 用 item.id：连续通知换 id 时 React 会重建节点，dt-toast-in 动画才会从头播（W17）。
+        key: item.id,
         className: cx('dt-toast', item.tone === 'error' && 'dt-danger'),
         role: 'status',
         'aria-live': 'polite',
         // 官方 toast 是深底白字；错误态不要改成浅红底（白字会看不清），改用左侧红条标记
         style: item.tone === 'error'
-          ? { '--dt-toast-hold': '3600ms', borderLeft: '3px solid var(--dsw-alias-state-error-primary)' }
-          : { '--dt-toast-hold': '3600ms' },
+          ? { '--dt-toast-hold': TOAST_HOLD_MS + 'ms', borderLeft: '3px solid var(--dsw-alias-state-error-primary)' }
+          : { '--dt-toast-hold': TOAST_HOLD_MS + 'ms' },
       }, item.text)
       return [view, notify]
     }
