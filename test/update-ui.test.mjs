@@ -11,6 +11,7 @@ const HOST = Object.freeze({
   Modal: 'dsh-host-modal',
   Toast: 'dsh-host-toast',
   Button: 'dsh-host-button',
+  Input: 'dsh-host-input',
   SegmentedTabs: 'dsh-host-segmented-tabs',
   IconWarningOutlineMedium: 'dsh-host-warning-icon',
 })
@@ -81,11 +82,17 @@ function loadClient(options = {}) {
     console,
   }
   vm.createContext(sandbox)
-  // 只在定向测试显式要求时暴露真实 Btn；生产文件与分支逻辑不变，仅追加一个测试捕获点。
-  const source = options.captureBtn
-    ? SOURCE.replace('    const UpdateButton = hostButton || Btn', '    window.__BtnForTest = Btn\n    const UpdateButton = hostButton || Btn')
-    : SOURCE
-  if (options.captureBtn) assert.notEqual(source, SOURCE, '必须捕获真实 Btn，不能测试手写复制品')
+  // 只在定向测试显式要求时暴露真实共享控件；生产文件与分支逻辑不变，仅追加测试捕获点。
+  let source = SOURCE
+  if (options.captureBtn) {
+    source = source.replace('    const UpdateButton = hostButton || Btn', '    window.__BtnForTest = Btn\n    const UpdateButton = hostButton || Btn')
+    assert.notEqual(source, SOURCE, '必须捕获真实 Btn，不能测试手写复制品')
+  }
+  if (options.captureInput) {
+    const before = source
+    source = source.replace('    function Toggle({', '    window.__InputForTest = Input\n    function Toggle({')
+    assert.notEqual(source, before, '必须捕获真实 Input，不能测试手写复制品')
+  }
   vm.runInContext(source, sandbox)
   assert.ok(mod, 'client.js 必须调用 __ModuleLoader__.load')
 
@@ -157,6 +164,7 @@ function loadClient(options = {}) {
     render,
     timers,
     Btn: sandbox.window.__BtnForTest,
+    Input: sandbox.window.__InputForTest,
     stateCalls: () => stateCalls,
     resetStateCalls: () => { stateCalls.length = 0 },
   }
@@ -312,6 +320,162 @@ test('Btn 全 variant：老宿主缺 Button 或整个 primitives 时完整回退
       assert.equal(node.props.children[1], '确认删除')
     }
   }
+})
+
+test('Input 官方委托：password/search/number、受控编辑、icon 与 ref 全部透传且无双 wrapper', () => {
+  const client = loadClient({ primitives: HOST, captureInput: true })
+  assert.equal(typeof client.Input, 'function')
+  const icon = { type: 'svg', props: { children: [] } }
+  for (const [type, value] of [['password', 'secret'], ['search', 'alice'], ['number', '60']]) {
+    const changes = []
+    const onChange = (event) => changes.push(event.target.value)
+    const ref = { current: null }
+    const numeric = type === 'number' ? { min: 30, max: 3600, step: 1 } : {}
+    const node = client.Input({
+      type, value, onChange, ...numeric, icon, ref, key: type + '-input', className: 'business',
+      placeholder: type + ' 占位', 'aria-label': type + ' 字段', 'aria-describedby': type + '-hint',
+      disabled: type === 'password', required: true,
+    })
+    assert.equal(node.type, HOST.Input, type + ' 必须直接委托 DSH Input')
+    assert.equal(node.props.type, type)
+    assert.equal(node.props.value, value, type + ' 必须保持受控 value')
+    assert.strictEqual(node.props.onChange, onChange)
+    assert.equal(node.props.placeholder, type + ' 占位')
+    assert.equal(node.props['aria-label'], type + ' 字段')
+    assert.equal(node.props['aria-describedby'], type + '-hint')
+    assert.equal(node.props.disabled, type === 'password')
+    assert.equal(node.props.required, true)
+    assert.strictEqual(node.props.icon, icon, 'icon 只能交给官方，不能由适配层再画一次')
+    assert.strictEqual(node.ref, ref, 'ref 必须交给官方 forwardRef')
+    assert.equal(node.key, type + '-input')
+    assert.equal(node.props.className, 'dt-input business', '官方 wrapper 同时保留业务类与现有布局类')
+    assert.deepEqual(node.props.children, [], '官方路径不能再包本地 span 或原生 input')
+    if (type === 'number') {
+      assert.equal(node.props.min, 30)
+      assert.equal(node.props.max, 3600)
+      assert.equal(node.props.step, 1)
+    }
+    node.props.onChange({ target: { value: 'next-' + type } })
+    assert.deepEqual(changes, ['next-' + type], type + ' 受控 onChange 必须原样可达')
+  }
+})
+
+test('Input 回退：缺导出或整个 primitives 时保留 span.dt-input、单 icon、原生属性与 ref', () => {
+  const scenarios = [undefined, {}, { ...HOST, Input: undefined }]
+  const icon = { type: 'svg', props: { children: [] } }
+  for (const primitives of scenarios) {
+    const client = loadClient({ primitives, captureInput: true })
+    for (const [type, value] of [['password', 'secret'], ['search', 'alice'], ['number', '60']]) {
+      const onChange = () => {}
+      const ref = { current: null }
+      const numeric = type === 'number' ? { min: 30, max: 3600, step: 1 } : {}
+      const wrapper = client.Input({
+        type, value, onChange, ...numeric, icon, ref, key: type + '-fallback', className: 'business',
+        placeholder: type + ' 占位', 'aria-label': type + ' 字段', disabled: true, required: true,
+      })
+      assert.equal(wrapper.type, 'span')
+      assert.equal(wrapper.props.className, 'dt-input')
+      assert.equal(wrapper.props.children.length, 2, 'fallback 必须是 icon + input 两个子节点')
+      const [iconNode, input] = wrapper.props.children
+      assert.equal(iconNode.type, 'span')
+      assert.equal(iconNode.props.className, 'dt-input-icon')
+      assert.strictEqual(iconNode.props.children[0], icon)
+      assert.equal(input.type, 'input')
+      assert.equal(input.props.type, type)
+      assert.equal(input.props.value, value)
+      assert.strictEqual(input.props.onChange, onChange)
+      assert.equal(input.props.placeholder, type + ' 占位')
+      assert.equal(input.props['aria-label'], type + ' 字段')
+      assert.equal(input.props.disabled, true)
+      assert.equal(input.props.required, true)
+      assert.equal(input.props.className, 'business', 'fallback 业务 className 仍按原契约落在 input 上')
+      assert.strictEqual(input.ref, ref, 'fallback ref 必须落在真正的 native input 上')
+      assert.equal(input.key, type + '-fallback')
+      if (type === 'number') {
+        assert.equal(input.props.min, 30)
+        assert.equal(input.props.max, 3600)
+        assert.equal(input.props.step, 1)
+      }
+    }
+    const withoutIcon = client.Input({ value: '', onChange() {} })
+    assert.equal(withoutIcon.props.children.length, 1)
+    assert.equal(withoutIcon.props.children[0].type, 'input')
+  }
+})
+
+test('Input 真实调用面：搜索、repo/goal/数字、行内编辑与凭证统一委托，textarea/time 不迁移', () => {
+  const client = loadClient({ primitives: HOST })
+  const empty = snapshot()
+
+  const searchQueue = deskQueue(empty, null, {}, 'overview', 'alice')
+  const searchNodes = nodesOf(client, searchQueue)
+  const search = one(searchNodes.filter((node) => node.type === HOST.Input), '总览缺唯一官方搜索 Input')
+  assert.equal(search.props.value, 'alice')
+  assert.equal(search.props.placeholder, '搜索仓库 / 编号 / 标题')
+  assert.equal(search.props['aria-label'], '搜索')
+  assert.ok(hasClass(search, 'dt-input'), '搜索布局仍靠 wrapper.dt-input 命中')
+  client.resetStateCalls()
+  search.props.onChange({ target: { value: 'bob' } })
+  assert.deepEqual(client.stateCalls().filter((call) => call.index === 10).map((call) => call.next), ['bob'])
+
+  const createQueue = deskQueue(empty, null, {}, 'trigger')
+  createQueue[3] = { ...createQueue[3], repo: 'acme/widgets', goal: '修复 issue', intervalSec: '90' }
+  const createNodes = nodesOf(client, createQueue, { sessionId: 's1' })
+  const createInputs = createNodes.filter((node) => node.type === HOST.Input)
+  const repo = one(createInputs.filter((node) => node.props.value === 'acme/widgets'), '新增表单缺 repo Input')
+  const goal = one(createInputs.filter((node) => node.props.value === '修复 issue'), '新增表单缺 goal Input')
+  const interval = one(createInputs.filter((node) => node.props.value === '90'), '新增表单缺 interval Input')
+  assert.equal(repo.props.required, true)
+  assert.equal(repo.props.disabled, false)
+  assert.equal(repo.props.placeholder, 'owner/name，或 gitee:owner/name')
+  assert.equal(goal.props.type, 'text')
+  assert.equal(interval.props.type, 'number')
+  assert.equal(interval.props.min, 30)
+  assert.equal(interval.props.max, 3600)
+  assert.equal(interval.props.step, 1)
+  assert.equal(interval.props.required, true)
+  assert.equal(interval.props.disabled, false)
+  assert.equal(createNodes.filter((node) => node.type === 'input' && node.props.type === 'time').length, 2,
+    'HoursField 的两个 time input 不属于共享 Input，必须保持原实现')
+  assert.equal(createNodes.filter((node) => node.type === 'input'
+    && ['text', 'password', 'search', 'number'].includes(node.props.type)).length, 0,
+  '官方宿主路径不能再出现共享 Input 的本地 native input')
+
+  const editState = snapshot()
+  editState.body.watchers = [watcher('a/b', { id: 'a/b#s1', sessionId: 's1' })]
+  const editQueue = deskQueue(editState, 'a/b#s1', { intervalSec: '120' })
+  const editNodes = nodesOf(client, editQueue)
+  const editInterval = one(editNodes.filter((node) => node.type === HOST.Input
+    && node.props.type === 'number' && node.props.value === '120'), '行内编辑缺受控数字 Input')
+  assert.equal(editInterval.props.min, 30)
+  assert.equal(editInterval.props.max, 3600)
+  assert.equal(typeof editInterval.props.onChange, 'function')
+
+  const credsQueue = deskQueue(empty, null, {}, 'settings')
+  credsQueue[14] = 'creds'
+  credsQueue[4] = 'github-secret'
+  credsQueue[19] = 'D:/gh-config'
+  credsQueue[20] = 'gitee-secret'
+  const credsNodes = nodesOf(client, credsQueue)
+  const credsInputs = credsNodes.filter((node) => node.type === HOST.Input && node.props['aria-label'] !== '搜索')
+  assert.equal(credsInputs.length, 3, '除顶部搜索外，Token/Gitee/ghDir 三个字段必须全部委托')
+  for (const value of ['github-secret', 'gitee-secret']) {
+    const password = one(credsInputs.filter((node) => node.props.value === value), '缺密码 Input ' + value)
+    assert.equal(password.props.type, 'password')
+    assert.equal(typeof password.props.onChange, 'function')
+  }
+  const ghDir = one(credsInputs.filter((node) => node.props.value === 'D:/gh-config'), '缺 ghDir Input')
+  assert.equal(ghDir.props.placeholder, '绝对路径（留空 = 用宿主账号）')
+  assert.equal(typeof ghDir.props.onChange, 'function')
+
+  const goalQueue = deskQueue(empty, null, {}, 'settings')
+  goalQueue[14] = 'goal'
+  goalQueue[5] = '会话 goal 原文'
+  const goalNodes = nodesOf(client, goalQueue, { sessionId: 's1' })
+  const textarea = one(goalNodes.filter((node) => node.type === 'textarea'), '会话 goal 必须保留 textarea')
+  assert.equal(textarea.props.value, '会话 goal 原文')
+  assert.equal(goalNodes.filter((node) => node.type === HOST.Input && node.props['aria-label'] !== '搜索').length, 0,
+    '除顶部搜索外，会话 goal 的 textarea 不得被 Input 替换')
 })
 
 test('现有 8 个直接 Btn primary 场景全部委托；SaveBar 的 ghost 同样委托', () => {
