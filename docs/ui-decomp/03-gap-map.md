@@ -84,6 +84,10 @@ Orbit 写操作 busy 锁、轮询代际和删除失败当前 Modal 可见。专�
 
 主面板 `/state` 带 sessionId，goal/title/usage 正确返回且空 session 不串数据。真实 Chromium 47/47，全量 **645/645**。
 
+## 实施回写（0.9.286）
+
+dirty 折叠/切换复用确认 Modal，取消/Escape 保留，确认才丢弃；真实 Chromium 54/54，全量 **648/648**。
+
 ## 0. 基线、口径与复用边界
 
 | 来源 | 本次核对基线 | 用法 |

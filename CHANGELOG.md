@@ -2,6 +2,25 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.286] - 2026-11-06 —— 切换中的 dirty 草稿保护
+
+### 折叠/切换不再静默丢草稿
+
+- dirty 折叠或切换复用 `ConfirmDialog → PanelModal → DSH Modal`。
+- 取消、Escape、遮罩与关闭都保留当前 draft 和 touched；确认放弃才重置。
+- 切换确认后载入目标 watcher 的干净快照，无 dirty 时保持原直达行为。
+- 确认期间原表单仍挂载，连点受 busy 锁保护，不产生意外 POST。
+- Modal 获焦，关闭后返回触发按钮。
+
+### 验证
+
+- 新增用例先红 1 绿 2 红，修后定向 4/4。
+- 全量 **648/648**，UI 体检 **11/11=100**。
+- 真实 Chromium **54/54**，新增 7 项覆盖取消/Escape/确认/焦点/clean 切回。
+- 功能走查 mutation=0，防写探针 403。
+
+未验真实 DSH Web GUI 与真实 watcher 写操作。按 Git 工作流保留本地候选。
+
 ## [0.9.285] - 2026-11-06 —— /state 会话上下文修复
 
 ### 主面板带 sessionId
