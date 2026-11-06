@@ -54,7 +54,7 @@ printf 'DSH_PROFILE=%s\nDSH_HOME=%s\n' "${DSH_PROFILE-}" "${DSH_HOME-}"
 
 - **安装**：目标 profile；执行 `dsh plugin --profile <profile> add dsh-session-superagent`，已挂载则跳过重复安装。
 - **绑定**：仓库、当前会话、过滤/作者白名单、`isolated`（开启时含 `workdir`）、goal。
-- **默认值**：`intervalSec:60`、单次 5 条、单 watcher 每小时 6 次、整会话每小时 12 次、默认 ack 标签（GitHub `主理鱼:已处理` / Gitee `主理鱼-已处理`）；未选的过滤参数省略。
+- **默认值**：`intervalSec:60`、单次 5 条、单 watcher 每小时 6 次、整会话每小时 12 次、默认 ack 标签（GitHub `主理鱼:已处理` / Gitee `主理鱼-已处理`）—— 这三项（`brandName` / `defaultAckLabel` / `defaultAckLabelGitee`）可由插件配置覆盖，计划里按**实际配置**写，见 README「配置」一节；未选的过滤参数省略。
 - **操作者步骤**：需要登录时在自己终端跑 `gh auth login`；token 只填面板凭证字段。Gitee 需要 ack 时先建标签 `主理鱼-已处理`（Gitee 不允许半角冒号），GitHub 首次 ack 会自动建 `主理鱼:已处理`。
 - **写入与回滚**：`watch_start` 会保存 watcher 并开始轮询；可用 `watch_stop({repo})` 暂停，确认不再需要时用 `watch_stop({repo,delete:true})` 删除配置。
 - **验收**：下列第 5 节全部步骤；`watch_ack` 是否执行、是否回写评论，以及评论正文，都列清楚。

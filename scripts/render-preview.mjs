@@ -94,6 +94,9 @@ const snapshot = {
     installedVersion: '0.9.140',
     routeBase: '/session-superagent',
     defaults: { sessionMaxWakes: 12, maxWakesPerHour: 6, isolateKeepDays: 3 },
+    // issue #11：品牌与两家默认 ack 标签（client.js 从 /state 顶层读）
+    brandName: '主理鱼',
+    defaultAckLabels: { github: '主理鱼:已处理', gitee: '主理鱼-已处理' },
     retryPolicy: { budgetAttempts: 6, slowCapMinutes: 120 },
     sessionUsage: { used: 3, cap: 12, capped: 0 },
     tokenScopes: { ok: true, scopes: ['repo', 'read:org'] },

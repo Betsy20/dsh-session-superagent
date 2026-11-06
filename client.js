@@ -1038,7 +1038,14 @@ window.__ModuleLoader__.load({
       const parsed = Number(value)
       return Number.isFinite(parsed) ? parsed : undefined
     }
-    const watcherValuesFrom = (watcher) => ({
+    // ack 默认值来自 /state.defaultAckLabels（issue #11）；老服务端没有这个字段时仍回落旧字面量。
+    const ACK_LABEL_FALLBACK = { github: '主理鱼:已处理', gitee: '主理鱼-已处理' }
+    const ackLabelFallback = (watcher, defaults) => {
+      const provider = watcher && watcher.provider === 'gitee' ? 'gitee' : 'github'
+      const fromState = defaults && typeof defaults[provider] === 'string' ? defaults[provider].trim() : ''
+      return fromState || ACK_LABEL_FALLBACK[provider]
+    }
+    const watcherValuesFrom = (watcher, ackDefaults) => ({
       repo: watcher.repo || '',
       intervalSec: watcherNumberText(watcher.intervalSec ?? 60),
       labels: (watcher.filters && Array.isArray(watcher.filters.labels) ? watcher.filters.labels : []).join(','),
@@ -1046,7 +1053,7 @@ window.__ModuleLoader__.load({
       assignee: (watcher.filters && watcher.filters.assignee) || '',
       activeHours: watcher.activeHours || '',
       goal: watcher.note || (typeof watcher.goal === 'string' ? watcher.goal : (watcher.goal && watcher.goal.objective) || ''),
-      ackLabel: watcher.ackLabel || (watcher.provider === 'gitee' ? '主理鱼-已处理' : '主理鱼:已处理'),
+      ackLabel: watcher.ackLabel || ackLabelFallback(watcher, ackDefaults),
       onlyAssigned: !!(watcher.filters && watcher.filters.onlyAssigned),
       allowAuthors: (watcher.filters && Array.isArray(watcher.filters.allowAuthors) ? watcher.filters.allowAuthors : []).join(', '),
       observe: !!watcher.observe,
@@ -1684,6 +1691,9 @@ window.__ModuleLoader__.load({
       const [orbitError, setOrbitError] = useState(null)
       const [open, setOpen] = useState(false)
       const [anchor, setAnchor] = useState(null)
+      // 品牌名（issue #11）：/state 下发；老服务端没有这个字段时仍是「主理鱼」。
+      // 只能在末尾追加状态槽，前面的位置契约（观测/删除确认）保持不变。
+      const [brandName, setBrandName] = useState('主理鱼')
       const btnRef = useRef(null)
       const panelRef = useRef(null)
       const actionLocks = useRef(new Set())
@@ -1706,6 +1716,7 @@ window.__ModuleLoader__.load({
           const body = await call('/state')
           if (!orbitAlive.current || sequence !== stateSequence.current) return { applied: false, ok: true }
           setWatchers(Array.isArray(body && body.watchers) ? body.watchers : [])
+          setBrandName((typeof (body && body.brandName) === 'string' && body.brandName.trim()) || '主理鱼')
           setOrbitError((current) => isReadError(current) ? null : current)
           return { applied: true, ok: true }
         } catch (error) {
@@ -1784,9 +1795,9 @@ window.__ModuleLoader__.load({
       const running = list.filter((w) => orbitStateOf(w) === 'active').length
       const broken = list.filter((w) => orbitStateOf(w) === 'error').length
       const summary = readError && watchers === null
-        ? '读不到主理鱼状态'
+        ? '读不到' + brandName + '状态'
         : list.length === 0
-          ? '还没有主理鱼'
+          ? '还没有' + brandName
           : '会话级 superagent：' + running + ' 运行中'
             + (broken ? '，' + broken + ' 异常' : '')
             + '（共 ' + list.length + ' 条）'
@@ -1809,7 +1820,7 @@ window.__ModuleLoader__.load({
           ? readError
           : list.length
             ? list.map((w) => (w.repo + ' · ' + (w.title || '未命名会话') + ' · ' + sessionTag(w.sessionId) + ' · ' + STATE_TEXT[orbitStateOf(w)])).join('\n')
-            : '还没有主理鱼 —— 在「主理鱼」页加一条',
+            : '还没有' + brandName + ' —— 在「' + brandName + '」页加一条',
         'aria-label': summary,
         'aria-expanded': open ? 'true' : 'false',
         className: cx('dt-btn', 'dt-btn-ghost', 'sa-orbit-trigger', watchers === null && 'is-loading'),
@@ -1979,7 +1990,7 @@ window.__ModuleLoader__.load({
 
       const panelBody = h(React.Fragment, null,
         h('div', { className: 'sa-dock-head' },
-          h('span', { className: 'sa-dock-title' }, '主理鱼'),
+          h('span', { className: 'sa-dock-title' }, brandName),
           // 和面板统计条同一套官方素材：dt-stat（数值强 + 单位弱），不再自己发明 sa-dock-metric-*
           h(Stat, {
             className: 'sa-dock-metric',
@@ -1990,13 +2001,13 @@ window.__ModuleLoader__.load({
         watchers === null
           ? (!readError ? h('div', { className: 'sa-dock-empty' }, '正在读取…') : null)
           : list.length === 0
-            ? h('div', { className: 'sa-dock-empty' }, '还没有。在「主理鱼」标签页填 owner/name 加一条。')
+            ? h('div', { className: 'sa-dock-empty' }, '还没有。在「' + brandName + '」标签页填 owner/name 加一条。')
             : h(hostOrbitRow ? 'ul' : 'div', { className: 'sa-dock-rows' }, rows),
         // 读失败与写操作失败分开说；旧列表仍可保留在错误上方。
         readError ? h('div', { className: 'sa-dock-err', role: 'alert' }, readError) : null,
         !readError && orbitError ? h('div', { className: 'sa-dock-err', role: 'alert' }, '操作失败：' + orbitError) : null,
         list.length > 0
-          ? h('div', { className: 'sa-dock-foot' }, '详细状态与凭证在「主理鱼」标签页')
+          ? h('div', { className: 'sa-dock-foot' }, '详细状态与凭证在「' + brandName + '」标签页')
           : null)
 
       const panel = hostOrbit
@@ -2285,10 +2296,13 @@ window.__ModuleLoader__.load({
       const body = snap.body || {}
       // 默认值提示从后端读：写死 12/3/6 会在常量变化后变成谎话（JSON Schema 的 default 也是这个用法）
       const DEFAULTS = body.defaults || {}
+      // 品牌与默认 ack 都来自 /state（issue #11）；缺省时保持 0.10.0 的文案。
+      const BRAND = (typeof body.brandName === 'string' && body.brandName.trim()) || '主理鱼'
+      const ACK_DEFAULTS = body.defaultAckLabels || null
       const watchers = body.watchers || []
       // 行内编辑只有这一条入口：clean 维持原直达行为；dirty 先确认，取消绝不重置 draft/touched。
       const applyWatcherEditor = (watcher, nextKey) => {
-        const values = watcherValuesFrom(watcher)
+        const values = watcherValuesFrom(watcher, ACK_DEFAULTS)
         setEditing(nextKey)
         touchedRef.current = new Set()
         editSnapshotRef.current = nextKey ? { key: nextKey, values } : null
@@ -2300,7 +2314,7 @@ window.__ModuleLoader__.load({
           activeHours: watcher.activeHours || '',
           // `watcher.goal` 可能是 goalView 对象；输入框只能接收已展开的字符串。
           goal: watcher.note || (typeof watcher.goal === 'string' ? watcher.goal : (watcher.goal && watcher.goal.objective) || ''),
-          ackLabel: watcher.ackLabel || (watcher.provider === 'gitee' ? '主理鱼-已处理' : '主理鱼:已处理'),
+          ackLabel: watcher.ackLabel || ackLabelFallback(watcher, ACK_DEFAULTS),
           onlyAssigned: !!(watcher.filters && watcher.filters.onlyAssigned),
           allowAuthors: (watcher.filters && watcher.filters.allowAuthors ? watcher.filters.allowAuthors : []).join(', '),
           observe: !!watcher.observe,
@@ -2321,7 +2335,7 @@ window.__ModuleLoader__.load({
       const editingWatcher = watchers.find((watcher) => watcher.repo + '#' + watcher.sessionId === editing)
       const editingOpening = editSnapshotRef.current && editSnapshotRef.current.key === editing
         ? editSnapshotRef.current.values
-        : editingWatcher ? watcherValuesFrom(editingWatcher) : null
+        : editingWatcher ? watcherValuesFrom(editingWatcher, ACK_DEFAULTS) : null
       const editingDirty = Boolean(editing && editingOpening && (
         touchedRef.current.size > 0 || watcherDirty({ ...editingOpening, ...draft }, editingOpening)))
       const pendingCollapseKey = glossary && glossary.type === 'watcher-draft' && !glossary.nextKey
@@ -2624,7 +2638,7 @@ window.__ModuleLoader__.load({
         const rowBody = h('div', { className: 'dt-ticket-body' },
           h('div', { className: 'dt-row-title' },
             h('button', {
-              type: 'button', className: 'dt-open', title: '展开或收起这条主理鱼的设置',
+              type: 'button', className: 'dt-open', title: '展开或收起这条' + BRAND + '的设置',
               'aria-expanded': displayedEditing === key, onClick: () => toggleWatcherEditor(watcher),
             }, watcher.repo)),
           pauseNote(watcher),
@@ -2640,7 +2654,7 @@ window.__ModuleLoader__.load({
             watcher.isolated ? h(Tag, null, isolationText(watcher)) : null,
             filterText(watcher.filters) ? h(Tag, null, filterText(watcher.filters)) : null,
             // ack 标签决定这条是否还会被叫醒，不能只在工具参数里出现。
-            h(Tag, { tone: 'quiet' }, '回执 ' + (watcher.ackLabel || (watcher.provider === 'gitee' ? '主理鱼-已处理' : '主理鱼:已处理'))),
+            h(Tag, { tone: 'quiet' }, '回执 ' + (watcher.ackLabel || ackLabelFallback(watcher, ACK_DEFAULTS))),
             watcher.queuedWakes > 0 ? h(Tag, { tone: 'warning' }, '排队 ' + watcher.queuedWakes) : null,
             backoffText(watcher) ? h(Tag, { tone: 'warning' }, backoffText(watcher)) : null),
           // 三行，各管一件事：① 是谁 ② 节律与最近结果 ③ 目标
@@ -2714,7 +2728,7 @@ window.__ModuleLoader__.load({
             })))
         const opening = editSnapshotRef.current && editSnapshotRef.current.key === key
           ? editSnapshotRef.current.values
-          : watcherValuesFrom(watcher)
+          : watcherValuesFrom(watcher, ACK_DEFAULTS)
         const editorValue = { ...opening, ...draft }
         const editor = displayedEditing === key
           ? h(WatcherForm, {
@@ -2881,7 +2895,7 @@ window.__ModuleLoader__.load({
         filterSummary,
         h('div', { className: 'dt-stats', key: 'stats' },
           h(Stat, {
-            key: 'all', value: watchers.length, unit: '条主理鱼',
+            key: 'all', value: watchers.length, unit: '条' + BRAND,
             active: stateFilter === null, onClick: () => setStateFilter(null),
           }),
           h(Stat, {
@@ -2958,16 +2972,16 @@ window.__ModuleLoader__.load({
             '代码已更新到 ' + body.installedVersion + '，但宿主还在跑 ' + body.runningVersion
             + ' —— 服务端改动需要重启宿主才生效（客户端部分已生效，所以界面可能看起来是新的）。')
           : null,
-        h(Section, { key: 'list', title: needle ? '搜索结果' : '主理鱼', count: visible.length },
+        h(Section, { key: 'list', title: needle ? '搜索结果' : BRAND, count: visible.length },
           watchers.length === 0
             ? h(Onboarding, { onStart: () => setTab('trigger') })
             : visible.length === 0
               ? h('div', { className: 'dt-empty' },
                 h(Hint, null, needle
-                  ? '没有匹配「' + search.trim() + '」的主理鱼。'
+                  ? '没有匹配「' + search.trim() + '」的' + BRAND + '。'
                   : hasActiveFilters
-                    ? '没有符合当前筛选条件的主理鱼。'
-                    : '当前没有可显示的主理鱼。'),
+                    ? '没有符合当前筛选条件的' + BRAND + '。'
+                    : '当前没有可显示的' + BRAND + '。'),
                 hasActiveFilters
                   ? h('div', { className: 'dt-actions' },
                     h(Btn, { size: 'sm', variant: 'outline', onClick: clearAllFilters }, '清除全部筛选'))
@@ -3055,7 +3069,7 @@ window.__ModuleLoader__.load({
           // 判定页的空态也要给路径：说清「加一条之后这里会出现什么」，而不是一句「还没有主理鱼」
           ? h('div', { className: 'dt-empty' },
             h('p', { className: 'dt-step-title' }, '还没有可判定的记录'),
-            h('p', { className: 'dt-step-detail' }, '添加一条主理鱼之后，每轮判定都会记在这里：唤醒、仅观察，或跳过及其原因。'),
+            h('p', { className: 'dt-step-detail' }, '添加一条' + BRAND + '之后，每轮判定都会记在这里：唤醒、仅观察，或跳过及其原因。'),
             h('div', { className: 'dt-actions' },
               h(Btn, { size: 'sm', variant: 'primary', onClick: () => setTab('trigger') }, '去添加第一条')))
           : (() => {
@@ -3208,7 +3222,7 @@ window.__ModuleLoader__.load({
               group.silentWakes > 0 ? h('span', { className: 'dt-error-text' }, '未回音 ' + group.silentWakes + ' 次') : null,
               group.errors > 0 ? h('span', { className: 'dt-error-text' }, group.errors + ' 条报错') : null))))))
 
-      const trigger = h(Section, { title: '新增主理鱼' },
+      const trigger = h(Section, { title: '新增' + BRAND },
         h(WatcherForm, {
           mode: 'create', idPrefix: 'watcher-new', value: { ...CREATE_WATCHER_VALUES, ...form },
           snapshot: createSnapshotRef.current, defaults: DEFAULTS, disabled: !sessionId, sessionId,
@@ -3567,7 +3581,7 @@ window.__ModuleLoader__.load({
       return h('div', { className: 'dt-page' },
         h('div', { className: 'dt-page-head' },
           h('div', null,
-            h('h1', { className: 'dt-page-title' }, '主理鱼'),
+            h('h1', { className: 'dt-page-title' }, BRAND),
             h('span', { className: 'dt-hint' },
               (body.sessionTitle ? '会话：' + body.sessionTitle + ' · ' : '')
               + (sessionId ? '盯办 + 主动办：仓库有动静就叫醒本会话' : '（在会话里打开本面板，才能把仓库绑到会话上）'))),
@@ -3662,16 +3676,16 @@ window.__ModuleLoader__.load({
               onClick: () => copyText(AGENTS_SNIPPET, '规则已复制，粘贴到 AGENTS.md 末尾即可'),
             }, '复制这段规则'),
             h(Btn, { size: 'sm', variant: 'ghost', onClick: () => setGlossary(false) }, '关闭'))) : null,
-        h(PanelModal, { open: glossary === true, title: '主理鱼术语表', onClose: () => setGlossary(false) },
+        h(PanelModal, { open: glossary === true, title: BRAND + '术语表', onClose: () => setGlossary(false) },
           h(KeyValues, { rows: [
-            ['主理鱼', '一条「盯办」绑定：某个仓库 → 某个会话'],
+            [BRAND, '一条「盯办」绑定：某个仓库 → 某个会话'],
             ['盯', '轮询 issue/PR、按水位去重、冷却期吸收自己的操作'],
             ['办', '唤醒会话后按仓库 AGENTS.md 主动处理，完成后 watch_ack 打标签'],
-            ['唤醒', '只在会话空闲（idle）时注入一条【主理鱼】消息'],
+            ['唤醒', '只在会话空闲（idle）时注入一条【' + BRAND + '】消息'],
             ['过滤', '标签白名单/黑名单、只看已指派、跳过机器人/草稿/已关闭'],
             ['时段', 'activeHours，比如 09:00-23:00，时段外只攒不唤醒'],
             ['隔离', 'isolated：每次唤醒开一次性 git worktree，改副本不碰主工作区'],
-            ['ack', '处理完给条目打「主理鱼:已处理」标签，轮询直接跳过'],
+            ['ack', '处理完给条目打「' + (ACK_DEFAULTS && ACK_DEFAULTS.github ? ACK_DEFAULTS.github : '主理鱼:已处理') + '」标签，轮询直接跳过'],
             ['goal', '会话目标（ctx.goals），和 /goal 命令同一份状态'],
             ['凭证', 'token 存在服务端 secrets.json，面板只显示是否已配置'],
             ['上限', '两种：单条守每小时最多 6 次、整条会话 12 次（面板里可调）；和 GitHub 的限流不是一回事'],

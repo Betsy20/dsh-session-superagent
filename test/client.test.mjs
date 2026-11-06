@@ -1458,7 +1458,9 @@ test('状态栏圆环单独挂载也要注入样式表（否则弹层是无样�
   const src = readFileSync(new URL('../client.js', import.meta.url), 'utf8')
   const start = src.indexOf('function StatusOrbit')
   assert.ok(start > 0, '找不到 StatusOrbit')
-  const seg = src.slice(start, start + 2500)
+  // 窗口按状态栏组件大小给：0.10.x 加了品牌状态与文案后 2500 字已经不够，
+  // 断言本身不变（挂载副作用与弹层打开时都要调 ensurePortedCss）。
+  const seg = src.slice(start, start + 3200)
   assert.ok(seg.includes('ensurePortedCss'), 'StatusOrbit 的挂载副作用里必须调 ensurePortedCss')
   assert.ok(seg.includes('ensurePortedCss(true)'), '弹层打开时要强制重建样式表（兜住建站后被清掉的情况）')
   assert.ok(!src.slice(src.indexOf('const act = async', start), src.indexOf('const act = async', start) + 500).includes('window.confirm'), '删除只走 ConfirmBtn 二段确认，不能再叠 window.confirm')

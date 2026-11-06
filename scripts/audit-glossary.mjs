@@ -17,11 +17,14 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const clientSource = readFileSync(join(ROOT, 'client.js'), 'utf8')
 
 // ① 抽术语表（Modal 里的 KeyValues rows）
-const glossaryBlock = clientSource.slice(
-  clientSource.indexOf("title: '主理鱼术语表'"),
-  clientSource.indexOf("]) })))", clientSource.indexOf("title: '主理鱼术语表'")),
+const glossaryTitle = /title:\s*[^\n]*?术语表'/.exec(clientSource)
+const glossaryStart = glossaryTitle ? glossaryTitle.index : -1
+const glossaryBlock = glossaryStart < 0 ? '' : clientSource.slice(
+  glossaryStart,
+  clientSource.indexOf(']) })))', glossaryStart),
 )
-const terms = [...glossaryBlock.matchAll(/\['([^']+)',\s*'([^']*)'\]/g)].map((m) => ({ term: m[1], meaning: m[2] }))
+// 值可能由品牌/配置拼接（如 `['唤醒', '...【' + BRAND + '】...']`），只取稳定的词条名。
+const terms = [...glossaryBlock.matchAll(/\[\s*'([^']+)'\s*,/g)].map((m) => ({ term: m[1], meaning: '' }))
 
 // ② 面板文案（直接跑快照脚本拿当前文本，避免读旧文件）
 let copy = ''
