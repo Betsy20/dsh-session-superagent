@@ -2096,8 +2096,9 @@ window.__ModuleLoader__.load({
       const loadSeqRef = useRef(0)
       const load = useCallback(async () => {
         const seq = ++loadSeqRef.current
+        const statePath = sessionId ? '/state?sessionId=' + encodeURIComponent(String(sessionId)) : '/state'
         try {
-          const payload = await call('/state', stateEtag ? { headers: { 'if-none-match': stateEtag } } : undefined)
+          const payload = await call(statePath, stateEtag ? { headers: { 'if-none-match': stateEtag } } : undefined)
           if (seq !== loadSeqRef.current) return null // 已经有更新的一次请求在飞：这次结果作废
           // 304：内容没变，别白白重渲染 —— 前提是本地已经有一份能渲染的 body
           if (payload && payload.notModified) {
@@ -2115,7 +2116,7 @@ window.__ModuleLoader__.load({
           setSnap((prev) => ({ loading: false, error: String((error && error.message) || error), body: prev.body }))
           return null
         }
-      }, [])
+      }, [sessionId])
 
       useEffect(() => { ensurePortedCss() }, [])
       usePoll(load, POLL_MS)

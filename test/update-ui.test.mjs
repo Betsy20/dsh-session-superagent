@@ -280,6 +280,14 @@ function postsOf(calls) {
   return calls.filter(([, init]) => init?.method === 'POST')
 }
 
+function pathnameOf(url) {
+  return new URL(String(url), 'http://fixture.local').pathname
+}
+
+function isStateUrl(url) {
+  return pathnameOf(url).endsWith('/state')
+}
+
 function hookIndexes(base) {
   return { result: base.length, open: base.length + 1, busy: base.length + 2 }
 }
@@ -1310,7 +1318,7 @@ test('更新 POST 首个 fetch reject 只发一次：不 discoverBase，保留 u
   client.resetStateCalls()
   assert.equal(await control(walk(hostModal(opened).props.footer), '确认安装').props.onClick(), false)
   assert.equal(postsOf(calls).length, 1, 'fetch rejection 不能自动重放更新 POST')
-  assert.equal(calls.filter(([url]) => url.endsWith('/state')).length, 0, '更新 POST 失败不能触发 discoverBase')
+  assert.equal(calls.filter(([url]) => isStateUrl(url)).length, 0, '更新 POST 失败不能触发 discoverBase')
   assert.equal(calls.filter(([url]) => url.endsWith('/update?refresh=1')).length, 0, '结果未知不能伪装成功后刷新')
   assert.equal(client.stateCalls().filter((call) => call.index === 12).length, 0, '失败必须保留当前 update')
   const resultCall = one(client.stateCalls().filter((call) => call.index === hooks.result), '缺结果未知回执')
@@ -1345,8 +1353,8 @@ test('更新 POST 404 只发一次：即使 discoverBase 可找到新前缀也�
           ? response({ error: '旧前缀不存在' }, false, 404)
           : response({ ok: true, ...RECEIPT })
       }
-      if (url.endsWith('/state')) {
-        const base = url.slice(0, -'/state'.length)
+      if (isStateUrl(url)) {
+        const base = pathnameOf(url).slice(0, -'/state'.length)
         return response({ routeBase: base, serverVersion: base.endsWith('/r2') ? '0.9.273' : '0.0.0' })
       }
       return response(UPDATE)
@@ -1358,7 +1366,7 @@ test('更新 POST 404 只发一次：即使 discoverBase 可找到新前缀也�
   client.resetStateCalls()
   assert.equal(await control(walk(hostModal(opened).props.footer), '确认安装').props.onClick(), false)
   assert.equal(postsOf(calls).length, 1, '404 不能经 discoverBase 自动重放更新 POST')
-  assert.equal(calls.filter(([url]) => url.endsWith('/state')).length, 0, '更新 POST 404 不应触发 discoverBase')
+  assert.equal(calls.filter(([url]) => isStateUrl(url)).length, 0, '更新 POST 404 不应触发 discoverBase')
   assert.equal(calls.filter(([url]) => url.endsWith('/update?refresh=1')).length, 0)
   const resultCall = one(client.stateCalls().filter((call) => call.index === hooks.result), '404 缺结果未知回执')
   assert.deepEqual({ ...resultCall.next }, UNKNOWN_RECEIPT)
@@ -1382,8 +1390,8 @@ test('GET 的 fetch rejection 与 404 仍 discoverBase 后重试，更新 POST �
           }
           return response(UPDATE)
         }
-        if (url.endsWith('/state')) {
-          const base = url.slice(0, -'/state'.length)
+        if (isStateUrl(url)) {
+          const base = pathnameOf(url).slice(0, -'/state'.length)
           return response({ routeBase: base, serverVersion: base.endsWith('/r2') ? '0.9.273' : '0.0.0' })
         }
         return response({})
@@ -1395,7 +1403,7 @@ test('GET 的 fetch rejection 与 404 仍 discoverBase 后重试，更新 POST �
     assert.equal(updateCalls.length, 2, failure + '：GET 必须原样重试一次')
     assert.equal(updateCalls[0][0], '/session-superagent/update?refresh=1')
     assert.equal(updateCalls[1][0], '/session-superagent/r2/update?refresh=1', failure + '：重试必须使用发现的新前缀；实际 ' + updateCalls.map(([url]) => url).join(', '))
-    assert.equal(calls.filter(([url]) => url.endsWith('/state')).length, 8, failure + '：必须执行完整 discoverBase（默认前缀 + r2…r8）')
+    assert.equal(calls.filter(([url]) => isStateUrl(url)).length, 8, failure + '：必须执行完整 discoverBase（默认前缀 + r2…r8）')
     assert.equal(postsOf(calls).length, 0)
     const updateCall = client.stateCalls().filter((call) => call.index === 12).at(-1)
     assert.deepEqual({ ...updateCall.next }, UPDATE)
@@ -2065,7 +2073,7 @@ test('乱序 /state 响应：后到的旧响应不得覆盖新快照或 dirty go
   const client = loadClient({
     fetch: (url) => {
       requests.push(url)
-      if (!String(url).endsWith('/state')) return Promise.resolve(response({}))
+      if (!isStateUrl(url)) return Promise.resolve(response({}))
       assert.ok(states.length > 0, '只能有两次 /state：' + JSON.stringify(requests))
       return states.shift().promise
     },
@@ -2073,10 +2081,12 @@ test('乱序 /state 响应：后到的旧响应不得覆盖新快照或 dirty go
   const queue = pendingSaveState('goal')
   queue[5] = 'dirty 输入'
   queue[6] = true
-  const nodes = nodesOf(client, queue)
+  const nodes = nodesOf(client, queue, { sessionId: 's1' })
   const refresh = control(nodes, '刷新')
   const first = refresh.props.onClick()
   const second = refresh.props.onClick()
+  assert.deepEqual(requests.filter(isStateUrl), ['/session-superagent/state?sessionId=s1', '/session-superagent/state?sessionId=s1'],
+    'fixture 必须看见并保留完整 sessionId query，不能用 endsWith 把它隐藏')
   const newBody = { ...snapshot().body, sessionGoal: { objective: '新服务端 goal', phase: 'active', revision: 3 } }
   const oldBody = { ...snapshot().body, sessionGoal: { objective: '旧服务端 goal', phase: 'active', revision: 1 } }
   newer.resolve(response(newBody))
