@@ -356,6 +356,8 @@ window.__ModuleLoader__.load({
     let hostInput = null
     let hostSwitch = null
     let hostSegmentedTabs = null
+    let hostTag = null
+    let hostStateDot = null
     let hostTooltip = null
     let hostOrbit = null
     let hostOrbitRow = null
@@ -369,6 +371,9 @@ window.__ModuleLoader__.load({
       hostSwitch = primitives.Switch || null
       // SegmentedTabs 同样独立探测：缺导出时完整保留下方 SegTabs，不影响其它原语。
       hostSegmentedTabs = primitives.SegmentedTabs || null
+      // Tag 与 StateDot 各自独立探测：任何一个缺导出都只回退自己，不影响另一个或其它原语。
+      hostTag = primitives.Tag || null
+      hostStateDot = primitives.StateDot || null
       if (primitives && primitives.Modal && primitives.Toast && primitives.IconWarningOutlineMedium) {
         hostUi = createHostUi({ React, primitives })
         // Tooltip 独立探测：缺少它只回退 InfoTip，不把已接入的 Modal/Toast 一起降级。
@@ -380,6 +385,8 @@ window.__ModuleLoader__.load({
       hostInput = null
       hostSwitch = null
       hostSegmentedTabs = null
+      hostTag = null
+      hostStateDot = null
       hostTooltip = null
     }
 
@@ -730,8 +737,13 @@ window.__ModuleLoader__.load({
     // 保留安装动作现有调用面；其它受支持 variant 也统一由 Btn 内的宿主分支委托，老宿主完整回退。
     const UpdateButton = hostButton || Btn
 
-    function Tag({ tone = 'outline', title, children }) {
-      return h('span', { className: 'dt-tag', 'data-tone': tone, title }, children)
+    function Tag({ tone = 'outline', title, className, children }) {
+      if (hostTag) {
+        const tag = h(hostTag, { tone, className }, children)
+        // 官方 Tag 是静态只读组件，不收 title；只在确有提示时加无样式 wrapper，不丢原有悬停语义。
+        return title === undefined ? tag : h('span', { title }, tag)
+      }
+      return h('span', { className: cx('dt-tag', className), 'data-tone': tone, title }, children)
     }
 
     /** 页级 tab 条：点当前页会再发一次 onChange（回调里可重置到根部）。 */
@@ -792,9 +804,10 @@ window.__ModuleLoader__.load({
       }, h('span', { className: 'dt-switch-thumb' }))
     }
 
-    function StateDot({ state, className }) {
+    function StateDot({ state, size, className }) {
+      if (hostStateDot) return h(hostStateDot, { state, size, className })
       if (state === 'ongoing') {
-        return h('svg', { className: 'dt-spinner', 'data-state': 'ongoing', width: 14, height: 14, viewBox: '0 0 24 24', 'aria-hidden': 'true' },
+        return h('svg', { className: cx('dt-spinner', className), 'data-state': 'ongoing', width: size ?? 14, height: size ?? 14, viewBox: '0 0 24 24', 'aria-hidden': 'true' },
           h('g', null,
             h('circle', { cx: 12, cy: 12, r: 9.5 }),
             h('animateTransform', { attributeName: 'transform', type: 'rotate', from: '0 12 12', to: '360 12 12', dur: '1.6s', repeatCount: 'indefinite' })))
