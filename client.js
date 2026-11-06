@@ -890,16 +890,21 @@ window.__ModuleLoader__.load({
     /** 官方 DisclosureRow 承载过滤清单；缺导出时完整保留本地键盘与焦点行为。 */
     function CollapsibleList({ title, items }) {
       const [open, setOpen] = useState(false)
+      // 字符串仍是兼容调用面；结构化记录带独立摘要、正文和稳定 key，避免先压平而丢失来源。
+      const summaryOf = (item) => item && typeof item === 'object' && 'summary' in item ? item.summary : item
+      const contentOf = (item) => item && typeof item === 'object' && 'content' in item ? item.content : item
       const rowProps = {
         title: title + '（' + items.length + '）',
         open, onToggle: () => setOpen((current) => !current),
         icon: h(Icon, { name: 'question', size: 14 }),
-        collapsedContent: h('span', { className: 'dt-hint' }, items[0] ? String(items[0]).slice(0, 40) : ''),
+        collapsedContent: h('span', { className: 'dt-hint' }, items[0] ? String(summaryOf(items[0])).slice(0, 40) : ''),
       }
       return h(hostCollapsibleRow || DisclosureRow,
         hostCollapsibleRow ? { ...rowProps, expandable: true, expandOnRowClick: true } : rowProps,
         h('ul', { className: 'dt-plain-list' },
-          items.map((text, index) => h('li', { key: index }, text))))
+          items.map((item, index) => h('li', {
+            key: item && typeof item === 'object' && item.key !== undefined ? item.key : index,
+          }, contentOf(item)))))
     }
 
     /** DSH Pill：active 有定义时才是 toggle；无 active 的 onClick 只是动作，静态则无 onClick。 */
@@ -2662,6 +2667,7 @@ window.__ModuleLoader__.load({
       const matchesBadge = (watcher) => !badgeFilter
         || repoBadges(watcher.repoAccess).some((badge) => badge.text === badgeFilter)
       const hasProblem = (watcher) => Boolean(watcher.lastError)
+        || Boolean(watcher.lastReopened)
         || Number(watcher.silentWakes) >= 2
         || Boolean(repoStructureNote(watcher.repoAccess))
         || repoBadges(watcher.repoAccess).some((badge) => badge.tone === 'warning' || badge.tone === 'danger')
@@ -2676,6 +2682,10 @@ window.__ModuleLoader__.load({
       const visible = watchers.filter((watcher) => matches(watcher) && matchesBadge(watcher) && stateMatches(watcher)
         && (!problemsOnly || hasProblem(watcher))
         && (!deferFilter || watcher.deferReason === deferFilter))
+      const hasActiveFilters = Boolean(needle || badgeFilter || stateFilter || problemsOnly || deferFilter)
+      const clearAllFilters = () => {
+        setBadgeFilter(null); setStateFilter(null); setSearch(''); setProblemsOnly(false); setReasonFilter(null)
+      }
 
       // T24 W1：「全部暂停/全部恢复」对**这一屏**生效，可用性也按这一屏算（同口径）。
       const pausable = countPausable(visible)
@@ -2701,11 +2711,7 @@ window.__ModuleLoader__.load({
             })(),
             ...chips.map((chip) => h(Pill, { key: chip.label, onClick: chip.clear }, chip.label + ' ✕')),
             chips.length > 1
-              ? h(Pill, {
-                key: '__all', onClick: () => {
-                  setBadgeFilter(null); setStateFilter(null); setSearch(''); setProblemsOnly(false); setReasonFilter(null)
-                },
-              }, '全部清除')
+              ? h(Pill, { key: '__all', onClick: clearAllFilters }, '全部清除')
               : null)
       })()
 
@@ -2719,6 +2725,11 @@ window.__ModuleLoader__.load({
         }
         return acc
       }, { woken: 0, acked: 0 })
+
+      // 服务端已限制每守带回的记录数；面板在全局合并后排序，不能按守各切两条再拼接。
+      const filteredEntries = watchers
+        .flatMap((watcher) => (watcher.filteredLog || []).map((entry, sourceIndex) => ({ watcher, entry, sourceIndex })))
+        .sort((a, b) => String(b.entry.at || '').localeCompare(String(a.entry.at || '')))
 
       const overview = [
         filterSummary,
@@ -2748,12 +2759,22 @@ window.__ModuleLoader__.load({
             key: 'dormant', value: dormant, unit: '时段外',
             active: stateFilter === 'dormant', onClick: () => setStateFilter(stateFilter === 'dormant' ? null : 'dormant'),
           }) : null),
-        watchers.some((w) => (w.filteredLog || []).length > 0)
+        filteredEntries.length > 0
           ? h(Section, { key: 'filtered', title: '最近被过滤' },
             h(CollapsibleList, {
               title: '看被过滤的条目',
-              items: watchers.flatMap((w) => (w.filteredLog || []).slice(-2).map((entry) =>
-                '#' + entry.number + ' ' + (entry.title || '') + ' — ' + entry.reason)),
+              items: filteredEntries.map(({ watcher, entry, sourceIndex }) => {
+                const head = watcher.repo + ' · 会话 ' + sessionTag(watcher.sessionId)
+                  + ' · #' + String(entry.number ?? '—') + ' ' + (entry.title || '') + ' — ' + entry.reason
+                const at = String(entry.at || '')
+                return {
+                  key: ['filtered', watcher.sessionId, watcher.repo, entry.number, entry.at, entry.reason, sourceIndex]
+                    .map((part) => String(part ?? '')).join('|'),
+                  summary: head + ' · ' + (at || '时间未知'),
+                  content: h(React.Fragment, null, head, ' · ',
+                    h('time', { dateTime: at || undefined, title: at || undefined }, at || '时间未知')),
+                }
+              }),
             }))
           : null,
         // 排序：会丢消息的（失败/没回音）排前面；静态提示（仓库归档、只读）排后面
@@ -2795,7 +2816,16 @@ window.__ModuleLoader__.load({
           watchers.length === 0
             ? h(Onboarding, { onStart: () => setTab('trigger') })
             : visible.length === 0
-              ? h(Hint, null, '没有匹配「' + search + '」的主理鱼。')
+              ? h('div', { className: 'dt-empty' },
+                h(Hint, null, needle
+                  ? '没有匹配「' + search.trim() + '」的主理鱼。'
+                  : hasActiveFilters
+                    ? '没有符合当前筛选条件的主理鱼。'
+                    : '当前没有可显示的主理鱼。'),
+                hasActiveFilters
+                  ? h('div', { className: 'dt-actions' },
+                    h(Btn, { size: 'sm', variant: 'outline', onClick: clearAllFilters }, '清除全部筛选'))
+                  : null)
               : h('ul', { className: 'dt-list' }, visible.map(row))),
       ]
 
@@ -2946,7 +2976,13 @@ window.__ModuleLoader__.load({
               h('time', { className: 'dt-event-time', dateTime: entry.at, title: entry.at }, ageText(entry.at)))))
       }
 
-      // 迷你时间线：回答"为什么这一轮没叫醒我"
+      // 迷你时间线：回答"为什么这一轮没叫醒我"。先全局合并排序，再兑现标题的最近 20 条。
+      const runtimeEvents = watchers
+        .flatMap((watcher) => (watcher.events || []).map((event, sourceIndex) => ({ watcher, event, sourceIndex })))
+        .sort((a, b) => String(b.event.at || '').localeCompare(String(a.event.at || ''))
+          // 同守同时间戳仍保持原先 slice().reverse() 的后进先出；跨守同刻交给稳定排序。
+          || (a.watcher === b.watcher ? b.sourceIndex - a.sourceIndex : 0))
+        .slice(0, 20)
       const timeline = h(Section, {
         key: 'timeline',
         title: '运行时事件（最近 20 条）',
@@ -2955,19 +2991,24 @@ window.__ModuleLoader__.load({
       },
         watchers.length === 0
           ? h(Hint, null, '还没有守。添加一条之后，这里会记录每次唤醒、攒着、限流、回收。')
-          : h('ol', { className: 'dt-timeline' }, watchers.flatMap((watcher) => (watcher.events || []).slice().reverse().map((event, index) => h('li', {
-            key: watcher.repo + '-ev' + index,
-            className: 'dt-event',
-          },
-            h('div', { className: 'dt-event-head' },
-              h(Tag, { tone: event.kind === 'wake' ? 'success' : event.kind === 'wake-failed' ? 'danger' : 'outline' },
-                event.kind + (Number(event.count) > 1 ? ' ×' + event.count : '')),
-              (Number(event.count) > 1 && event.since)
-                ? h('span', { className: 'dt-row-meta' }, '持续 ' + durationText(event.since, event.at))
-                : null,
-              h('span', { className: 'dt-row-meta' }, ageText(event.at))),
-            h('div', { className: 'dt-event-text' }, watcher.repo + ' · ' + event.text),
-            h('div', { className: 'dt-event-foot' }, event.at))))))
+          : runtimeEvents.length === 0
+            ? h(Hint, null, '还没有运行时事件；完成一次轮询后，这里会记录唤醒、攒着、限流、回收。')
+            : h('ol', { className: 'dt-timeline' }, runtimeEvents.map(({ watcher, event, sourceIndex }) => h('li', {
+              key: ['event', watcher.sessionId, watcher.repo,
+                event.number ?? (Array.isArray(event.numbers) ? event.numbers.join(',') : ''),
+                event.kind, event.at, sourceIndex].map((part) => String(part ?? '')).join('|'),
+              className: 'dt-event',
+            },
+              h('div', { className: 'dt-event-head' },
+                h(Tag, { tone: event.kind === 'wake' ? 'success' : event.kind === 'wake-failed' ? 'danger' : 'outline' },
+                  event.kind + (Number(event.count) > 1 ? ' ×' + event.count : '')),
+                (Number(event.count) > 1 && event.since)
+                  ? h('span', { className: 'dt-row-meta' }, '持续 ' + durationText(event.since, event.at))
+                  : null,
+                h('span', { className: 'dt-row-meta' }, '会话 ' + sessionTag(watcher.sessionId)),
+                h('span', { className: 'dt-row-meta' }, ageText(event.at))),
+              h('div', { className: 'dt-event-text' }, watcher.repo + ' · ' + event.text),
+              h('div', { className: 'dt-event-foot' }, event.at)))))
 
       // 按仓库汇总：守多个仓库时先看哪个健康，再看明细（渐进披露）
       const problemCount = watchers.filter(hasProblem).length
@@ -3001,7 +3042,9 @@ window.__ModuleLoader__.load({
               ]
             })())
           : null,
-        visible.length === 0 ? h(Hint, null, '没有符合条件的主理鱼。点上面「全部」看所有守。') : null,
+        visible.length === 0 && watchers.length > 0
+          ? h(Hint, null, '按仓库汇总也为空；请用上方「清除全部筛选」恢复。')
+          : null,
         h('div', { className: 'dt-rows' }, ...summarizeByRepo(visible).map((group) => h('div', { key: 'repo-' + group.repo, className: 'dt-row' },
           h('div', { className: 'dt-row-main' },
             h('div', { className: 'dt-row-title' },

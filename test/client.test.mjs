@@ -2265,3 +2265,198 @@ test('/state 并发：旧失败不得覆盖较新的 200 成功与清错结果',
   assert.equal(panel.snap().body.marker, 'newest')
   assert.equal(panel.snap().error, null, '旧失败不能重新写回错误')
 })
+
+test('W2：仅重新打开与重新打开加报错都计入问题数和问题筛选，健康守仍排除', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = {
+    loading: false, error: null,
+    body: {
+      sessionGoal: null, sessionTitle: 'x', credentials: { token: 'configured', sshKeyPath: 'none' },
+      watchers: [
+        watcher('a/reopened', { id: 'a/reopened#s1', sessionId: 's1', lastReopened: 42 }),
+        watcher('b/both', { id: 'b/both#s2', sessionId: 's2', lastReopened: 7, lastError: 'boom' }),
+        watcher('c/healthy', { id: 'c/healthy#s3', sessionId: 's3' }),
+      ],
+    },
+  }
+  const textOf = (nodes) => nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' | ')
+  const allText = textOf(walk(render(desk, deskQueue(snap))))
+  assert.ok(allText.includes('共 3 条问题，涉及 2 条守'), '问题构造与涉及守数必须同口径：' + allText.slice(0, 500))
+  assert.ok(allText.includes('只看有问题的 (2)'), '问题筛选计数必须包含仅 reopened 的守')
+  assert.ok(allText.includes('a/reopened #42 被重新打开过'), 'reopened 仍要在问题区展示')
+
+  const queue = deskQueue(snap)
+  queue[17] = true
+  const nodes = walk(render(desk, queue))
+  const rows = nodes.filter((n) => n.type === 'button' && String(n.props.className || '').includes('dt-open'))
+    .map((n) => String(n.props.children)).sort()
+  assert.deepEqual(rows, ['a/reopened', 'b/both'], '问题筛选必须留下仅 reopened 与 reopened+error，去掉健康守')
+})
+
+test('W5：运行时事件跨守按时间倒序，只渲染全局最近 20 条并显示来源', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const repos = ['a/one', 'b/two', 'c/three', 'd/four']
+  const base = Date.parse('2026-11-06T00:00:00.000Z')
+  const watchers = repos.map((repo, watcherIndex) => watcher(repo, {
+    id: repo + '#s' + watcherIndex,
+    sessionId: 'session-source-' + watcherIndex,
+    events: Array.from({ length: 6 }, (_, eventIndex) => ({
+      at: new Date(base + (eventIndex * 4 + watcherIndex) * 1000).toISOString(),
+      kind: 'poll', number: watcherIndex * 10 + eventIndex,
+      text: 'event-' + watcherIndex + '-' + eventIndex,
+    })),
+  }))
+  const expected = watchers.flatMap((w) => w.events.map((event) => ({ watcher: w, event })))
+    .sort((a, b) => String(b.event.at).localeCompare(String(a.event.at))).slice(0, 20)
+  const snap = {
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: 'x', credentials: { token: 'configured' }, watchers },
+  }
+  const nodes = walk(render(desk, deskQueue(snap, null, {}, 'judge')))
+  const timeline = nodes.find((n) => n.type === 'ol' && n.props.className === 'dt-timeline')
+  assert.ok(timeline, '缺运行时事件时间线')
+  const items = timeline.props.children.filter((n) => n.type === 'li')
+  assert.equal(items.length, 20, '标题承诺最近 20 条，就不能把 4×6=24 条全部渲染')
+  const texts = items.map((item) => walk(item).filter((n) => n.type === '#text').map((n) => n.text).join(' | '))
+  expected.forEach(({ watcher: w, event }, index) => {
+    assert.ok(texts[index].includes(event.text), '第 ' + index + ' 条应是 ' + event.text + '，实际：' + texts[index])
+    assert.ok(texts[index].includes(w.repo), '运行事件要显示 repo')
+    assert.ok(texts[index].includes('source-' + watcherIndexFor(w, watchers)), '运行事件要显示 session：' + texts[index])
+    assert.ok(texts[index].includes(event.at), '运行事件要显示完整时间')
+  })
+
+  const empty = { ...snap, body: { ...snap.body, watchers: watchers.map((w) => ({ ...w, events: [] })) } }
+  const emptyNodes = walk(render(desk, deskQueue(empty, null, {}, 'judge')))
+  assert.equal(emptyNodes.filter((n) => n.type === 'ol' && n.props.className === 'dt-timeline').length, 0,
+    '有守但零事件不能渲染空 ol')
+  assert.ok(emptyNodes.some((n) => n.type === '#text' && n.text.includes('还没有运行时事件')), '零事件要有明确空态')
+})
+
+function watcherIndexFor(target, watchers) {
+  return watchers.findIndex((w) => w === target)
+}
+
+test('W7：同 repo 多 session 的运行事件 key 唯一，并含 session/repo/number/kind/time', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const at = '2026-11-06T08:00:00.000Z'
+  const watchers = ['session-alpha', 'session-beta'].map((sessionId) => watcher('same/repo', {
+    id: 'same/repo#' + sessionId, sessionId,
+    events: [
+      { at, kind: 'poll', number: 7, text: 'poll-' + sessionId },
+      { at, kind: 'wake', number: 7, text: 'wake-' + sessionId },
+    ],
+  }))
+  const snap = {
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: 'x', credentials: { token: 'configured' }, watchers },
+  }
+  const nodes = walk(render(desk, deskQueue(snap, null, {}, 'judge')))
+  const timeline = nodes.find((n) => n.type === 'ol' && n.props.className === 'dt-timeline')
+  const items = timeline.props.children.filter((n) => n.type === 'li')
+  assert.equal(new Set(items.map((item) => item.key)).size, items.length, '同 repo 不同 session 不得复用 a/b-ev0')
+  for (const item of items) {
+    const text = walk(item).filter((n) => n.type === '#text').map((n) => n.text).join(' | ')
+    const w = watchers.find((candidate) => text.includes(candidate.sessionId.replace(/^session-/, '')))
+    assert.ok(w, '事件正文必须能定位 session：' + text)
+    for (const part of [w.sessionId, w.repo, '7', at]) assert.ok(String(item.key).includes(part), 'key 缺 ' + part + '：' + item.key)
+    assert.ok(String(item.key).includes(text.includes('wake-') ? 'wake' : 'poll'), 'key 要含事件 kind')
+  }
+})
+
+test('W6：最近被过滤按全局时间排序，摘要与展开均含 repo/session/编号/原因/time，key 不冲突', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const base = Date.parse('2026-11-06T00:00:00.000Z')
+  const definitions = [
+    ['same/repo', 'session-alpha', [0, 5]],
+    ['same/repo', 'session-beta', [1, 4]],
+    ['other/repo', 'session-gamma', [2, 3]],
+  ]
+  const watchers = definitions.map(([repo, sessionId, offsets]) => watcher(repo, {
+    id: repo + '#' + sessionId, sessionId,
+    filteredLog: offsets.map((offset) => ({
+      at: new Date(base + offset * 1000).toISOString(), number: 7,
+      title: 'filtered-' + offset, reason: offset % 2 ? '机器人' : '草稿 PR',
+    })),
+  }))
+  const expected = watchers.flatMap((w) => w.filteredLog.map((entry) => ({ watcher: w, entry })))
+    .sort((a, b) => String(b.entry.at).localeCompare(String(a.entry.at)))
+  const snap = {
+    loading: false, error: null,
+    body: { sessionGoal: null, sessionTitle: 'x', credentials: { token: 'configured' }, watchers },
+  }
+  const opened = walk(render(desk, [...deskQueue(snap), true]))
+  const list = opened.find((n) => n.type === 'ul' && n.props.className === 'dt-plain-list'
+    && n.props.children.some((item) => String(item.key).includes('filtered') || typeof item.props.children[0] === 'string' && item.props.children[0].startsWith('#')))
+  assert.ok(list, '展开后必须有过滤记录列表')
+  const items = list.props.children.filter((n) => n.type === 'li')
+  assert.equal(items.length, expected.length)
+  assert.equal(new Set(items.map((item) => item.key)).size, items.length, '同编号跨 session 的过滤 key 不得重复')
+  const texts = items.map((item) => walk(item).filter((n) => n.type === '#text').map((n) => n.text).join(' | '))
+  expected.forEach(({ watcher: w, entry }, index) => {
+    const session = w.sessionId.replace(/^session-/, '').slice(0, 8)
+    for (const part of [w.repo, session, '#' + entry.number, entry.title, entry.reason, entry.at]) {
+      assert.ok(texts[index].includes(part), '第 ' + index + ' 条缺 ' + part + '：' + texts[index])
+    }
+    for (const part of [w.sessionId, w.repo, String(entry.number), 'filtered', entry.at]) {
+      assert.ok(String(items[index].key).includes(part), '过滤 key 缺 ' + part + '：' + items[index].key)
+    }
+    const times = walk(items[index]).filter((n) => n.type === 'time')
+    assert.equal(times.length, 1, '每条过滤记录必须有一个语义化 time')
+    assert.equal(times[0].props.dateTime, entry.at)
+  })
+  const closed = walk(render(desk, deskQueue(snap)))
+  const closedText = closed.filter((n) => n.type === '#text').map((n) => n.text).join(' | ')
+  assert.ok(closedText.includes('same/repo · 会话 alpha'), '折叠摘要也要取全局最新并带来源')
+  assert.ok(!closedText.includes('[object Object]'), '结构化记录不能泄漏成 [object Object]')
+})
+
+test('W8：搜索/非搜索筛选/零守空态分流，恢复按钮真实清除全部条件', () => {
+  const { registrations, render, stateCalls, resetStateCalls } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const snap = {
+    loading: false, error: null,
+    body: {
+      sessionGoal: null, sessionTitle: 'x', credentials: { token: 'configured' },
+      watchers: [watcher('ok/one', {
+        id: 'ok/one#s1', sessionId: 's1', repoAccess: { repo: 'ok/one', push: true, hasIssues: true },
+      })],
+    },
+  }
+  const textOf = (nodes) => nodes.filter((n) => n.type === '#text').map((n) => n.text).join(' | ')
+  const clear = (nodes) => nodes.find((n) => n.type === 'button'
+    && (n.props.children || []).filter((child) => typeof child === 'string').join('') === '清除全部筛选')
+  for (const [name, index, value] of [['徽章', 16, '只读'], ['状态', 18, 'error'], ['问题', 17, true]]) {
+    const queue = deskQueue(snap)
+    queue[index] = value
+    const nodes = walk(render(desk, queue))
+    const text = textOf(nodes)
+    assert.ok(text.includes('没有符合当前筛选条件的主理鱼。'), name + '筛选要说筛选空态：' + text.slice(-500))
+    assert.ok(!text.includes('没有匹配「」'), name + '筛选不得伪造空搜索词')
+    assert.ok(!text.includes('点上面「全部」'), name + '筛选不得指向不存在的全部')
+    const button = clear(nodes)
+    assert.ok(button, name + '筛选空态必须有真实恢复按钮')
+    resetStateCalls()
+    button.props.onClick()
+    assert.deepEqual(stateCalls().map((call) => [call.index, call.next]), [
+      [16, null], [18, null], [10, ''], [17, false], [15, null],
+    ], name + '筛选恢复必须清掉所有叠加条件')
+  }
+
+  for (const withBadge of [false, true]) {
+    const queue = deskQueue(snap, null, {}, 'overview', 'not-found')
+    if (withBadge) queue[16] = '只读'
+    const nodes = walk(render(desk, queue))
+    const text = textOf(nodes)
+    assert.ok(text.includes('没有匹配「not-found」的主理鱼。'), '搜索空态要保留真实搜索词')
+    assert.ok(clear(nodes), '搜索' + (withBadge ? '+筛选' : '') + '空态必须能恢复')
+  }
+
+  const empty = { ...snap, body: { ...snap.body, watchers: [] } }
+  const zeroText = textOf(walk(render(desk, deskQueue(empty))))
+  assert.ok(zeroText.includes('三步让这个会话开始盯办'), '真正零守仍走上手引导')
+  assert.ok(!zeroText.includes('没有匹配「」') && !zeroText.includes('清除全部筛选'), '无筛选零守不得伪装成筛选无结果')
+})
