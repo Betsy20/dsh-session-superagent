@@ -347,6 +347,7 @@ window.__ModuleLoader__.load({
     let hostUi = null
     let hostButton = null
     let hostInput = null
+    let hostSwitch = null
     let hostSegmentedTabs = null
     let hostTooltip = null
     let hostOrbit = null
@@ -357,6 +358,8 @@ window.__ModuleLoader__.load({
       hostButton = primitives.Button || null
       // Input 同样独立探测：缺导出只回退共享输入框，不影响 Button/Tabs 等其它原语。
       hostInput = primitives.Input || null
+      // Switch 同样独立探测：缺导出只回退共享 Toggle，不影响其它原语。
+      hostSwitch = primitives.Switch || null
       // SegmentedTabs 同样独立探测：缺导出时完整保留下方 SegTabs，不影响其它原语。
       hostSegmentedTabs = primitives.SegmentedTabs || null
       if (primitives && primitives.Modal && primitives.Toast && primitives.IconWarningOutlineMedium) {
@@ -368,6 +371,7 @@ window.__ModuleLoader__.load({
       hostUi = null
       hostButton = null
       hostInput = null
+      hostSwitch = null
       hostSegmentedTabs = null
       hostTooltip = null
     }
@@ -769,9 +773,14 @@ window.__ModuleLoader__.load({
         h('input', { ...rest, className }))
     }
 
-    function Toggle({ checked, onChange, label, id, disabled }) {
+    function Toggle({ checked, onChange, label, id, disabled, title }) {
+      if (hostSwitch) {
+        const control = h(hostSwitch, { checked: !!checked, onChange, label, disabled, title })
+        // 官方 Switch 不接收 id；仅用无样式 span 保留调用方 id，官方仍拥有 switch 语义与交互。
+        return id === undefined ? control : h('span', { id }, control)
+      }
       return h('button', {
-        id, type: 'button', role: 'switch', 'aria-checked': !!checked, 'aria-label': label,
+        id, type: 'button', role: 'switch', 'aria-checked': !!checked, 'aria-label': label, title,
         className: 'dt-switch', disabled, onClick: () => onChange(!checked),
       }, h('span', { className: 'dt-switch-thumb' }))
     }
