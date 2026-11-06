@@ -17,6 +17,10 @@ tmp-*.md
 .gate-lock/
 .gate-recover/
 preview-light*
+.tmp-*
+.tmp-*/
+tmp-*
+*.b64
 
 # 门禁的临时注入产物（verify-gates / regression-cases 会建）
 zz-injected*

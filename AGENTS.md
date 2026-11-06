@@ -94,3 +94,40 @@
 | `client.js` | 面板 + 弹层 + 样式表，改完必须出图 |
 | `cordis.patch.yml` | 改行 id 视为 major |
 | 文档 | 跟随代码同步更新；**索引总数要跟着改** |
+
+## 六、开发与验收
+
+```sh
+npm test                    # 全量单测（必须离线开关；裸 node --test 会真去 spawn gh）
+node scripts/preflight.mjs  # 41 项门禁
+node scripts/ui-audit.mjs   # UI 11 项
+node scripts/render-preview.mjs preview.html
+```
+
+- 改 `client.js` 必须出图：`render-preview.mjs` 双主题；真实交互用 `scripts/verify-panel-chromium.mjs`（`ego-browser nodejs < ...`）。
+- 新增 `useState` 只能在组件 hook 队列末尾追加，并同步 `deskQueue` / 预览 `deskHooks`。
+- 改 UI 先读 `$DSH_HOME/DSH-UI-official.md` 与 `$DSH_HOME/dsh-ui-official/`；不要手画官方组件。
+- 新增/删除文档后跑 `check-docs.mjs`；README 单测数由 `audit-readme-tests.mjs` 校验。
+
+## 七、工具与 JSON 契约
+
+- 工具输出默认文本；`format: 'json'` 返回 `{ schemaVersion: 1, ... }`。
+- 字段稳定性见 `docs/json-契约.md` 与 `test/fixtures/contract-stability.json`；改字段两边一起改。
+- 写操作必须 `confirm: true`；凭证只走 `gh` / Gitee token，不返回模型。
+
+## 八、故障排查（agent 版）
+
+- 面板空白 / 工具消失 / 路由 404：先看 profile 是否完整，`pnpm run sync:profile:check`；客户用 `dsh plugin ... add` 重装。
+- 代码改了不生效：`file:` 硬链接可能断，`sync:profile:repair`；服务端改动要重载宿主。
+- 轮询报 `inactive context`：旧实例未释放，重载宿主；不要用定时器直接读 `ctx.agents`。
+- 会话已删除：`watch_status` 的 `lastError` 会写；不要盲目重建 watcher。
+- 完整真机清单：`docs/真机验证清单.md`。
+
+## 九、发布
+
+`UPDATING.md` 是唯一流程：五处版本 + CHANGELOG + tag + `release-gh.mjs --latest` + npm；发布前 `preflight` 全绿。
+
+## 十、当前基线
+
+0.10.1；全量 **689/689**、preflight **41/41**、UI **11/11**、真实 Chromium **47/47**。
+未验：真实 DSH WebView 重载后的读屏 / 触摸 / IME、真实 GitHub/Gitee 写操作。没有实测不得写成通过。
