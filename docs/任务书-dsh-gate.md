@@ -30,7 +30,7 @@ packages/
   dsh-gate/
     package.json                     # @mycf711/dsh-gate
     lib/index.js                     # 稳定接口 + 四层配置 + 确定性规则
-    lib/semantic.js                  # 可选语义复审 / 提示词润色
+    packages/dsh-gate/lib/semantic.js                  # 可选语义复审 / 提示词润色
     bin/gate.mjs                     # CLI：--trigger --body-file --current --repo
     gates/default.json               # 默认规则（随包发）
     test/*.test.mjs

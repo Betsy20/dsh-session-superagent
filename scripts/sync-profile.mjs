@@ -14,7 +14,7 @@
 //   node scripts/sync-profile.mjs --repair   断链也重建硬链接，并清理 profile 里的陈旧文件
 //   node scripts/sync-profile.mjs --check    只检查：有缺失/断链/陈旧就 exit 1（给 CI 用）
 //   node scripts/sync-profile.mjs --dir <path>  指定 profile 安装目录
-import { existsSync, linkSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync } from 'node:fs'
+import { existsSync, linkSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, cpSync, rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -35,7 +35,7 @@ const DEST = dirFlag >= 0 ? args[dirFlag + 1] : DEFAULT_PROFILE
 /** 运行时要用的文件（不含 docs / test / scripts 这些开发件）。 */
 const TARGETS = [
   'client.js', 'ui-host-primitives.js', 'ui-orbit-popover.js', 'package.json', 'cordis.patch.yml', 'README.md', 'CHANGELOG.md', 'LICENSE',
-  'lib/index.js', 'lib/watch.js', 'lib/gh-format.js', 'lib/gitee.js', 'lib/gates.js', 'lib/redact.js', 'lib/body.js', 'lib/state-migration.js', 'lib/update.js', 'lib/semver.js', 'gates/default.json',
+  'lib/index.js', 'lib/watch.js', 'lib/gh-format.js', 'lib/gitee.js', 'lib/gates.js', 'lib/redact.js', 'lib/body.js', 'lib/state-migration.js', 'lib/update.js', 'lib/semver.js',
 ]
 
 if (!existsSync(DEST)) {
@@ -74,6 +74,29 @@ for (const rel of TARGETS) {
     }
   } else {
     console.log('注意     ' + rel + '（inode 不同：内容改动不会同步到 profile，用 --repair 重建）')
+  }
+}
+
+// 门禁子包：主插件静态 import @mycf711/dsh-gate，profile 里必须有这一份。
+// 硬链只对文件生效，目录用递归复制；版本不同就整体替换（保留 package 结构）。
+const gateSrc = join(ROOT, 'packages', 'dsh-gate')
+const gateDst = join(DEST, 'node_modules', '@mycf711', 'dsh-gate')
+if (existsSync(gateSrc)) {
+  const same = existsSync(gateDst)
+    && existsSync(join(gateDst, 'package.json'))
+    && readFileSync(join(gateSrc, 'package.json'), 'utf8') === readFileSync(join(gateDst, 'package.json'), 'utf8')
+  if (!same) {
+    drift.missing.push('node_modules/@mycf711/dsh-gate')
+    if (REPAIR && !CHECK) {
+      try {
+        rmSync(gateDst, { recursive: true, force: true })
+        cpSync(gateSrc, gateDst, { recursive: true })
+        linked += 1
+        console.log('copied   node_modules/@mycf711/dsh-gate')
+      } catch (error) {
+        console.log('复制失败：node_modules/@mycf711/dsh-gate — ' + (error && error.message))
+      }
+    }
   }
 }
 
