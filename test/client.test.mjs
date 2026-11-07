@@ -488,7 +488,7 @@ test('设置页用官方左栏导航（dt-settings + dt-settings-nav）', () => 
   const grid = nodes.filter((n) => String(n.props && n.props.className || '').includes('dt-settings'))
   assert.ok(grid.length >= 1, '设置页要用 dt-settings 网格')
   const links = nodes.filter((n) => String(n.props && n.props.className || '').includes('dt-settings-link'))
-  assert.equal(links.length, 5, '左栏应有 5 个分区（来源/凭证/版本与更新/诊断/goal）')
+  assert.equal(links.length, 6, '左栏应有 6 个分区（来源/凭证/门禁/版本与更新/诊断/goal）')
   const current = links.filter((n) => n.props['aria-current'] === 'page')
   assert.equal(current.length, 1, '当前分区要有 aria-current=page')
 })
@@ -3284,4 +3284,318 @@ test('W14：更新检查失败有 alert，重新检查成功后移除', async ()
   assert.equal(panel.nodes().filter((node) => node.props && node.props.role === 'alert' && a11yText(node).includes('npm failed')).length, 1)
   assert.equal(await retry.props.onClick(), true)
   assert.equal(panel.nodes().filter((node) => node.props && node.props.role === 'alert' && a11yText(node).includes('npm failed')).length, 0)
+})
+
+// ── G3：设置 → 门禁 ─────────────────────────────────────────────────────────────
+// GET /gates 的形状照抄 lib/index.js 的四条路由：{ ok, repo, sources, config, scopes }。
+// 规则取的是 packages/dsh-gate/gates/default.json 里真实的两条 —— 断言的就是客户真会看到的文案。
+const GATE_SECRET_RULE = {
+  id: 'secret',
+  label: '禁止凭证与密钥',
+  description: '回复里不能出现 token、私钥、Authorization 或 password 赋值。',
+  severity: 'error',
+  triggers: ['issue.reply', 'pr.reply', 'merge', 'release'],
+  type: 'regex',
+  pattern: 'ghp_[A-Za-z0-9]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----',
+  message: '删掉凭证；需要引用时写 <redacted>。',
+}
+const GATE_PATH_RULE = {
+  id: 'abs-path',
+  label: '禁止本机绝对路径',
+  description: '不要贴 D: 盘或 /Users/ 这类本机路径。',
+  severity: 'warn',
+  triggers: ['issue.reply', 'pr.reply'],
+  type: 'regex',
+  pattern: '(?<![A-Za-z0-9])[A-Za-z]:[\\\\/]',
+  message: '改成仓库相对路径，或只描述文件位置。',
+}
+
+const gateApiPayload = () => ({
+  ok: true,
+  repo: 'E:/work/demo',
+  sources: [{ name: 'default', path: 'packages/dsh-gate/gates/default.json' }],
+  config: {
+    version: 1,
+    name: 'default',
+    rules: [GATE_SECRET_RULE, GATE_PATH_RULE],
+    semantic: {
+      enabled: false,
+      model: 'group/deepseek-v4.1-flash-1017',
+      prompt: '你是代码仓库回复审核员。',
+      baseURL: 'http://127.0.0.1:3425/v1',
+    },
+  },
+  scopes: {
+    default: { path: 'packages/dsh-gate/gates/default.json', exists: true, config: { rules: [GATE_SECRET_RULE, GATE_PATH_RULE] } },
+    user: { path: '/home/u/.dsh/state/session-superagent/gates.json', exists: false, config: null },
+    project: { path: 'E:/work/demo/.superagent/gates.json', exists: false, config: null },
+    local: { path: 'E:/work/demo/.superagent/gates.local.json', exists: false, config: null },
+  },
+})
+
+const gateSnapshot = () => ({
+  loading: false,
+  error: null,
+  body: {
+    credentials: { token: 'none', sshKeyPath: 'none', ghConfigDir: 'none', giteeToken: 'none' },
+    gh: { ok: true, version: '2.0' },
+    defaults: { sessionMaxWakes: 12, maxWakesPerHour: 6, isolateKeepDays: 3, batchLimit: 5 },
+    // workdir 是「项目层」的仓库路径来源：门禁 POST 要带上它，服务端才知道写到哪个仓库
+    watchers: [watcher('a/b', { id: 'a/b#s1', workdir: 'E:/work/demo' })],
+  },
+})
+
+/**
+ * 门禁页的状态槽 = 主面板 23 个 + GateSettings 自己的 11 个。
+ * 顺序必须与 client.js 里 GateSettings 的 useState 一致（位置化队列只能在末尾追加）：
+ * data / loadError / scope / draft / advanced / sample / trigger / preview / models / busy / status
+ */
+const gateQueue = (over = {}) => {
+  const queue = deskQueue(gateSnapshot(), null, {}, 'settings')
+  queue[14] = 'gate'
+  return [...queue,
+    'data' in over ? over.data : gateApiPayload(),
+    over.loadError || '',
+    over.scope || 'user',
+    'draft' in over ? over.draft : null,
+    over.advanced || '',
+    over.sample || '',
+    over.trigger || 'issue.reply',
+    'preview' in over ? over.preview : null,
+    over.models || { list: [], loading: false, error: '' },
+    over.busy || '',
+    'status' in over ? over.status : null]
+}
+
+// a11yText 吃的是「树」，喂已经 walk 过的节点数组只会得到空串 —— 这里按节点取文案。
+const gateText = (nodes) => nodes.filter((node) => node.type === '#text').map((node) => node.text).join(' | ')
+
+const gateDraft = (rules, semantic) => ({
+  rules: rules || [GATE_SECRET_RULE, GATE_PATH_RULE].map((rule) => ({ ...rule, enabled: true })),
+  semantic: semantic || { enabled: true, model: 'group/deepseek-v4.1-flash-1017', prompt: '审核提示词', off: false },
+})
+
+test('设置页左栏多了「门禁」，点它切到门禁分区', () => {
+  const { registrations, render, stateCalls, resetStateCalls } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const nodes = walk(render(desk, deskQueue(gateSnapshot(), null, {}, 'settings')))
+  const nav = nodes.filter((n) => n.type === 'button' && (n.props.children || []).join('') === '门禁')
+  assert.equal(nav.length, 1, '设置页左栏要有「门禁」')
+  resetStateCalls()
+  nav[0].props.onClick()
+  assert.deepEqual(stateCalls().map((call) => call.next), ['gate'], '点「门禁」要写入分区 key')
+})
+
+test('门禁作用域：默认只读，我的 / 项目可改', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const readOnlyNodes = walk(render(desk, gateQueue({ scope: 'default' })))
+  const readOnlySwitches = readOnlyNodes.filter((n) => n.type === 'button' && n.props.role === 'switch'
+    && String(n.props.id || '').startsWith('gate-rule-'))
+  assert.equal(readOnlySwitches.length, 2, '两条规则各一个开关')
+  assert.ok(readOnlySwitches.every((node) => node.props.disabled === true), '默认层只读：规则开关都要禁用')
+  const readOnlySemantic = readOnlyNodes.filter((n) => n.type === 'button' && n.props.id === 'gate-semantic-enabled')
+  assert.equal(readOnlySemantic.length, 1, '默认层也要能看到语义复审的开关')
+  assert.equal(readOnlySemantic[0].props.disabled, true, '默认层只读：语义复审开关也禁用')
+  assert.equal(readOnlyNodes.filter((n) => n.type === 'button' && (n.props.children || []).join('') === '保存').length, 0,
+    '默认层不能保存')
+  assert.ok(gateText(readOnlyNodes).includes('默认规则随包发布'), '默认层要说清只读')
+
+  const editable = walk(render(desk, gateQueue({ scope: 'user' })))
+  const toggles = editable.filter((n) => n.type === 'button' && n.props.role === 'switch'
+    && String(n.props.id || '').startsWith('gate-rule-'))
+  assert.ok(toggles.length === 2 && toggles.every((node) => node.props.disabled === false), '我的层规则开关可点')
+  assert.equal(editable.filter((n) => n.type === 'button' && (n.props.children || []).join('') === '保存').length, 1,
+    '我的层要有保存')
+  assert.ok(gateText(editable).includes('用户全局配置'), '我的层要说清写到哪')
+  assert.ok(gateText(editable).includes('/home/u/.dsh/state/session-superagent/gates.json'), '要把配置文件路径显示出来')
+})
+
+test('门禁作用域切换：点「项目」写入 scope=project', () => {
+  const { registrations, render, stateCalls, resetStateCalls } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const nodes = walk(render(desk, gateQueue({ scope: 'user' })))
+  const radios = nodes.filter((n) => n.type === 'button' && n.props.role === 'radio')
+  assert.deepEqual(radios.map((n) => (n.props.children || []).join('')), ['默认（只读）', '我的', '项目'],
+    '三个作用域都要有')
+  resetStateCalls()
+  radios[2].props.onClick()
+  assert.ok(stateCalls().some((call) => call.next === 'project'), '点「项目」要写入 scope=project')
+  const project = walk(render(desk, gateQueue({ scope: 'project' })))
+  assert.ok(gateText(project).includes('跟着仓库走'), '项目层要说清写到哪')
+  assert.ok(gateText(project).includes('项目层只能关闭语义复审'), '项目层不能换模型：要说明')
+})
+
+test('门禁规则卡：中文 label / 说明，正则默认收在「高级」里', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const closed = walk(render(desk, gateQueue({ scope: 'user' })))
+  const closedText = gateText(closed)
+  assert.ok(closedText.includes('禁止凭证与密钥'), '规则 label 要中文可读：' + closedText.slice(0, 200))
+  assert.ok(closedText.includes('回复里不能出现 token'), '规则说明要中文可读')
+  assert.ok(!closedText.includes('ghp_[A-Za-z0-9]{20,}'), '正则默认不展开：' + closedText.slice(0, 240))
+  const disclosure = closed.filter((n) => n.props && n.props.role === 'button' && n.props['aria-controls'] === 'gate-rule-secret-body')
+  assert.equal(disclosure.length, 1, '每条规则要有「高级」折叠行')
+  assert.equal(disclosure[0].props['aria-expanded'], false, '默认收起')
+  assert.ok(a11yText(disclosure[0]).includes('高级'), '折叠行要写「高级」')
+
+  const opened = walk(render(desk, gateQueue({ scope: 'user', advanced: 'secret' })))
+  const openedText = gateText(opened)
+  assert.ok(openedText.includes('ghp_[A-Za-z0-9]{20,}'), '展开「高级」后才显示正则')
+  assert.ok(openedText.includes('删掉凭证；需要引用时写 <redacted>。'), '高级里要有命中后提示')
+})
+
+test('门禁保存：只把改过的规则 POST 到 /gates，成功要有回执', async () => {
+  const requests = []
+  const panel = loadStatefulPanel({
+    queue: gateQueue({
+      scope: 'user',
+      draft: gateDraft([
+        { ...GATE_SECRET_RULE, enabled: false },
+        { ...GATE_PATH_RULE, enabled: true, message: '改成仓库相对路径。' },
+      ]),
+    }),
+    fetch: (url, init = {}) => {
+      requests.push({ url: String(url), init })
+      const parsed = new URL(String(url), 'http://fixture.local')
+      if (parsed.pathname.endsWith('/gates') && init.method === 'POST') {
+        return Promise.resolve(raceResponse({ ok: true, scope: 'user', path: '/home/u/.dsh/state/session-superagent/gates.json', config: {} }))
+      }
+      return Promise.resolve(raceResponse(gateApiPayload()))
+    },
+  })
+  await panel.button('保存').props.onClick()
+  const post = requests.find((item) => item.url.includes('/gates') && item.init.method === 'POST')
+  assert.ok(post, '必须真的 POST /gates')
+  const payload = JSON.parse(post.init.body)
+  assert.equal(payload.scope, 'user', '写到「我的」这一层')
+  assert.equal(payload.repo, 'E:/work/demo', '项目层要知道写到哪个仓库')
+  assert.deepEqual(payload.config.rules.map((rule) => rule.id), ['abs-path'], '只写跟下层不一样的规则，不把默认规则冻进本层')
+  assert.equal(payload.config.rules[0].message, '改成仓库相对路径。')
+  assert.deepEqual(payload.config.semantic, { enabled: true, model: 'group/deepseek-v4.1-flash-1017', prompt: '审核提示词' })
+  assert.ok(panel.nodes().some((node) => node.props && node.props.role === 'status' && /已保存/.test(String(node.props.children))),
+    '保存成功要有回执')
+})
+
+test('门禁保存失败：说清原因，不报成功', async () => {
+  const panel = loadStatefulPanel({
+    queue: gateQueue({
+      scope: 'user',
+      draft: gateDraft([{ ...GATE_PATH_RULE, enabled: true, message: '改过的文案' }]),
+    }),
+    fetch: (url, init = {}) => {
+      const parsed = new URL(String(url), 'http://fixture.local')
+      if (parsed.pathname.endsWith('/gates') && init.method === 'POST') {
+        return Promise.resolve(raceResponse({ ok: false, error: '规则 id 重复：secret' }, 400))
+      }
+      return Promise.resolve(raceResponse(gateApiPayload()))
+    },
+  })
+  await panel.button('保存').props.onClick()
+  const nodes = panel.nodes()
+  assert.ok(nodes.some((node) => node.props && node.props.role === 'alert' && /规则 id 重复/.test(a11yText(node))),
+    '保存失败要有 alert 说明原因')
+  assert.ok(!nodes.some((node) => node.props && node.props.role === 'status' && /已保存/.test(String(node.props.children))),
+    '失败不能报成功')
+})
+
+test('门禁预览：请求带触发/正文/语义开关，命中与通过都有明确结果', async () => {
+  const requests = []
+  const panel = loadStatefulPanel({
+    queue: gateQueue({
+      scope: 'user',
+      sample: '这里有 ghp_abcdefghijklmnopqrstuvwxyz0123',
+      trigger: 'merge',
+      draft: gateDraft(),
+    }),
+    fetch: (url, init = {}) => {
+      requests.push({ url: String(url), init })
+      const parsed = new URL(String(url), 'http://fixture.local')
+      if (parsed.pathname.endsWith('/gates/preview')) {
+        return Promise.resolve(raceResponse({
+          ok: false,
+          trigger: 'merge',
+          hits: [{ id: 'secret', label: '禁止凭证与密钥', severity: 'error', message: '删掉凭证；需要引用时写 <redacted>。' }],
+          semantic: { skipped: true },
+        }))
+      }
+      return Promise.resolve(raceResponse(gateApiPayload()))
+    },
+  })
+  await panel.button('预览').props.onClick()
+  const post = requests.find((item) => item.url.includes('/gates/preview'))
+  assert.ok(post, '必须真的调 /gates/preview')
+  const payload = JSON.parse(post.init.body)
+  assert.equal(payload.trigger, 'merge')
+  assert.equal(payload.body, '这里有 ghp_abcdefghijklmnopqrstuvwxyz0123', '正文要原样带上')
+  assert.equal(payload.semantic, true, '合并 + 开着语义复审时要把开关带上')
+  assert.ok(gateText(panel.nodes()).includes('命中 1 条'), '命中要给出条数：' + gateText(panel.nodes()).slice(0, 200))
+
+  const passed = loadStatefulPanel({
+    queue: gateQueue({ scope: 'user', preview: { ok: true, hits: [], semantic: { skipped: true } } }),
+    fetch: () => Promise.resolve(raceResponse(gateApiPayload())),
+  })
+  assert.ok(gateText(passed.nodes()).includes('通过：没有阻断项'), '没命中要说通过')
+
+  const failed = loadStatefulPanel({
+    queue: gateQueue({ scope: 'user', preview: { ok: false, hits: [], failed: 'HTTP 500' } }),
+    fetch: () => Promise.resolve(raceResponse(gateApiPayload())),
+  })
+  assert.ok(failed.nodes().some((node) => node.props && node.props.role === 'alert' && /预览失败/.test(a11yText(node))),
+    '预览失败要有 alert')
+})
+
+test('门禁「优化提示词」：成功写回输入框，失败给错误', async () => {
+  const requests = []
+  const okPanel = loadStatefulPanel({
+    queue: gateQueue({ scope: 'user', draft: gateDraft(null, { enabled: true, model: 'm-1', prompt: '旧提示词', off: false }) }),
+    fetch: (url, init = {}) => {
+      requests.push({ url: String(url), init })
+      const parsed = new URL(String(url), 'http://fixture.local')
+      if (parsed.pathname.endsWith('/gates/optimize')) return Promise.resolve(raceResponse({ ok: true, text: '更清楚的提示词' }))
+      return Promise.resolve(raceResponse(gateApiPayload()))
+    },
+  })
+  await okPanel.button('优化提示词').props.onClick()
+  const post = requests.find((item) => item.url.includes('/gates/optimize'))
+  assert.ok(post, '必须真的调 /gates/optimize')
+  assert.deepEqual(JSON.parse(post.init.body), { repo: 'E:/work/demo', prompt: '旧提示词', model: 'm-1' })
+  const area = okPanel.nodes().find((node) => node.type === 'textarea' && node.props.id === 'gate-semantic-prompt')
+  assert.equal(area.props.value, '更清楚的提示词', '成功要把新提示词写回输入框')
+  assert.ok(gateText(okPanel.nodes()).includes('提示词已更新'), '成功要有回执')
+
+  const badPanel = loadStatefulPanel({
+    queue: gateQueue({ scope: 'user', draft: gateDraft() }),
+    fetch: (url) => {
+      const parsed = new URL(String(url), 'http://fixture.local')
+      if (parsed.pathname.endsWith('/gates/optimize')) {
+        return Promise.resolve(raceResponse({ ok: false, error: '提示词润色失败：HTTP 502' }, 502))
+      }
+      return Promise.resolve(raceResponse(gateApiPayload()))
+    },
+  })
+  await badPanel.button('优化提示词').props.onClick()
+  assert.ok(badPanel.nodes().some((node) => node.props && node.props.role === 'alert' && /提示词润色失败/.test(a11yText(node))),
+    '优化失败要有 alert')
+})
+
+test('门禁模型下拉：列表来自 /gates/models，当前值不会丢', () => {
+  const { registrations, render } = loadClient()
+  const desk = registrations.find((r) => r.opts.id === 'session-superagent-desk')
+  const nodes = walk(render(desk, gateQueue({
+    scope: 'user',
+    models: { list: [{ id: 'gpt-x', label: 'GPT X' }], loading: false, error: '' },
+    draft: gateDraft(null, { enabled: true, model: 'old-model', prompt: 'p', off: false }),
+  })))
+  const select = nodes.find((n) => n.type === 'select' && n.props.id === 'gate-semantic-model')
+  assert.ok(select, '要有模型下拉')
+  assert.deepEqual((select.props.children || []).map((option) => option.props.value), ['old-model', 'gpt-x'],
+    '当前值排第一，网关列表跟在后面')
+  assert.equal(select.props.disabled, false, '我的层可以换模型')
+
+  const empty = walk(render(desk, gateQueue({ scope: 'user', draft: gateDraft(null, { enabled: true, model: '', prompt: 'p', off: false }) })))
+  const emptySelect = empty.find((n) => n.type === 'select' && n.props.id === 'gate-semantic-model')
+  assert.deepEqual((emptySelect.props.children || []).map((option) => option.props.value), [''],
+    '取不到模型时也要有一个可显示的项')
+  assert.ok(gateText(empty).includes('读取模型列表'), '要有重新读取的入口')
 })

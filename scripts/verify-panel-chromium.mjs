@@ -844,7 +844,7 @@ try {
     && settingsEntry.activeIsSelected && settingsEntry.activeConnected, settingsEntry)
   const settingsNav = await page.evaluate(() => [...document.querySelectorAll('.dt-settings-link')].map((node) => node.textContent))
   check('settings 左 nav 恰好五个既定分区', JSON.stringify(settingsNav)
-    === JSON.stringify(['来源', '凭证', '版本与更新', '分诊信号', '会话 goal']), settingsNav)
+    === JSON.stringify(['来源', '凭证', '门禁', '版本与更新', '分诊信号', '会话 goal']), settingsNav)
 
   const source = await page.evaluate(() => ({
     current: document.querySelector('.dt-settings-link[aria-current=page]')?.textContent,

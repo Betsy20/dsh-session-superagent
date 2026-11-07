@@ -418,7 +418,7 @@ window.__ModuleLoader__.load({
     }
 
     // 客户端版本探针：每次模块加载写一次，用来确认浏览器里跑的是哪一版
-    const CLIENT_VERSION = '0.10.5'
+    const CLIENT_VERSION = '0.10.6'
     // SEMVER_COMPARATOR_SOURCE_START
     // This block is duplicated verbatim in client.js because the browser UMD cannot import ESM.
     // test/update-semver.test.mjs audits both copies and exercises their behavior.
@@ -938,7 +938,13 @@ window.__ModuleLoader__.load({
 
     /** 官方 SegmentedControl：单选分段（与 SegTabs 的页签语义不同，用于表单内的互斥选择）。 */
     function SegmentedControl({ options, value, onChange, label, disabled }) {
-      return h('div', { className: 'dt-segmented', role: 'radiogroup', 'aria-label': label },
+      // 官方分段控件是一行等宽格；`dt-segmented` 本身没写列模板，不补就会竖排（grid 默认单列）。
+      return h('div', {
+        className: 'dt-segmented',
+        role: 'radiogroup',
+        'aria-label': label,
+        style: { gridTemplateColumns: 'repeat(' + options.length + ', minmax(0, 1fr))' },
+      },
         options.map((option) => h('button', {
           key: option.value, type: 'button', role: 'radio',
           'aria-checked': value === option.value, 'aria-selected': value === option.value,
@@ -2140,6 +2146,444 @@ window.__ModuleLoader__.load({
       }))
     }
 
+    // ── G3 · 设置 → 门禁 ────────────────────────────────────────────────────────
+    // 门禁是内容层检查：只看要发出去的正文，不改工具权限（权限层留给官方那套）。
+    // 所有状态都挂在这个子组件里 —— 主面板的 useState 队列按位置取值，
+    // 往主面板加槽位会让一批用例静默错位（AGENTS 坑 9）。
+    const GATE_SCOPES = [
+      { value: 'default', label: '默认（只读）' },
+      { value: 'user', label: '我的' },
+      { value: 'project', label: '项目' },
+    ]
+    const GATE_LAYER_LABELS = { default: '默认', user: '我的', project: '项目' }
+    const GATE_SCOPE_HINTS = {
+      default: '默认规则随包发布，这里只读；要调整就切到「我的」或「项目」。',
+      user: '「我的」写到用户全局配置，本机所有仓库都生效。',
+      project: '「项目」写到这个仓库的 .superagent/gates.json，跟着仓库走。',
+    }
+    const GATE_TRIGGER_LABELS = {
+      'issue.reply': '议题回复',
+      'pr.reply': 'PR 回复',
+      'pr.handle': '处理 PR',
+      merge: '合并',
+      release: '发布',
+    }
+    const GATE_TYPE_LABELS = {
+      regex: '正则匹配',
+      contains: '包含指定文字',
+      maxLength: '长度上限',
+      nonEmpty: '内容不能为空',
+      'foreign-ref': '只引用当前编号',
+    }
+    // 语义复审只对这两类触发生效（G1 契约）；面板只如实说明，不另开判断。
+    const GATE_SEMANTIC_TRIGGERS = ['merge', 'release']
+
+    /** 规则的可比较快照：只比会落盘的字段，`enabled` 是面板本地状态，不参与。 */
+    const gateRuleKey = (rule) => JSON.stringify([
+      rule.id, rule.label, rule.description || '', rule.severity || 'error',
+      rule.triggers || null, rule.type, rule.pattern === undefined ? null : rule.pattern,
+      rule.flags || '', rule.value === undefined ? null : rule.value, rule.message || '',
+    ])
+
+    /** 本层之下最近的一版同名规则；返回 null = 这条规则是本层新增的。 */
+    const gateInheritedRule = (data, scope, id) => {
+      const chain = scope === 'user' ? ['default'] : scope === 'project' ? ['default', 'user'] : []
+      let found = null
+      for (const name of chain) {
+        const layer = data && data.scopes && data.scopes[name] && data.scopes[name].config
+        const rule = layer && Array.isArray(layer.rules) ? layer.rules.find((item) => item && item.id === id) : null
+        if (rule) found = rule
+      }
+      return found
+    }
+
+    /** 这条规则被哪几层定义（卡片上的来源标签）。 */
+    const gateLayerNames = (data, ruleId) => ['default', 'user', 'project'].filter((name) => {
+      const layer = data && data.scopes && data.scopes[name] && data.scopes[name].config
+      const rules = layer && Array.isArray(layer.rules) ? layer.rules : []
+      return rules.some((rule) => rule && rule.id === ruleId)
+    })
+
+    /** 某一层的语义复审配置：本层写过就用本层的，没写就继承生效值。 */
+    const gateSemanticOf = (data, scope) => {
+      const inherited = (data && data.config && data.config.semantic) || {}
+      const layer = data && data.scopes && data.scopes[scope] ? data.scopes[scope].config : null
+      const own = layer ? layer.semantic : undefined
+      const fields = own && typeof own === 'object' ? own : {}
+      return {
+        enabled: typeof fields.enabled === 'boolean' ? fields.enabled : inherited.enabled === true,
+        model: typeof fields.model === 'string' && fields.model ? fields.model : (inherited.model || ''),
+        prompt: typeof fields.prompt === 'string' && fields.prompt ? fields.prompt : (inherited.prompt || ''),
+        off: own === false || Boolean(own && typeof own === 'object' && own.enabled === false),
+      }
+    }
+
+    /** 草稿：规则取「生效集合」（四层合并结果），开关默认全开。 */
+    const gateDraftOf = (data, scope) => {
+      const rules = data && data.config && Array.isArray(data.config.rules) ? data.config.rules : []
+      return {
+        rules: rules.map((rule) => ({ ...rule, enabled: true })),
+        semantic: gateSemanticOf(data, scope),
+      }
+    }
+
+    /** 落盘形状：只带不等同于下层的规则 —— 层里只有真正的覆盖，不会把默认规则冻进来。 */
+    const gateRuleBody = (rule) => {
+      const entry = {
+        id: rule.id,
+        label: rule.label,
+        description: rule.description || '',
+        severity: rule.severity === 'warn' ? 'warn' : 'error',
+        type: rule.type,
+        message: rule.message || rule.label || '未通过门禁',
+      }
+      if (Array.isArray(rule.triggers) && rule.triggers.length > 0) entry.triggers = rule.triggers
+      if (rule.pattern !== undefined) entry.pattern = rule.pattern
+      if (rule.flags) entry.flags = rule.flags
+      if (rule.value !== undefined) entry.value = rule.value
+      return entry
+    }
+
+    const gateConfigOf = (scope, draft, data) => {
+      const changed = (rule) => {
+        const inherited = gateInheritedRule(data, scope, rule.id)
+        return !inherited || gateRuleKey(inherited) !== gateRuleKey(rule)
+      }
+      const config = {
+        name: scope === 'user' ? 'user' : 'project',
+        rules: draft.rules.filter((rule) => rule.enabled && changed(rule)).map(gateRuleBody),
+      }
+      const base = gateSemanticOf(data, scope)
+      const semantic = draft.semantic
+      if (scope === 'project') {
+        // 项目层只能关，不能开或换模型（G1 契约）：勾上才写 false。
+        if (semantic.off && !base.off) config.semantic = false
+      } else if (semantic.enabled !== base.enabled || semantic.model !== base.model || semantic.prompt !== base.prompt) {
+        config.semantic = { enabled: semantic.enabled, model: semantic.model, prompt: semantic.prompt }
+      }
+      return config
+    }
+
+    /** 模型下拉：当前值一定在列表里，取不到列表时也要有个能显示的项。 */
+    const gateModelOptions = (value, models) => {
+      const list = (models && Array.isArray(models.list) ? models.list : [])
+        .map((item) => ({ id: String((item && item.id) || ''), label: String((item && (item.label || item.id)) || '') }))
+        .filter((item) => item.id)
+      if (value && !list.some((item) => item.id === value)) list.unshift({ id: value, label: value })
+      if (list.length === 0) list.push({ id: '', label: '（还没读到模型）' })
+      return list
+    }
+
+    function GateSettings({ repo, notify }) {
+      // 11 个 useState 全在这里，顺序被 test/client.test.mjs 的 gateQueue 按位置锁定。
+      const [data, setData] = useState(null)
+      const [loadError, setLoadError] = useState('')
+      const [scope, setScope] = useState('user')
+      const [draft, setGateDraft] = useState(null)
+      const [advanced, setAdvanced] = useState('')
+      const [sample, setSample] = useState('')
+      const [trigger, setTrigger] = useState('issue.reply')
+      const [preview, setPreview] = useState(null)
+      const [models, setModels] = useState({ list: [], loading: false, error: '' })
+      const [busy, setBusy] = useState('')
+      const [status, setStatus] = useState(null)
+      const scopeQuery = repo ? '?repo=' + encodeURIComponent(String(repo)) : ''
+
+      async function load() {
+        setLoadError('')
+        try {
+          const value = await call('/gates' + scopeQuery)
+          if (!value || value.ok === false) throw new Error((value && value.error) || '服务端没有返回门禁配置')
+          setData(value)
+          setGateDraft(null)
+        } catch (error) {
+          setLoadError(String((error && error.message) || error))
+        }
+      }
+
+      async function loadModels() {
+        setModels((prev) => ({ ...prev, loading: true, error: '' }))
+        try {
+          const value = await call('/gates/models' + scopeQuery)
+          const list = value && Array.isArray(value.models)
+            ? value.models.map((item) => ({ id: String((item && item.id) || ''), label: String((item && (item.label || item.id)) || '') })).filter((item) => item.id)
+            : []
+          setModels({ list, loading: false, error: value && value.ok === false ? String(value.error || '') : '' })
+        } catch (error) {
+          setModels({ list: [], loading: false, error: String((error && error.message) || error) })
+        }
+      }
+
+      // 依赖 repo：面板先挂载、/state 后到的顺序下，仓库路径变了要重读一次（否则项目层会写到服务端 cwd）。
+      useEffect(() => { load() }, [repo])
+      useEffect(() => { loadModels() }, [repo])
+
+      const derived = gateDraftOf(data, scope)
+      const current = draft || derived
+      const readOnly = scope === 'default'
+      // 项目层只允许「关闭语义复审」，模型与提示词在项目层不可编辑。
+      const semanticLocked = readOnly || scope === 'project'
+      const dirty = !readOnly && JSON.stringify(gateConfigOf(scope, current, data)) !== JSON.stringify(gateConfigOf(scope, derived, data))
+      const scopePath = data && data.scopes && data.scopes[scope] ? data.scopes[scope].path : ''
+
+      async function save() {
+        if (!data || readOnly || busy) return
+        setBusy('save')
+        setStatus(null)
+        try {
+          const value = await call('/gates', { method: 'POST', body: JSON.stringify({ scope, config: gateConfigOf(scope, current, data), repo }) })
+          if (!value || value.ok === false) throw new Error((value && value.error) || '服务端没有返回保存结果')
+          const where = value.path ? '：' + value.path : ''
+          setGateDraft(null)
+          setStatus({ tone: 'ok', text: '已保存到「' + GATE_LAYER_LABELS[scope] + '」' + where })
+          if (notify) notify('门禁配置已保存', 'info')
+          await load()
+        } catch (error) {
+          const text = '保存门禁配置失败：' + String((error && error.message) || error)
+          setStatus({ tone: 'error', text })
+          if (notify) notify(text, 'error')
+        } finally {
+          setBusy('')
+        }
+      }
+
+      async function runPreview() {
+        if (!data || busy) return
+        setBusy('preview')
+        setStatus(null)
+        try {
+          const value = await call('/gates/preview', {
+            method: 'POST',
+            body: JSON.stringify({
+              repo,
+              trigger,
+              body: sample,
+              semantic: current.semantic.enabled && GATE_SEMANTIC_TRIGGERS.includes(trigger),
+            }),
+          })
+          if (!value || typeof value !== 'object') throw new Error('服务端没有返回预览结果')
+          setPreview(value)
+        } catch (error) {
+          setPreview({ ok: false, hits: [], failed: String((error && error.message) || error) })
+        } finally {
+          setBusy('')
+        }
+      }
+
+      async function optimizePrompt() {
+        if (busy || semanticLocked) return
+        setBusy('optimize')
+        setStatus(null)
+        try {
+          const value = await call('/gates/optimize', {
+            method: 'POST',
+            body: JSON.stringify({ repo, prompt: current.semantic.prompt, model: current.semantic.model }),
+          })
+          if (!value || value.ok === false) throw new Error((value && value.error) || '服务端没有返回提示词')
+          const text = String(value.text || '').trim()
+          if (!text) throw new Error('模型返回空内容')
+          setGateDraft({ ...current, semantic: { ...current.semantic, prompt: text } })
+          setStatus({ tone: 'ok', text: '提示词已更新，确认后点保存' })
+        } catch (error) {
+          setStatus({ tone: 'error', text: '优化提示词失败：' + String((error && error.message) || error) })
+        } finally {
+          setBusy('')
+        }
+      }
+
+      const setSemantic = (next) => setGateDraft({ ...current, semantic: { ...current.semantic, ...next } })
+      const toggleRule = (id, next) => setGateDraft({
+        ...current,
+        rules: current.rules.map((rule) => (rule.id === id ? { ...rule, enabled: next } : rule)),
+      })
+      const semanticState = !current.semantic.enabled
+        ? '当前关闭：规则照跑，语义复审不发请求。'
+        : !current.semantic.model
+          ? '开了但没选模型：语义复审会跳过，硬门禁照常。'
+          : '当前开启：命中只给提示，不阻断回复。'
+      const enabledRules = current.rules.filter((rule) => rule.enabled).length
+      // 关掉的规则如果下层也有，本层只能「不覆盖」，停不掉它 —— 卡片上要说清，别让人以为开关失灵。
+      const mutedInherited = current.rules.filter((rule) => !rule.enabled && gateInheritedRule(data, scope, rule.id))
+
+      return h(Section, { key: 'gate', title: '门禁' },
+        h(Hint, null, '内容层检查：只看要发出去的正文，不改工具权限。'),
+        h('div', { className: 'dt-field' },
+          h('span', { className: 'dt-field-head' }, h('span', null, '作用域')),
+          h(SegmentedControl, {
+            options: GATE_SCOPES,
+            value: scope,
+            label: '门禁作用域',
+            onChange: (next) => {
+              setScope(next)
+              setGateDraft(null)
+              setStatus(null)
+              setPreview(null)
+            },
+          }),
+          h('small', null, GATE_SCOPE_HINTS[scope] || '')),
+        h('p', { className: 'dt-hint' }, '配置文件：', h('span', { className: 'dt-mono' }, scopePath || '（服务端没有返回路径）')),
+        !data && !loadError ? h('p', { className: 'dt-hint' }, '正在读取门禁配置…') : null,
+        loadError
+          ? h('div', { className: 'dt-banner dt-danger' },
+            h('p', { className: 'dt-error', role: 'alert' }, '读取门禁配置失败：' + loadError),
+            h('div', { className: 'dt-actions dt-banner-actions' },
+              h(Btn, { size: 'sm', variant: 'outline', onClick: () => { load() } }, '重新读取')))
+          : null,
+        data
+          ? h('div', { className: 'dt-subhead' },
+            h('span', null, '规则 ' + enabledRules + ' / ' + current.rules.length),
+            readOnly ? h(Tag, { tone: 'neutral' }, '只读') : null)
+          : null,
+        data
+          ? h('ul', { className: 'dt-rules' }, current.rules.map((rule) => {
+            const open = advanced === rule.id
+            return h('li', { key: rule.id, className: 'dt-rule' },
+              h('div', { className: 'dt-row-main' },
+                h('div', { className: 'dt-row-title' },
+                  h('span', { className: 'dt-row-name' }, rule.label),
+                  h(Tag, { tone: rule.severity === 'warn' ? 'warning' : 'quiet' }, rule.severity === 'warn' ? '提示' : '阻断'),
+                  gateLayerNames(data, rule.id).map((name) => h(Tag, { key: name, tone: 'outline' }, GATE_LAYER_LABELS[name]))),
+                h('div', { className: 'dt-hint' }, rule.description || '没有说明'),
+                !rule.enabled && gateInheritedRule(data, scope, rule.id)
+                  ? h('div', { className: 'dt-hint' }, '这条来自上层：关掉只是本层不覆盖，上层同名规则照旧生效。')
+                  : null,
+                h(DisclosureRow, {
+                  title: '高级',
+                  icon: h(Icon, { name: 'question', size: 14 }),
+                  open,
+                  bodyId: 'gate-rule-' + rule.id + '-body',
+                  onToggle: () => setAdvanced(open ? '' : rule.id),
+                }, h('div', { className: 'dt-rule-body' },
+                  h('div', { className: 'dt-field' },
+                    h('span', { className: 'dt-field-head' }, h('span', null, '类型')),
+                    h('small', null, GATE_TYPE_LABELS[rule.type] || rule.type)),
+                  rule.pattern
+                    ? h('div', { className: 'dt-field' },
+                      h('span', { className: 'dt-field-head' }, h('span', null, '正则')),
+                      h('span', { className: 'dt-mono' }, rule.pattern))
+                    : null,
+                  h('div', { className: 'dt-field' },
+                    h('span', { className: 'dt-field-head' }, h('span', null, '命中后提示')),
+                    h('small', null, rule.message || '没有提示')),
+                  h('div', { className: 'dt-field' },
+                    h('span', { className: 'dt-field-head' }, h('span', null, '适用触发')),
+                    h('small', null, (rule.triggers || []).map((item) => GATE_TRIGGER_LABELS[item] || item).join('、') || '未指定'))))),
+              h('div', { className: 'dt-rule-switch' },
+                h(Toggle, {
+                  id: 'gate-rule-' + rule.id + '-switch',
+                  checked: rule.enabled,
+                  disabled: readOnly,
+                  label: '启用「' + rule.label + '」',
+                  onChange: (next) => toggleRule(rule.id, next),
+                })))
+          }))
+          : null,
+        !readOnly && data
+          ? h('div', { className: 'dt-savebar' },
+            h('p', { className: 'dt-hint', 'aria-live': 'polite' },
+              busy === 'save' ? '保存中…' : dirty ? '未保存' : mutedInherited.length > 0 ? '没有要写进本层的改动' : '与已保存的一致'),
+            h(Btn, { size: 'sm', variant: 'ghost', disabled: !dirty || Boolean(busy), onClick: () => { setGateDraft(null); setStatus(null) } }, '放弃'),
+            h(Btn, { size: 'sm', variant: 'primary', disabled: !dirty || Boolean(busy), onClick: save }, busy === 'save' ? '保存中…' : '保存'))
+          : null,
+        status
+          ? h('p', { className: status.tone === 'error' ? 'dt-error' : 'dt-hint', role: status.tone === 'error' ? 'alert' : 'status' }, status.text)
+          : null,
+        h(Hint, null, '本层只写「和下层不一样」的规则：改过的才会落盘，没动过的继续跟着默认走。关掉一条只表示本层不覆盖，下层同名规则照常生效。'),
+        data
+          ? h('div', { className: 'dt-part' },
+            h('div', { className: 'dt-subhead' }, h('span', null, '试跑预览')),
+            h(Hint, null, '预览跑的是已保存的配置：先把改动保存，再看效果。'),
+            h('div', { className: 'dt-field' },
+              h('span', { className: 'dt-field-head' }, h('span', null, '触发')),
+              h('select', {
+                className: 'dt-select',
+                id: 'gate-preview-trigger',
+                value: trigger,
+                onChange: (event) => { setTrigger(event.target.value); setPreview(null) },
+              }, Object.keys(GATE_TRIGGER_LABELS).map((value) => h('option', { key: value, value }, GATE_TRIGGER_LABELS[value])))),
+            h('div', { className: 'dt-field' },
+              h('span', { className: 'dt-field-head' }, h('span', null, '试跑正文')),
+              h('textarea', {
+                className: 'dt-textarea',
+                id: 'gate-preview-text',
+                rows: 4,
+                value: sample,
+                placeholder: '把要发出去的那段回复粘进来',
+                onChange: (event) => { setSample(event.target.value); setPreview(null) },
+              })),
+            h('div', { className: 'dt-actions' },
+              h(Btn, { size: 'sm', variant: 'outline', disabled: Boolean(busy), onClick: runPreview }, busy === 'preview' ? '预览中…' : '预览'),
+              GATE_SEMANTIC_TRIGGERS.includes(trigger) ? h(Tag, { tone: 'info' }, '这类触发会追加语义复审') : null),
+            preview && preview.failed
+              ? h('p', { className: 'dt-error', role: 'alert' }, '预览失败：' + preview.failed)
+              : preview
+                ? h('div', { className: preview.ok ? 'dt-banner' : 'dt-banner dt-danger' },
+                  h('p', { className: 'dt-banner-label' },
+                    preview.ok ? '通过：没有阻断项' : '命中 ' + ((preview.hits || []).length) + ' 条'),
+                  (preview.hits || []).map((hit) => h('p', { key: hit.id || hit.label, className: 'dt-hint' },
+                    (hit.severity === 'error' ? '阻断 · ' : '提示 · ') + (hit.label || hit.id) + '：' + (hit.message || ''))),
+                  preview.semantic && preview.semantic.warning
+                    ? h('p', { className: 'dt-hint' }, '语义复审：' + preview.semantic.warning)
+                    : null,
+                  preview.semantic && preview.semantic.skipped
+                    ? h('p', { className: 'dt-hint' }, '语义复审：已跳过（只对合并/发布生效，或没开、没配模型）')
+                    : null)
+                : null)
+          : null,
+        data
+          ? h('div', { className: 'dt-part' },
+            h('div', { className: 'dt-subhead' }, h('span', null, '语义复审')),
+            h(Hint, null, '只对合并（merge）和发布（release）生效；议题与 PR 回复永远只跑规则。模型不可用时放行并给提示，不阻断硬门禁。'),
+            scope === 'project'
+              ? h('div', { className: 'dt-switch-row' },
+                h('div', { className: 'dt-field-head' }, h('span', null, '在本项目关闭语义复审')),
+                h(Toggle, {
+                  id: 'gate-semantic-off',
+                  checked: current.semantic.off,
+                  disabled: readOnly,
+                  label: '在本项目关闭语义复审',
+                  onChange: (next) => setSemantic({ off: next }),
+                }))
+              : h('div', { className: 'dt-switch-row' },
+                h('div', { className: 'dt-field-head' }, h('span', null, '开启语义复审')),
+                h(Toggle, {
+                  id: 'gate-semantic-enabled',
+                  checked: current.semantic.enabled,
+                  disabled: readOnly,
+                  label: '开启语义复审',
+                  onChange: (next) => setSemantic({ enabled: next }),
+                })),
+            h('div', { className: 'dt-field' },
+              h('span', { className: 'dt-field-head' }, h('span', null, '模型')),
+              h('select', {
+                className: 'dt-select',
+                id: 'gate-semantic-model',
+                value: current.semantic.model,
+                disabled: semanticLocked,
+                onChange: (event) => setSemantic({ model: event.target.value }),
+              }, gateModelOptions(current.semantic.model, models).map((item) => h('option', { key: item.id || 'empty', value: item.id }, item.label === item.id ? item.id : item.label + '（' + item.id + '）')))),
+            h('div', { className: 'dt-actions' },
+              h(Btn, { size: 'sm', variant: 'ghost', disabled: models.loading, onClick: () => { loadModels() } }, models.loading ? '读取中…' : '读取模型列表'),
+              models.error ? h('span', { className: 'dt-error' }, '模型列表读取失败：' + models.error) : null,
+              scope === 'project' ? h('span', { className: 'dt-hint' }, '项目层只能关闭语义复审，不能换模型或改提示词') : null),
+            h('div', { className: 'dt-field' },
+              h('span', { className: 'dt-field-head' }, h('span', null, '审核提示词')),
+              h('textarea', {
+                className: 'dt-textarea',
+                id: 'gate-semantic-prompt',
+                rows: 5,
+                value: current.semantic.prompt,
+                disabled: semanticLocked,
+                placeholder: '给模型审核用的提示词，要求它输出 JSON',
+                onChange: (event) => setSemantic({ prompt: event.target.value }),
+              })),
+            h('div', { className: 'dt-actions' },
+              h(Btn, { size: 'sm', variant: 'outline', disabled: Boolean(busy) || semanticLocked, onClick: optimizePrompt },
+                busy === 'optimize' ? '优化中…' : '优化提示词'),
+              h('span', { className: 'dt-hint' }, semanticState)))
+          : null)
+    }
+
     function ZhuliPanel(props) {
       const sessionId = props && props.sessionId
       /** 暂停原因码 → 人话（服务端 deferReason 是唯一来源）。 */
@@ -3243,6 +3687,10 @@ window.__ModuleLoader__.load({
         + list.slice(0, 3).map((w) => w.repo).join('、')
         + (list.length > 3 ? ' 等' : '')
 
+      // 项目层写到 <repo>/.superagent/gates.json：有隔离工作目录时它就是真实仓库路径；
+      // 没有就交给服务端按默认目录来，面板把服务端回的路径原样显示出来。
+      const gateRepo = (watchers.find((item) => typeof item.workdir === 'string' && item.workdir.trim()) || {}).workdir || ''
+
       const settingsSections = [
         h(Section, { key: 'source', title: '来源' },
           h(KeyValues, { rows: [
@@ -3289,6 +3737,7 @@ window.__ModuleLoader__.load({
             : null,
           h('div', { className: 'dt-actions' }, h(Btn, { variant: 'primary', onClick: saveCredentials, disabled: !credentialsDirty }, '保存凭证')),
           h(Hint, null, '不填也能用：插件直接复用已登录的 gh CLI。填了 gh 账号目录，插件就用那个目录里的账号发言（git push 仍用会话自己的身份，唤醒消息里会提醒会话）。')),
+        h(GateSettings, { key: 'gate', repo: gateRepo, notify }),
         h(Section, { key: 'update', title: '版本与更新' },
           h(KeyValues, { rows: [
             ['当前版本', (update && update.current) || CLIENT_VERSION],
@@ -3378,6 +3827,7 @@ window.__ModuleLoader__.load({
       const SETTINGS_SECTIONS = [
         { key: 'source', title: '来源' },
         { key: 'creds', title: '凭证' },
+        { key: 'gate', title: '门禁' },
         { key: 'update', title: '版本与更新' },
         { key: 'diagnose', title: '分诊信号' },   // 与卡片标题「分诊信号与取舍」同名：导航与标题不同名会让人以为是两块东西
         { key: 'goal', title: '会话 goal' },
