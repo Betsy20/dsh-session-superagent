@@ -1,6 +1,7 @@
 {
   "name": "dsh-session-superagent",
-  "version": "0.10.4",
+  "version": "0.10.5",
+  "workspaces": ["packages/*"],
   "description": "Session-level superagent for DeepSeek Harness: watch a GitHub repository and wake a session when something needs doing. Credentials never reach the model.",
   "type": "module",
   "main": "lib/index.js",
@@ -36,7 +37,6 @@
     "bin/check.mjs",
     "assets/icon-180.png",
     "assets/icon-app.png",
-    "gates/default.json",
     "docs/whats-new-0.9.md",
     "docs/json-契约.md",
     "docs/真机验证清单.md",
@@ -107,6 +107,7 @@
     "semver": "7.8.6"
   },
   "dependencies": {
-    "@deepseek-ai/schemastery": "^3.18.5"
+    "@deepseek-ai/schemastery": "^3.18.5",
+    "@mycf711/dsh-gate": "0.1.0"
   }
 }

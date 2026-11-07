@@ -2,6 +2,14 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.10.5] - 2026-11-07 —— 门禁抽成独立插件
+
+- 新增 `packages/dsh-gate`（`@mycf711/dsh-gate@0.1.0`）：四层配置、确定性规则、CLI、可选语义复审。
+- 主插件 `lib/gates.js` 改为兼容 re-export；`/gates` 四条路由保留，旧 import 不破。
+- 根 `gates/default.json` 死文件删除；profile 同步会复制门禁子包。
+- 验证：815/815、preflight 41/41。
+- 未完成：设置页「门禁」面板（G3）仍在独立 worktree，未合入本版。
+
 ## [0.10.4] - 2026-11-07 —— 304 在 gh exit 1 路径上也生效
 
 - 修复 `gh api --include` 把 304 当 exit 1：原年龄检查只在 `parsed.status === 304`，GitHub 路径永远走不到。

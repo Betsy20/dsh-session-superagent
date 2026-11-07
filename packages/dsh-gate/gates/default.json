@@ -21,7 +21,7 @@
     {
       "id": "abs-path",
       "label": "禁止本机绝对路径",
-      "description": "不要贴 D:\\...、/d/...、C:\\Users\\... 这类本机路径。",
+      "description": "不要贴 D:\\...、/d/...、/Users/... 这类本机路径；普通 URL 不受影响。",
       "severity": "error",
       "triggers": [
         "issue.reply",
@@ -31,7 +31,7 @@
         "merge"
       ],
       "type": "regex",
-      "pattern": "[A-Za-z]:[^A-Za-z0-9]|/(?:d|c|e)/|/Users/",
+      "pattern": "(?<![A-Za-z0-9])[A-Za-z]:[\\\\/]|(?:^|[\\s\"'（(])/(?:d|c|e)/|/Users/",
       "message": "改成仓库相对路径，或只描述文件位置。"
     },
     {
