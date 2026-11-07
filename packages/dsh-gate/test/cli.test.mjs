@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { tempDir, writeJsonFile, writeTextFile } from './helpers.mjs'
+import { tempDir, writeJsonFile, writeTextFile } from '../test-support/helpers.mjs'
 
 const BIN = fileURLToPath(new URL('../bin/gate.mjs', import.meta.url))
 const PACKAGE_ROOT = fileURLToPath(new URL('..', import.meta.url))

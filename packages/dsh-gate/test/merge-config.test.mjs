@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
 import { loadGateConfig, mergeConfig } from '../lib/index.js'
-import { tempDir, writeJsonFile, writeTextFile } from './helpers.mjs'
+import { tempDir, writeJsonFile, writeTextFile } from '../test-support/helpers.mjs'
 
 const rule = (id, extra = {}) => ({
   id,

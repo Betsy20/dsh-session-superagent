@@ -10,7 +10,7 @@ import {
   normalizeConfig,
   validateConfig,
 } from '../lib/index.js'
-import { tempDir } from './helpers.mjs'
+import { tempDir } from '../test-support/helpers.mjs'
 
 const raw = JSON.parse(readFileSync(new URL('../gates/default.json', import.meta.url), 'utf8'))
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))

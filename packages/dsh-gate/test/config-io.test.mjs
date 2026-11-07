@@ -14,7 +14,7 @@ import {
   validateConfig,
   writeGateConfig,
 } from '../lib/index.js'
-import { tempDir, writeJsonFile, writeTextFile } from './helpers.mjs'
+import { tempDir, writeJsonFile, writeTextFile } from '../test-support/helpers.mjs'
 
 const validRule = (id = 'custom') => ({
   id,

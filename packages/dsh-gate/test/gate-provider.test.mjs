@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
 import { createGate } from '../lib/index.js'
-import { tempDir, writeJsonFile } from './helpers.mjs'
+import { tempDir, writeJsonFile } from '../test-support/helpers.mjs'
 
 const customConfig = (extra = {}) => ({
   version: 1,
