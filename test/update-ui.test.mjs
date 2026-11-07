@@ -864,8 +864,10 @@ test('CollapsibleList 回退键盘与点击：click/Enter/Space 开合且焦点�
 
 test('CollapsibleList 唯一业务调用点委托官方，WatcherForm 高级区仍是唯一显式本地 DisclosureRow', () => {
   assert.equal([...SOURCE.matchAll(/h\(CollapsibleList,/g)].length, 1, '过滤清单业务调用点不得增删')
-  assert.equal([...SOURCE.matchAll(/h\(DisclosureRow,/g)].length, 1,
-    '唯一显式本地 DisclosureRow 调用必须留给 WatcherForm 高级区')
+  // 0.10.5 G3：设置页「门禁」规则卡的「高级」也要 aria-controls（官方 CollapsibleRow 不收），
+  // 所以显式本地调用变成两处。仍然只允许这两处 —— 不许为了图省事把上面那条 CollapsibleList 迁回本地实现。
+  assert.equal([...SOURCE.matchAll(/h\(DisclosureRow,/g)].length, 2,
+    '显式本地 DisclosureRow 只允许两处：WatcherForm 高级区 + 设置页门禁规则卡（都需要 aria-controls）')
 
   const client = loadClient({ primitives: HOST })
   const state = snapshot()
