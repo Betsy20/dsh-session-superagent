@@ -252,6 +252,143 @@ test('路由面收敛：只保留 13 条（/config 与 /client-hello 已下线�
   assert.deepEqual([...routes.keys()].sort(), expected)
 })
 
+// ── 四条 /gates 路由（G2：门禁实现搬到 @mycf711/dsh-gate，路由行为不许变） ──
+// 用例都指向临时 repo：不读也不写本机真实的 .superagent 配置。
+
+test('GET /gates：四层配置形状稳定，默认层随包发布', async () => {
+  const repo = tempDir('gate-route-')
+  const res = await call('GET', '/session-superagent/gates?repo=' + encodeURIComponent(repo))
+  assert.equal(res.statusCode, 200)
+  const body = res.json()
+  assert.equal(body.ok, true)
+  assert.equal(body.repo, repo)
+  assert.deepEqual(Object.keys(body.scopes).sort(), ['default', 'local', 'project', 'user'])
+  for (const scope of Object.values(body.scopes)) {
+    assert.equal(typeof scope.path, 'string')
+    assert.equal(typeof scope.exists, 'boolean')
+  }
+  assert.ok(body.scopes.default.exists, '默认规则随包发布，必须能读到')
+  assert.ok(Array.isArray(body.config.rules) && body.config.rules.length >= 8, '默认规则至少 8 条')
+  assert.ok(body.sources.some((source) => source.name === 'default'), '默认层的来源要能被面板看到')
+})
+
+test('POST /gates：非法配置 400，合法配置写盘并能再读回', async () => {
+  const repo = tempDir('gate-route-')
+  const bad = await call('POST', '/session-superagent/gates', {
+    scope: 'project', repo, config: { rules: [{ id: 'BAD ID', type: 'regex' }] },
+  })
+  assert.equal(bad.statusCode, 400)
+  assert.equal(bad.json().code, 'invalid_config')
+
+  const good = await call('POST', '/session-superagent/gates', {
+    scope: 'project',
+    repo,
+    config: {
+      version: 1,
+      rules: [{ id: 'route-only', label: '路由用例', type: 'contains', value: '路由命中词', triggers: ['issue.reply'], message: '命中' }],
+    },
+  })
+  assert.equal(good.statusCode, 200)
+  const savedPath = join(repo, '.superagent', 'gates.json')
+  assert.ok(existsSync(savedPath), '合法配置要写进项目层')
+  const saved = JSON.parse(readFileSync(savedPath, 'utf8'))
+  assert.equal(saved.rules[0].id, 'route-only')
+
+  const reread = (await call('GET', '/session-superagent/gates?repo=' + encodeURIComponent(repo))).json()
+  assert.ok(reread.sources.some((source) => source.name === 'project'))
+  assert.ok(reread.config.rules.some((rule) => rule.id === 'route-only'))
+})
+
+test('POST /gates/preview：确定性门禁先跑，命中就返回且不调语义', async () => {
+  const repo = tempDir('gate-route-')
+  const leaked = await call('POST', '/session-superagent/gates/preview', {
+    repo, trigger: 'issue.reply', current: 15, semantic: true, body: 'token=ghp_' + 'a'.repeat(30),
+  })
+  assert.equal(leaked.statusCode, 200)
+  const dirty = leaked.json()
+  assert.equal(dirty.ok, false, '硬门禁命中就必须不过')
+  assert.ok(dirty.hits.some((hit) => hit.id === 'secret'))
+  assert.deepEqual(dirty.semantic, { skipped: true }, '硬门禁已失败时不该再花一次模型调用')
+
+  const clean = (await call('POST', '/session-superagent/gates/preview', {
+    repo, trigger: 'issue.reply', current: 15, body: '本 issue #15 已修复。',
+  })).json()
+  assert.equal(clean.ok, true)
+  assert.deepEqual(clean.hits, [])
+  assert.deepEqual(clean.semantic, { skipped: true }, '没勾语义复审时不许调用模型')
+})
+
+test('POST /gates/preview：宿主注入的 ctx.get(\'gate\') 优先于内置 createGate', async () => {
+  const calls = []
+  const injected = {
+    id: 'fake-gate',
+    async check(input) {
+      calls.push(input)
+      return {
+        ok: true,
+        hits: [{ id: 'semantic-fake', label: '语义复审', severity: 'warn', message: '来自注入的 provider' }],
+        semantic: { skipped: false, ok: true, hits: [] },
+      }
+    },
+  }
+  const originalGet = ctx.get
+  ctx.get = (name) => (name === 'gate' ? injected : null)
+  try {
+    const repo = tempDir('gate-route-')
+    // 硬门禁不过时，provider 不该被调用（即使勾了语义复审）
+    const blocked = (await call('POST', '/session-superagent/gates/preview', {
+      repo, trigger: 'merge', semantic: true, body: 'token=ghp_' + 'a'.repeat(30),
+    })).json()
+    assert.equal(blocked.ok, false)
+    assert.deepEqual(calls, [], '确定性门禁没过就不该进 provider')
+
+    const res = (await call('POST', '/session-superagent/gates/preview', {
+      repo, trigger: 'merge', semantic: true, body: '草稿正文，没有命中任何硬规则。',
+    })).json()
+    assert.equal(calls.length, 1, '勾了语义复审就走 provider')
+    assert.equal(calls[0].trigger, 'merge')
+    assert.equal(calls[0].repo, repo)
+    assert.ok(res.hits.some((hit) => hit.id === 'semantic-fake'), 'provider 的命中要并进响应')
+    assert.deepEqual(res.semantic, { skipped: false, ok: true, hits: [] })
+  } finally {
+    ctx.get = originalGet
+  }
+})
+
+test('GET /gates/models：网关不可达时降级成空列表而不是 500', async () => {
+  const res = await call('GET', '/session-superagent/gates/models?baseURL=' + encodeURIComponent('http://127.0.0.1:1/v1'))
+  assert.equal(res.statusCode, 200)
+  const body = res.json()
+  assert.equal(body.ok, false)
+  assert.deepEqual(body.models, [])
+  assert.equal(typeof body.error, 'string')
+})
+
+test('POST /gates/preview：语义复审开启但模型不可用时放行并给 warning', async () => {
+  // 项目 / 本地层只能关语义复审，能开的只有用户层 —— 用 DSH_GATE_USER_CONFIG 指向临时文件。
+  const userConfig = join(tempDir('gate-user-'), 'gates.json')
+  writeFileSync(userConfig, JSON.stringify({
+    version: 1,
+    name: 'user',
+    rules: [],
+    semantic: { enabled: true, baseURL: 'http://127.0.0.1:1/v1', model: 'unreachable-model', prompt: 'p', timeoutMs: 2000, mode: 'warn' },
+  }), 'utf8')
+  const previous = process.env.DSH_GATE_USER_CONFIG
+  process.env.DSH_GATE_USER_CONFIG = userConfig
+  try {
+    const res = (await call('POST', '/session-superagent/gates/preview', {
+      repo: tempDir('gate-route-'), trigger: 'merge', semantic: true, body: '草稿正文，没有命中任何硬规则。',
+    })).json()
+    assert.equal(res.ok, true, '模型不可用时不许阻断硬门禁放行的正文')
+    assert.deepEqual(res.hits, [])
+    assert.equal(res.semantic.skipped, false)
+    assert.match(String(res.semantic.warning), /语义复审不可用/)
+  } finally {
+    if (previous === undefined) delete process.env.DSH_GATE_USER_CONFIG
+    else process.env.DSH_GATE_USER_CONFIG = previous
+  }
+})
+
 // 这条会真的去 npm registry 查最新版本，机器慢/网络抖时会撑到超时（跑过 5010ms 才失败）。
 // 给它单独的宽松超时：要验的是「离线也必须给出 current」，不是网络速度。
 test('/update 只读地报告版本（离线/在线都必须给出 current）', { timeout: 60000 }, async () => {
